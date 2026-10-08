@@ -5129,8 +5129,12 @@ const TRONC_OPACITE_HAUT = 0.05;
 const MAT_TRONC = new THREE.MeshStandardMaterial({
     color: 0x6b5240, map: TEX_ECORCE, roughness: 1,
     vertexColors: true, transparent: true, depthWrite: false });
+// Sans couvercles : celui du haut est dans le feuillage, presque invisible
+// (TRONC_OPACITE_HAUT), celui du bas sous le sol (ENFONCEMENT). Ils faisaient
+// la moitié des 0,44 million de triangles des troncs à Porquerolles en zone
+// de 1 000 m — 2,7 ms d'une image de 15 ms sous Metal, sans Retina.
 const GEO_TRONC = (() => {
-    const g = new THREE.CylinderGeometry(0.34, 0.78, 1, 7);
+    const g = new THREE.CylinderGeometry(0.34, 0.78, 1, 7, 1, true);
     const pos = g.attributes.position, c = new Float32Array(4 * pos.count);
     for (let i = 0; i < pos.count; i++) {
         const t = pos.getY(i) + 0.5;                    // 0 au pied, 1 en haut
@@ -5143,87 +5147,92 @@ const GEO_TRONC = (() => {
 const HAUTEUR_MIN_TRONC = 3;
 
 /**
- * Tampon de triangles non indexés, avec couleur par sommet.
+ * Tampon de triangles indexés, avec couleur par sommet.
  *
  * Chaque sommet retient l'élément dont il vient : c'est ce qui permet de
  * reposer la végétation sur le relief (exagération) en décalant les Y, sans
- * reconstruire un million de sommets à chaque cran du curseur.
+ * reconstruire un million de sommets à chaque cran du curseur. Les faces et
+ * les sommets d'un élément se suivent ; leurs débuts, relevés à chaque
+ * élément, désignent l'élément sous une face (elementSousFace) et le
+ * recopient (vegetationExtraite).
  *
- * Écrit dans des tableaux typés, avec la normale de chaque face. En tableaux
- * JavaScript — un tableau par sommet, neuf `push` par face —, le tampon
- * prenait 0,75 s et sa géométrie 0,86 s des 1,9 s de la végétation de Gordes
- * en zone de 1 000 m (19 312 houppiers, profil CPU de Chrome). Les sommets
- * sont numérotés depuis zéro à chaque élément : une face ne relie que des
- * sommets de l'élément en cours.
+ * Indexé : un sommet d'anneau est écrit une fois, et non une fois par face
+ * qui le touche (six). Les normales ne servent pas à l'éclairage, que
+ * flatShading tire de la facette, seulement au décalage de l'ombre reçue
+ * (normalBias). Mesuré sous Metal, Retina, 1 400 × 850, à Porquerolles en
+ * zone de 1 000 m (17 613 houppiers, 913 masses) : 10,6 millions de sommets
+ * deviennent 1,6, l'image en orbite passe de 22 à 14 ms, de 26 à 18 ms
+ * quand l'ombre est redessinée ; les tableaux passent de 400 à 100 Mo.
+ *
+ * Écrit dans des tableaux typés. En tableaux JavaScript — un tableau par
+ * sommet, neuf `push` par face —, le tampon prenait 0,75 s et sa géométrie
+ * 0,86 s des 1,9 s de la végétation de Gordes en zone de 1 000 m (19 312
+ * houppiers, profil CPU de Chrome).
  */
-function nouveauTampon(nbFaces = 1 << 16) {
-    // Flottants par attribut, neuf par face : à la taille exacte quand le
-    // nombre de faces est connu (facesHouppier), sans copie à l'agrandissement
-    // ni à la fin ; doublés sinon. Agrandir coûtait 34 ms, la copie finale
-    // 25 ms, à Strasbourg en zone de 1 000 m (profil CPU de Chrome).
-    let capacite = 9 * Math.max(nbFaces, 1);
-    let positions = new Float32Array(capacite), couleurs = new Float32Array(capacite);
-    let normales = new Float32Array(capacite), elements = new Int32Array(capacite / 3);
-    let n = 0;                               // flottants écrits par attribut
-    let sommets = new Float64Array(6 * 128); // x, y, z, r, g, b des sommets de l'élément
-    let nbSommets = 0, courant = 0;
-    const agrandir = () => {
-        capacite *= 2;
-        const p = new Float32Array(capacite), c = new Float32Array(capacite), m = new Float32Array(capacite);
-        const e = new Int32Array(capacite / 3);
-        p.set(positions); c.set(couleurs); m.set(normales); e.set(elements);
-        positions = p; couleurs = c; normales = m; elements = e;
-    };
-    const copier = s => {
-        const k = 6 * s;
-        positions[n] = sommets[k]; positions[n + 1] = sommets[k + 1]; positions[n + 2] = sommets[k + 2];
-        couleurs[n] = sommets[k + 3]; couleurs[n + 1] = sommets[k + 4]; couleurs[n + 2] = sommets[k + 5];
-        elements[n / 3] = courant;
-        n += 3;
-    };
+function nouveauTampon(nbFaces = 1 << 16, nbSommets = nbFaces) {
+    // À la taille exacte quand les nombres de faces et de sommets sont connus
+    // (facesHouppier, sommetsHouppier), sans copie à l'agrandissement ni à la
+    // fin ; doublés sinon. Agrandir coûtait 34 ms, la copie finale 25 ms, à
+    // Strasbourg en zone de 1 000 m (profil CPU de Chrome).
+    let capFaces = Math.max(nbFaces, 1), capSommets = Math.max(nbSommets, 1);
+    let positions = new Float32Array(3 * capSommets), couleurs = new Float32Array(3 * capSommets);
+    let elements = new Int32Array(capSommets), index = new Uint32Array(3 * capFaces);
+    let ns = 0, nf = 0, courant = 0;
+    const facesDebut = [], sommetsDebut = [];
+    const agrandi = (t, n) => { const u = new t.constructor(n); u.set(t); return u; };
     return {
-        element(e) { courant = e; nbSommets = 0; },
+        element(e) { courant = e; facesDebut.push(nf); sommetsDebut.push(ns); },
         sommet(x, y, z, c) {
-            if (6 * nbSommets + 6 > sommets.length) {
-                const t = new Float64Array(2 * sommets.length);
-                t.set(sommets);
-                sommets = t;
+            if (ns === capSommets) {
+                capSommets *= 2;
+                positions = agrandi(positions, 3 * capSommets);
+                couleurs = agrandi(couleurs, 3 * capSommets);
+                elements = agrandi(elements, capSommets);
             }
-            const k = 6 * nbSommets;
-            sommets[k] = x; sommets[k + 1] = y; sommets[k + 2] = z;
-            sommets[k + 3] = c.r; sommets[k + 4] = c.g; sommets[k + 5] = c.b;
-            return nbSommets++;
+            const k = 3 * ns;
+            positions[k] = x; positions[k + 1] = y; positions[k + 2] = z;
+            couleurs[k] = c.r; couleurs[k + 1] = c.g; couleurs[k + 2] = c.b;
+            elements[ns] = courant;
+            return ns++;
         },
         face(i, j, k) {
-            if (n + 9 > capacite) agrandir();
-            copier(i); copier(j); copier(k);
-            // Sa normale (computeVertexNormals), tant que ses sommets sont à portée.
-            poserNormaleFacette(positions, normales, n - 9);
+            if (nf === capFaces) { capFaces *= 2; index = agrandi(index, 3 * capFaces); }
+            const m = 3 * nf++;
+            index[m] = i; index[m + 1] = j; index[m + 2] = k;
         },
         geometrie() {
-            const exact = n === capacite;
-            const pos = exact ? positions : positions.slice(0, n);
+            const pos = ns === capSommets ? positions : positions.slice(0, 3 * ns);
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(exact ? couleurs : couleurs.slice(0, n), 3));
-            geo.setAttribute('normal', new THREE.BufferAttribute(exact ? normales : normales.slice(0, n), 3));
-            const baseY = new Float32Array(n / 3);
-            for (let i = 0; i < baseY.length; i++) baseY[i] = pos[3 * i + 1];
+            geo.setAttribute('color', new THREE.BufferAttribute(ns === capSommets ? couleurs : couleurs.slice(0, 3 * ns), 3));
+            geo.setIndex(new THREE.BufferAttribute(nf === capFaces ? index : index.slice(0, 3 * nf), 1));
+            normalesIndexees(geo);
+            const baseY = new Float32Array(ns);
+            for (let i = 0; i < ns; i++) baseY[i] = pos[3 * i + 1];
             geo.userData.baseY = baseY;
-            geo.userData.elements = exact ? elements : elements.slice(0, n / 3);
+            geo.userData.elements = ns === capSommets ? elements : elements.slice(0, ns);
+            geo.userData.facesDebut = Int32Array.from(facesDebut);
+            geo.userData.sommetsDebut = Int32Array.from(sommetsDebut);
             return geo;
         },
     };
 }
 
 /**
- * Nombre de faces qu'ajouterHouppier() pose pour un élément : deux par
- * segment entre deux anneaux consécutifs, et nb + 5 anneaux — le sommet, une
- * couronne par valeur du profil (six par défaut), le bord, trois dessous.
+ * Nombre de faces qu'ajouterHouppier() pose pour un élément. Ses anneaux : le
+ * sommet, une couronne par valeur du profil (six par défaut), le bord, trois
+ * dessous dont le centre. Deux faces par segment entre deux anneaux, une
+ * seule contre le sommet et le centre du dessous, qui sont des points.
  */
 function facesHouppier(el) {
     const nb = el.profil && el.profil.length ? el.profil.length : 6;
-    return 2 * SEGMENTS_HOUPPIER * (nb + 4);
+    return 2 * SEGMENTS_HOUPPIER * (nb + 3);
+}
+
+/** Nombre de sommets qu'ajouterHouppier() pose : nb + 3 anneaux et deux points. */
+function sommetsHouppier(el) {
+    const nb = el.profil && el.profil.length ? el.profil.length : 6;
+    return SEGMENTS_HOUPPIER * (nb + 3) + 2;
 }
 
 /**
@@ -5330,8 +5339,14 @@ function ajouterHouppier(tampon, el, sol) {
         const { u, y } = anneaux[i];
         const t = (y - hBase) / Math.max(h - hBase, 0.1);
         couleur.copy(port.base).lerp(port.cime, Math.max(0, Math.min(1, t))).multiplyScalar(teinte);
+        // Sommet et centre du dessous : un seul sommet, d'où partent les
+        // éventails ; ses dix copies étaient confondues, au bit près.
+        if (u === 0) {
+            pts.push(Array(SEGMENTS_HOUPPIER).fill(tampon.sommet(cx, sol + y, cz, couleur)));
+            continue;
+        }
         const ligne = [];
-        const interieur = u > 0 && u < 1;
+        const interieur = u < 1;
         for (let s = 0; s < SEGMENTS_HOUPPIER; s++) {
             const bosse = bosses[s];
             const ex = a * u * bosse * COS_HOUPPIER[s], ez = b * u * bosse * SIN_HOUPPIER[s];
@@ -5350,13 +5365,14 @@ function ajouterHouppier(tampon, el, sol) {
         }
         pts.push(ligne);
     }
+    // Sans les triangles dégénérés contre le sommet et le centre du dessous :
+    // 20 faces sur 200, qui ne dessinaient rien.
     let faces = 0;
     for (let i = 0; i + 1 < anneaux.length; i++) {
         for (let s = 0; s < SEGMENTS_HOUPPIER; s++) {
             const s1 = (s + 1) % SEGMENTS_HOUPPIER;
-            tampon.face(pts[i][s], pts[i + 1][s], pts[i + 1][s1]);
-            tampon.face(pts[i][s], pts[i + 1][s1], pts[i][s1]);
-            faces += 2;
+            if (i + 2 < anneaux.length) { tampon.face(pts[i][s], pts[i + 1][s], pts[i + 1][s1]); faces++; }
+            if (i > 0) { tampon.face(pts[i][s], pts[i + 1][s1], pts[i][s1]); faces++; }
         }
     }
     return faces;
@@ -5368,15 +5384,20 @@ const SEGMENTS_SIMPLE = 6;
 /**
  * Nombre de faces qu'ajouterHouppierSimple() pose : un éventail sous le
  * sommet, deux bandes jusqu'au bord, un éventail dessous — 36, quand la
- * forme détaillée en compte 200 avec un profil de six couronnes.
+ * forme détaillée en compte 180 avec un profil de six couronnes.
  */
 function facesHouppierSimple() {
     return 6 * SEGMENTS_SIMPLE;
 }
 
+/** Nombre de sommets qu'ajouterHouppierSimple() pose : trois anneaux et deux points. */
+function sommetsHouppierSimple() {
+    return 3 * SEGMENTS_SIMPLE + 2;
+}
+
 /**
  * Ajoute au tampon la forme simple d'un houppier, dessinée à sa place pendant
- * le mouvement quand la vue rame (montrerVegetationSimple). Même gabarit que
+ * le mouvement, au loin ou quand la vue rame (montrerVegetation). Même gabarit que
  * la forme détaillée — emprise, axe, sommet, bord, dessous, palette — sur
  * quatre anneaux : le sommet, le profil au quart et aux trois quarts du
  * rayon, le bord ; le dessous remonte en cône plat vers le tronc.
@@ -5461,9 +5482,24 @@ var vegElements = [];   // houppiers et masses reçus du serveur, en local
 // la forme simple d'un maillage est reposée quand il l'a été.
 var posesVegetation = 0;
 
+// Côté des tuiles de la végétation, en mètres. Chaque tuile a ses maillages,
+// qui passent en forme simple pendant le mouvement quand elle est loin de la
+// caméra (montrerVegetation), et que three.js écarte quand elle sort du champ.
+// Durée d'une image en mouvement (DISTANCE_DETAIL), sous Metal, 1 728 × 1 080
+// en Retina, Porquerolles en zone de 1 000 m, vue par défaut / rapprochée :
+//
+//   tuiles de  80 m  (154 maillages)   19,0 / 20,5 ms
+//   tuiles de 125 m  ( 77 maillages)   19,6 / 18,5 ms
+//   tuiles de 250 m  ( 32 maillages)   20,9 / 20,7 ms
+//
+// À l'arrêt, tout détaillé, les appels de dessin en plus ne se mesurent pas :
+// 22,4 à 23,1 ms, contre 22,8 en un seul maillage.
+const TUILE_VEGETATION = 125;
+
 /**
- * (Re)construit les maillages de végétation : un maillage fusionné pour les
- * houppiers, un pour les masses, un maillage instancié pour les troncs.
+ * (Re)construit les maillages de végétation : par tuile, un maillage fusionné
+ * pour les houppiers, un pour les masses ; un maillage instancié pour tous
+ * les troncs.
  *
  * Même règle que pour les bâtiments : seule la BASE suit l'exagération du
  * relief, la hauteur mesurée reste la vraie. Exagérer un arbre de 14 m le
@@ -5475,15 +5511,15 @@ function construireVegetation() {
     // refaisait les 3,9 millions de faces des houppiers de Gordes en zone de
     // 1 000 m — 1,1 à 1,6 s d'arrêt de l'image une fois la scène affichée,
     // encore 0,3 s avec le tampon en tableaux typés.
-    const avant = new Map(groupeVegetation.children.map(m => [m.userData.genre, m]));
+    const avant = new Map(groupeVegetation.children.map(m => [m.userData.cle, m]));
     const repris = new Set();
     groupeVegetation.clear();
-    const reprendre = (genre, elements) => {
-        const m = avant.get(genre);
+    const reprendre = (cle, elements) => {
+        const m = avant.get(cle);
         if (!m) return null;
         const e = m.userData.elements;
         if (e.length !== elements.length || e.some((el, i) => el !== elements[i])) return null;
-        avant.delete(genre);
+        avant.delete(cle);
         repris.add(m);
         return m;
     };
@@ -5501,30 +5537,36 @@ function construireVegetation() {
         ? vegElements.filter(e => (e.masse == null || !expliquees.has(e.masse))
                                   && (e.houppier == null || !houppiersExpliques.has(e.houppier)))
         : vegElements;
-    for (const [genre, elements, mat] of [
-            ['houppier', dessines.filter(e => e.classe === 'vegetation'), MAT_FEUILLAGE],
-            ['masse', dessines.filter(e => e.classe !== 'vegetation'), MAT_MASSE]]) {
-        if (!elements.length) continue;
-        const garde = reprendre(genre, elements);
+    // Les éléments de chaque tuile, dans leur ordre : un élément ne change
+    // jamais de tuile, ceux d'une tuile sont donc une sous-suite de ses
+    // éléments d'avant (vegetationExtraite).
+    const tuiles = new Map();
+    for (const el of dessines) {
+        const genre = el.classe === 'vegetation' ? 'houppier' : 'masse';
+        const cle = `${genre} ${Math.floor(el.x / TUILE_VEGETATION)} ${Math.floor(el.y / TUILE_VEGETATION)}`;
+        let tuile = tuiles.get(cle);
+        if (!tuile) tuiles.set(cle, tuile = { genre, elements: [] });
+        tuile.elements.push(el);
+    }
+    for (const [cle, { genre, elements }] of tuiles) {
+        const garde = reprendre(cle, elements);
         if (garde) { groupeVegetation.add(garde); continue; }
         // Des éléments en moins : leurs faces sont recopiées de l'ancien
         // maillage. Sinon, tout est reconstruit.
-        let { geometrie, facesDebut } = (avant.has(genre) && vegetationExtraite(avant.get(genre), elements)) || {};
+        let geometrie = avant.has(cle) && vegetationExtraite(avant.get(cle), elements);
         if (!geometrie) {
-            const tampon = nouveauTampon(elements.reduce((n, el) => n + facesHouppier(el), 0));
-            facesDebut = [];
-            let faces = 0;
+            const tampon = nouveauTampon(elements.reduce((n, el) => n + facesHouppier(el), 0),
+                                         elements.reduce((n, el) => n + sommetsHouppier(el), 0));
             elements.forEach((el, n) => {
-                facesDebut.push(faces);
                 tampon.element(n);
-                faces += ajouterHouppier(tampon, el, 0);   // base à 0 : posée par placerVegetation()
+                ajouterHouppier(tampon, el, 0);   // base à 0 : posée par placerVegetation()
             });
             geometrie = tampon.geometrie();
         }
-        const mesh = new THREE.Mesh(geometrie, mat);
+        const mesh = new THREE.Mesh(geometrie, genre === 'houppier' ? MAT_FEUILLAGE : MAT_MASSE);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        mesh.userData = { vegetation: true, genre, elements, facesDebut };
+        mesh.userData = { vegetation: true, genre, cle, elements };
         groupeVegetation.add(mesh);
     }
     // Troncs : seuls les ports à fût nu, et au-dessus de 3 m. Le fût monte
@@ -5538,7 +5580,7 @@ function construireVegetation() {
             mesh.castShadow = true;
             // Avant le feuillage, transparent lui aussi : il se voit à travers.
             mesh.renderOrder = -1;
-            mesh.userData = { genre: 'tronc', elements: arbres };
+            mesh.userData = { genre: 'tronc', cle: 'tronc', elements: arbres };
         }
         groupeVegetation.add(mesh);
     }
@@ -5550,54 +5592,69 @@ function construireVegetation() {
     // sommets et leur envoi au GPU à Gordes en zone de 1 000 m.
     placerVegetation(groupeVegetation.children.filter(m => !repris.has(m)));
     majCiblesSurvol();
+    // Les formes simples, prêtes avant le premier geste (montrerVegetation).
+    // Safari n'a pas requestIdleCallback.
+    (window.requestIdleCallback || (f => setTimeout(f, 200)))(() => {
+        const details = groupeVegetation.children.filter(m => m.userData.vegetation);
+        if (!simplesAJour(details)) majVegetationSimple(details);
+    });
 }
 
 /**
  * Géométrie de la végétation pour une partie des éléments d'un maillage déjà
- * construit, dans leur ordre : leurs faces y sont recopiées. ajouterHouppier()
- * ne dépend que de l'élément, jamais de son rang, et placerVegetation() ne
- * touche que les Y, que baseY rend à la base 0 : la copie est la géométrie
- * qu'aurait rendue le tampon. Null si `elements` n'est pas une sous-suite des
- * éléments du maillage. Les masses qu'expliquent les ouvrages coûtaient
- * 0,11 s à reconstruire à Strasbourg en zone de 1 000 m (8 872 masses, 19
+ * construit, dans leur ordre : leurs sommets et leurs faces y sont recopiés.
+ * ajouterHouppier() ne dépend que de l'élément, jamais de son rang ; aucun
+ * sommet n'est partagé entre deux éléments, donc la normale d'un sommet ne
+ * dépend que des faces du sien ; et placerVegetation() ne touche que les Y,
+ * que baseY rend à la base 0 : la copie est la géométrie qu'aurait rendue le
+ * tampon. Null si `elements` n'est pas une sous-suite des éléments du
+ * maillage. Les masses qu'expliquent les ouvrages coûtaient 0,11 s à
+ * reconstruire à Strasbourg en zone de 1 000 m (8 872 masses, 19
  * expliquées), 0,03 s à recopier.
  */
 function vegetationExtraite(mesh, elements) {
-    const avant = mesh.userData.elements, debuts = mesh.userData.facesDebut;
-    const geo = mesh.geometry, total = geo.attributes.position.count / 3;
-    const fin = k => k + 1 < avant.length ? debuts[k + 1] : total;
+    const avant = mesh.userData.elements, geo = mesh.geometry;
+    const { facesDebut: debutsF, sommetsDebut: debutsS, baseY: B } = geo.userData;
+    const totalF = geo.index.count / 3, totalS = geo.attributes.position.count;
+    const finF = k => k + 1 < avant.length ? debutsF[k + 1] : totalF;
+    const finS = k => k + 1 < avant.length ? debutsS[k + 1] : totalS;
     const rangs = new Int32Array(elements.length);
-    let k = 0, nbFaces = 0;
+    let k = 0, nbFaces = 0, nbSommets = 0;
     for (let n = 0; n < elements.length; n++, k++) {
         while (k < avant.length && avant[k] !== elements[n]) k++;
         if (k === avant.length) return null;
         rangs[n] = k;
-        nbFaces += fin(k) - debuts[k];
+        nbFaces += finF(k) - debutsF[k];
+        nbSommets += finS(k) - debutsS[k];
     }
     const P = geo.attributes.position.array, C = geo.attributes.color.array, N = geo.attributes.normal.array;
-    const B = geo.userData.baseY;
-    const pos = new Float32Array(9 * nbFaces), col = new Float32Array(9 * nbFaces), nor = new Float32Array(9 * nbFaces);
-    const baseY = new Float32Array(3 * nbFaces), quel = new Int32Array(3 * nbFaces);
-    const facesDebut = [];
-    let f = 0;
+    const I = geo.index.array;
+    const pos = new Float32Array(3 * nbSommets), col = new Float32Array(3 * nbSommets), nor = new Float32Array(3 * nbSommets);
+    const baseY = new Float32Array(nbSommets), quel = new Int32Array(nbSommets), index = new Uint32Array(3 * nbFaces);
+    const facesDebut = new Int32Array(elements.length), sommetsDebut = new Int32Array(elements.length);
+    let f = 0, s = 0;
     for (let n = 0; n < elements.length; n++) {
-        const d = debuts[rangs[n]], e = fin(rangs[n]);
-        facesDebut.push(f);
-        pos.set(P.subarray(9 * d, 9 * e), 9 * f);
-        col.set(C.subarray(9 * d, 9 * e), 9 * f);
-        nor.set(N.subarray(9 * d, 9 * e), 9 * f);
-        baseY.set(B.subarray(3 * d, 3 * e), 3 * f);
-        quel.fill(n, 3 * f, 3 * (f + e - d));
+        const r = rangs[n];
+        const d = debutsF[r], e = finF(r), ds = debutsS[r], es = finS(r);
+        facesDebut[n] = f;
+        sommetsDebut[n] = s;
+        pos.set(P.subarray(3 * ds, 3 * es), 3 * s);
+        col.set(C.subarray(3 * ds, 3 * es), 3 * s);
+        nor.set(N.subarray(3 * ds, 3 * es), 3 * s);
+        baseY.set(B.subarray(ds, es), s);
+        quel.fill(n, s, s + es - ds);
+        for (let i = 3 * d, j = 3 * f; i < 3 * e; i++, j++) index[j] = I[i] - ds + s;
         f += e - d;
+        s += es - ds;
     }
     for (let i = 0; i < baseY.length; i++) pos[3 * i + 1] = baseY[i];
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
-    g.userData.baseY = baseY;
-    g.userData.elements = quel;
-    return { geometrie: g, facesDebut };
+    g.setIndex(new THREE.BufferAttribute(index, 1));
+    Object.assign(g.userData, { baseY, elements: quel, facesDebut, sommetsDebut });
+    return g;
 }
 
 /**
@@ -5647,9 +5704,11 @@ function placerVegetation(maillages = groupeVegetation.children) {
 }
 
 // --- Végétation simple, pendant le mouvement -----------------------------------
-// Houppiers et masses de 36 faces au lieu de 200 (ajouterHouppierSimple),
-// montrés à la place des détaillés pendant le mouvement quand la vue rame
-// (surveillerMouvement). Durée médiane d'une image pendant l'orbite à Gordes
+// Houppiers et masses de 36 faces au lieu de 180 (ajouterHouppierSimple),
+// montrés à la place des détaillés pendant le mouvement : au loin
+// (DISTANCE_DETAIL), et partout quand la vue rame (surveillerMouvement).
+// Avant les tuiles, ils n'y venaient que partout, et seulement quand la vue
+// ramait. Durée médiane d'une image pendant l'orbite à Gordes
 // en zone de 1 000 m (4,4 millions de faces de végétation), sur un Mac M1 :
 //
 //   houppiers détaillés, ombre redessinée à chaque image   66,7 ms
@@ -5657,8 +5716,35 @@ function placerVegetation(maillages = groupeVegetation.children) {
 //   simples, ombre figée                                   16,7 ms
 //   sans végétation                                        16,7 ms
 //
-// Construits au premier besoin, à partir des maillages détaillés, et
-// reconstruits s'ils changent ; les troncs restent.
+// Construits dans un temps mort après les détaillés (construireVegetation),
+// sinon au premier besoin — 80 ms à Porquerolles en zone de 1 000 m, un
+// à-coup au premier geste —, et reconstruits s'ils changent ; les troncs
+// restent.
+//
+// En mouvement, une tuile à plus de DISTANCE_DETAIL mètres de la caméra passe
+// en forme simple ; à l'arrêt, tout redevient détaillé. Durée d'une image,
+// sous Metal, 1 728 × 1 080 en Retina, Porquerolles en zone de 1 000 m,
+// tuiles de 125 m, vue par défaut / rapprochée :
+//
+//   à l'arrêt, tout détaillé       22,9 / 25,4 ms
+//   en mouvement, D = 100 m        18,5 / 19,2
+//                 D = 200 m        19,3 / 20,2
+//                 D = 300 m        20,5 / 21,8
+//                 D = 400 m        21,9 / 22,5
+//   tout simple                    17,1 / 19,3
+//
+// Ces durées attendent le GPU à chaque image ; la page, elle, enchaîne les
+// images. Orbite en marche, même lieu, même fenêtre, vue par défaut /
+// rapprochée : 56-59 / 50-53 images par seconde en un seul maillage, 60 / 60
+// en tuiles.
+//
+// 200 m garde l'essentiel du gain de 100 m. Un houppier de 2,5 m de rayon y
+// couvre encore une trentaine de pixels de rayon sur 2 160 de haut : en
+// mouvement, ses six côtés au lieu de dix ne se remarquent pas. Même tout
+// simple, la végétation coûte encore 7 ms à cette taille d'image : ce sont
+// ses pixels, transparents, que la forme simple couvre autant que la
+// détaillée.
+const DISTANCE_DETAIL = 200;
 const groupeVegSimple = new THREE.Group();
 groupeVegSimple.visible = false;
 scene.add(groupeVegSimple);
@@ -5672,7 +5758,8 @@ function majVegetationSimple(details) {
         avant.delete(d);
         if (!m) {
             const elements = d.userData.elements;
-            const tampon = nouveauTampon(elements.length * facesHouppierSimple());
+            const tampon = nouveauTampon(elements.length * facesHouppierSimple(),
+                                         elements.length * sommetsHouppierSimple());
             elements.forEach((el, n) => { tampon.element(n); ajouterHouppierSimple(tampon, el, 0); });
             m = new THREE.Mesh(tampon.geometrie(), d.material);
             m.castShadow = true;
@@ -5688,21 +5775,43 @@ function majVegetationSimple(details) {
     for (const m of avant.values()) m.geometry.dispose();
 }
 
-/** Montre la forme simple (vrai) ou détaillée de la végétation. */
-function montrerVegetationSimple(simple) {
-    const details = groupeVegetation.children.filter(m => m.userData.vegetation);
+/** Vrai si les formes simples suivent les maillages détaillés `details`, un à un, posées comme eux. */
+function simplesAJour(details) {
     const simples = groupeVegSimple.children;
-    if (simple && (details.length !== simples.length || details.some((d, i) =>
-            simples[i].userData.source !== d || simples[i].userData.poseSource !== d.userData.pose))) {
+    return details.length === simples.length && details.every((d, i) =>
+        simples[i].userData.source === d && simples[i].userData.poseSource === d.userData.pose);
+}
+
+/**
+ * Forme de la végétation pour l'image à venir. À l'arrêt, détaillée
+ * partout. En mouvement, simple dans les tuiles à plus de DISTANCE_DETAIL de
+ * la caméra, et partout si `toutSimple` (la vue rame encore,
+ * surveillerMouvement). Rend vrai si les formes simples ont été construites
+ * ou reposées pour cette image, qui ne compte donc pas dans la cadence.
+ */
+function montrerVegetation(enMouvement, toutSimple) {
+    const details = groupeVegetation.children.filter(m => m.userData.vegetation);
+    const enMouvementVisible = enMouvement && groupeVegetation.visible;
+    let construites = false;
+    if (enMouvementVisible && !simplesAJour(details)) {
         majVegetationSimple(details);
+        construites = true;
     }
-    for (const d of details) d.visible = !simple;
-    groupeVegSimple.visible = simple && groupeVegetation.visible;
+    const simples = groupeVegSimple.children;
+    groupeVegSimple.visible = enMouvementVisible;
+    details.forEach((d, i) => {
+        const s = d.geometry.boundingSphere;
+        const loin = enMouvementVisible
+            && (toutSimple || camera.position.distanceTo(s.center) - s.radius > DISTANCE_DETAIL);
+        d.visible = !loin;
+        if (enMouvementVisible) simples[i].visible = loin;
+    });
+    return construites;
 }
 
 /** Élément (houppier ou masse) sous une face d'un maillage fusionné. */
 function elementSousFace(mesh, faceIndex) {
-    const debuts = mesh.userData.facesDebut;
+    const debuts = mesh.geometry.userData.facesDebut;
     let lo = 0, hi = debuts.length - 1;
     while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
@@ -6473,13 +6582,13 @@ function cameraDeplacee() {
 //   Notre-Dame, 1 000 m (3 684 arbres)        33,4 ms   16,7 ms
 //   Gordes, 1 000 m (19 312 arbres)           50,0 ms   16,7 ms
 //
-// et sans carte graphique (SwiftShader), à Gordes : 650 ms, 283 sans. Au-delà
-// de 40 ms (moins de 25 images par seconde) sur 2 s de mouvement, la
-// végétation passe en forme simple pendant le mouvement ; et si la vue rame
-// encore ainsi, la page propose de la masquer. Ombre figée, le M1 n'y vient
-// plus : Gordes à 1 000 m tourne à 33,3 ms, Notre-Dame à 16,7 ; la forme
-// simple sert les machines plus lentes. Rien ne change sur une scène qui
-// tourne vite : la forme ne saute pas à chaque geste pour rien. La médiane,
+// et sans carte graphique (SwiftShader), à Gordes : 650 ms, 283 sans. En
+// mouvement, les tuiles lointaines sont toujours en forme simple
+// (montrerVegetation). Au-delà de 40 ms (moins de 25 images par seconde) sur
+// 2 s de mouvement, toute la végétation y passe ; et si la vue rame encore
+// ainsi, la page propose de la masquer. Ombre figée, le M1 n'y vient plus :
+// Gordes à 1 000 m tourne à 33,3 ms, Notre-Dame à 16,7 ; la forme simple
+// partout sert les machines plus lentes. La médiane,
 // et non la moyenne : une compilation ou une couche qui arrive font quelques
 // images longues sans que la vue rame. Les secondes de mouvement se cumulent
 // d'un geste à l'autre.
@@ -6487,7 +6596,7 @@ const IMAGE_LENTE_MS = 40;
 const FENETRE_MOUVEMENT_MS = 2000;
 const dureesMouvement = [];
 let cumulMouvement = 0;
-let vegSimplifiee = false;    // forme simple pendant le mouvement, décidée une fois
+let vegSimplifiee = false;    // forme simple partout pendant le mouvement, décidée une fois
 let conseilVegDonne = false;
 let imagePrecedente = null;   // l'état dans lequel l'image précédente a été dessinée
 const conseilVeg = document.getElementById('conseil-veg');
@@ -6605,11 +6714,9 @@ function boucle(maintenant) {
     if (cameraDeplacee()) derniereMobilite = maintenant;
     const enMouvement = maintenant - derniereMobilite < REPOS_MS;
     const veg = btnVeg.classList.contains('on');
-    const simple = vegSimplifiee && enMouvement && veg;
-    const bascule = simple !== groupeVegSimple.visible;
-    montrerVegetationSimple(simple);
+    const bascule = montrerVegetation(enMouvement, vegSimplifiee);
     figerOmbres(enMouvement);
-    imagePrecedente = { mouvement: enMouvement, veg, simple, bascule };
+    imagePrecedente = { mouvement: enMouvement, veg, simple: vegSimplifiee, bascule };
 
     // Boussole : le nord de la scène est -Z, l'est +X. L'azimut du regard se
     // mesure donc en atan2(dx, -dz), et la rose tourne à l'inverse pour que

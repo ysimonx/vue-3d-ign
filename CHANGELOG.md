@@ -123,6 +123,29 @@ messages de commit et dans les commentaires des modules.
 
 ### Modifié
 
+- **L'orbite tourne à 60 images par seconde dans une forêt.** À
+  Porquerolles en zone de 1 000 m (17 613 houppiers), sous Metal, fenêtre de
+  1 728 × 1 080 en Retina, orbite en marche, deux essais alternés, vue par
+  défaut et vue rapprochée : 47-50 et 35-37 images par seconde avant, 60 et
+  60 après. Deux changements :
+  - Les houppiers forment un maillage indexé : chaque sommet d'anneau est
+    écrit une fois, et non une fois par face qui le touche, et les triangles
+    dégénérés contre le sommet et le centre du dessous disparaissent (180
+    faces par houppier au lieu de 200) ; les troncs perdent leurs couvercles,
+    l'un dans le feuillage, l'autre sous le sol. À lui seul : 56-59 et 50-53
+    images par seconde. La page s'affiche en 0,8 à 0,9 s au lieu de 1,2 à
+    1,7, ses tâches longues tombent de 1,3-1,6 s à 0,6-0,8 s, les tableaux
+    de la végétation de 400 à 100 Mo, le tas JavaScript de 560 à 180 Mo.
+  - La végétation est découpée en tuiles de 125 m. En mouvement, une tuile à
+    plus de 200 m de la caméra passe en forme simple ; à l'arrêt, tout
+    redevient détaillé. Une tuile hors du champ n'est plus dessinée. Toute la
+    végétation ne passe en forme simple, comme avant, que si la vue rame
+    encore.
+  À l'arrêt, rien ne change à l'œil, à deux détails près, mesurés à caméra
+  et soleil fixes : 4 % des pixels bougent d'au plus 8 niveaux sur 255 (le
+  décalage de l'ombre reçue suit des normales lissées), et une route ou un
+  cours d'eau sous les arbres se voit plus souvent par transparence, les
+  tuiles se dessinant de la plus lointaine à la plus proche.
 - **Toitures et houppiers se calculent dix fois plus vite.** Chaque
   bâtiment relisait la grille MNH entière, en Python, et la segmentation des
   arbres la parcourait toute à chaque passe. Sur Gordes en
