@@ -68,6 +68,10 @@ def mesurer(nom_lieu, lat, lon, sessions, images, balayage):
         qu'un libellé ici (les détecteurs sont réunis en amont par detecter)."""
         brut = {"largeur": rgb.shape[1], "hauteur": rgb.shape[0], "boites": boites,
                 "piscines": piscines or []}
+        # En coordonnées, comme un relevé (vue3d/releves.py) : l'image
+        # entière en est un seul, sans marge.
+        cle = "boites" if piscines is None else "piscines"
+        brut = {cle: vehicules.en_geographie(*bbox, brut, cle)}
         if piscines is not None:
             return vehicules.piscines_pour_emprise(*bbox, brut, mode, batiments, eau)["piscines"]
         return vehicules.vehicules_pour_emprise(*bbox, brut, mode, batiments, eau)["vehicules"]

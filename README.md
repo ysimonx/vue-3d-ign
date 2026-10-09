@@ -170,6 +170,12 @@ Aucun des deux réseaux ne suffit partout : `rtmdet` lit mal un parking serré,
   sous Docker reconstruit l'image (une par détecteur) ; les scènes, elles,
   restent en cache. Pour garder le choix d'un lancement à l'autre, l'inscrire
   dans un fichier `.env` à côté de `docker-compose.yml`.
+- **Un terrain n'est détecté qu'une fois.** Ce que les réseaux voient est
+  gardé par rectangle de terrain (`./cache/releves`) : après une flèche de
+  décalage, seule la bande nouvelle est détectée — 4 s au lieu de 9 à
+  Gordes, 23 au lieu de 64 en zone de 1 000 m (CoreML). La première
+  ouverture d'un lieu en coûte 10 à 20 % de plus : chaque détection déborde
+  un peu de son rectangle, pour voir entier ce qui chevauche sa limite.
 - **Ce sont les véhicules du jour de la prise de vue**, et seulement ceux que
   le réseau a reconnus : voir [Limites](#limites).
 - **La variable s'appelle `VUE3D_VEHICULES` et apporte aussi les piscines** :

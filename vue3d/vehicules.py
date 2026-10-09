@@ -56,6 +56,12 @@ DOUBLON_ENTRE_DETECTEURS_M.
 illisible lève, rien n'est écrit. Le nom de chaque fichier de cache porte le
 détecteur (ou le mode) et la version (scene.nom_vehicules, nom_piscines) :
 changer de détecteur ne ressert jamais la couche d'un autre.
+
+**Détecté une fois par morceau de terrain.** Ce que les réseaux voient est
+gardé à part, en coordonnées, par rectangle de terrain (vue3d/releves.py) :
+la couche d'un point se réunit des relevés qui couvrent son emprise, et un
+point décalé d'une flèche ne détecte que la bande nouvelle (`en_geographie`
+fait passer les boîtes des pixels d'une image aux coordonnées).
 """
 
 import collections
@@ -698,16 +704,42 @@ def _zone(geojsons, kx, ky):
     return shapely.transform(shapely.force_2d(unary_union(polys)), lambda c: c * [kx, ky])
 
 
-def _poser(west, south, east, north, brut, boites, nom, longueurs, largeurs, batiments, eau):
-    """Boîtes (cx, cy, longueur, largeur, angle, couleur) en pixels de
-    l'orthophoto -> objets de la couche, ceux hors gabarit ou mal placés
-    écartés : [[lon, lat, longueur_m, largeur_m, cap, couleur]]."""
+def en_geographie(west, south, east, north, brut, cle):
+    """Boîtes `brut[cle]` en pixels de l'orthophoto de l'emprise, de
+    `detecter` ou de `detecter_piscines`, en coordonnées : [[lon, lat,
+    longueur_m, largeur_m, cap, score, ...]], la suite de chaque boîte telle
+    quelle. Le cap est celui du grand axe, en degrés depuis le nord vers
+    l'est, de 0 à 180. C'est la forme des relevés (vue3d/releves.py), qui
+    survivent à leur image."""
+    brut = brut or {}
     largeur, hauteur = brut.get("largeur") or 1, brut.get("hauteur") or 1
     kx = 111320 * math.cos(math.radians((south + north) / 2))
     ky = 111320
     # Mètres par pixel, sur chaque axe : l'image est demandée à la taille de
     # l'emprise en mètres, à l'arrondi du pixel près.
     px, py = (east - west) * kx / largeur, (north - south) * ky / hauteur
+    boites = []
+    for cx, cy, lo, la, angle, score, *suite in brut.get(cle, []):
+        # Longueur et largeur en mètres : la boîte est tournée, chaque
+        # demi-axe se mesure avec les deux pas.
+        c, s_ = math.cos(angle), math.sin(angle)
+        longueur = lo * math.hypot(c * px, s_ * py)
+        travers = la * math.hypot(s_ * px, c * py)
+        lon, lat = west + cx * px / kx, north - cy * py / ky
+        # Dans l'image, y descend vers le sud : vers l'est c·px, vers le nord −s·py.
+        cap = math.degrees(math.atan2(c * px, -s_ * py)) % 180.0
+        # Au millimètre : la couche arrondit ensuite au décimètre.
+        boites.append([round(lon, DECIMALES), round(lat, DECIMALES), round(longueur, 3),
+                       round(travers, 3), round(cap, 3), round(float(score), 4), *suite])
+    return boites
+
+
+def _poser(west, south, east, north, boites, nom, longueurs, largeurs, batiments, eau):
+    """Boîtes (lon, lat, longueur_m, largeur_m, cap, couleur) -> objets de la
+    couche, ceux hors gabarit ou mal placés écartés : [[lon, lat,
+    longueur_m, largeur_m, cap, couleur]]."""
+    kx = 111320 * math.cos(math.radians((south + north) / 2))
+    ky = 111320
     interdit = [z for z in (
         _zone([f.get("geometry") for f in (batiments or {}).get("features", [])
                if f.get("geometry")], kx, ky),
@@ -716,17 +748,11 @@ def _poser(west, south, east, north, brut, boites, nom, longueurs, largeurs, bat
     # retrait) et la boîte d'un objet coupé par le cadre n'est pas fiable.
     marge_x, marge_y = DECOUPE_RETRAIT_M / kx, DECOUPE_RETRAIT_M / ky
     gardes, ecartes = [], {"gabarit": 0, "bord": 0, "bâti ou eau": 0}
-    for cx, cy, lo, la, angle, couleur in boites:
-        # Longueur et largeur en mètres : la boîte est tournée, chaque
-        # demi-axe se mesure avec les deux pas.
-        c, s_ = math.cos(angle), math.sin(angle)
-        longueur = lo * math.hypot(c * px, s_ * py)
-        travers = la * math.hypot(s_ * px, c * py)
+    for lon, lat, longueur, travers, cap, couleur in boites:
         if not (longueurs[0] <= longueur <= longueurs[1]
                 and largeurs[0] <= travers <= largeurs[1]):
             ecartes["gabarit"] += 1
             continue
-        lon, lat = west + cx * px / kx, north - cy * py / ky
         if not (west + marge_x <= lon <= east - marge_x
                 and south + marge_y <= lat <= north - marge_y):
             ecartes["bord"] += 1
@@ -734,8 +760,6 @@ def _poser(west, south, east, north, brut, boites, nom, longueurs, largeurs, bat
         if any(z.contains(Point(lon * kx, lat * ky)) for z in interdit):
             ecartes["bâti ou eau"] += 1
             continue
-        # Dans l'image, y descend vers le sud : vers l'est c·px, vers le nord −s·py.
-        cap = math.degrees(math.atan2(c * px, -s_ * py)) % 180.0
         gardes.append([round(lon, DECIMALES), round(lat, DECIMALES), round(longueur, 1),
                        round(travers, 1), round(cap, 1), couleur])
     journal.info("%s : %d gardé(s) ; écartés : %s", nom, len(gardes),
@@ -747,8 +771,9 @@ def vehicules_pour_emprise(west, south, east, north, brut, detecteur, batiments=
     """Véhicules d'un détecteur sur l'emprise, prêts pour la vue.
 
     Args:
-        brut: détections de `Lecteur.vehicules(detecteur)`, en pixels de
-            l'orthophoto.
+        brut: {"boites": boîtes du détecteur sur l'emprise}, en coordonnées
+            (`en_geographie`) : les relevés qui la couvrent, réunis
+            (releves.reunir).
         detecteur: son nom, inscrit dans la couche.
         batiments: GeoJSON des bâtiments de la scène ; un « véhicule » sur un
             toit est une lucarne ou une verrière.
@@ -767,7 +792,7 @@ def vehicules_pour_emprise(west, south, east, north, brut, detecteur, batiments=
     """
     brut = brut or {}
     # La longueur maximale d'un véhicule est déjà celle de son détecteur.
-    vehicules = _poser(west, south, east, north, brut,
+    vehicules = _poser(west, south, east, north,
                        [(*b[:5], b[7]) for b in brut.get("boites", [])],
                        f"Véhicules ({detecteur})", (LONGUEUR_MIN_M, math.inf), LARGEUR_M,
                        batiments, eau)
@@ -778,7 +803,8 @@ def piscines_pour_emprise(west, south, east, north, brut, mode, batiments=None, 
     """Piscines de l'emprise, prêtes pour la vue.
 
     Args:
-        brut: détections de `Lecteur.piscines`.
+        brut: {"piscines": boîtes de tous les détecteurs du mode}, en
+            coordonnées, comme pour les véhicules.
         mode: celui du lecteur, inscrit dans la couche.
         batiments, eau: comme pour les véhicules ; une « piscine » sur un
             toit est une véranda, sur l'eau un bassin que la BD TOPO dessine
@@ -789,7 +815,7 @@ def piscines_pour_emprise(west, south, east, north, brut, mode, batiments=None, 
         ci-dessus, la boîte étant celle du bassin, rectangulaire ou non.
     """
     brut = brut or {}
-    piscines = _poser(west, south, east, north, brut,
+    piscines = _poser(west, south, east, north,
                       [(*b[:5], b[6]) for b in brut.get("piscines", [])],
                       f"Piscines ({mode})", PISCINE_LONGUEUR_M, PISCINE_LARGEUR_M, batiments, eau)
     return {"version": PISCINES_VERSION, "mode": mode, "piscines": piscines}

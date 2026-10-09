@@ -1,4 +1,5 @@
 """Cache des scènes (vue3d/scene.py) : clé, complétude, verrou."""
+import math
 import os
 import threading
 import time
@@ -6,6 +7,7 @@ import time
 import pytest
 
 from vue3d import scene
+from vue3d.releves import MARGE_PISCINES_PX, MARGE_VEHICULES_PX, emprise_image, rectangle
 from vue3d.scene import Cache, HorsEmprise, SceneIncomplete, emprise, point_normalise
 
 
@@ -644,21 +646,133 @@ def test_les_detections_sont_lancees_pendant_que_la_scene_se_construit(tmp_path)
     assert appels == ["orthophoto", "piscines", "rtmdet", "yolo"]
 
 
-def test_l_orthophoto_partagee_ne_sert_qu_aux_couches_qui_manquent(tmp_path):
-    """Une couche déjà écrite n'est pas recalculée ; les autres se partagent
-    une nouvelle lecture."""
+def test_une_couche_effacee_se_reunit_de_ses_releves_sans_rien_detecter(tmp_path):
+    """Les détections sont gardées à part, par relevé (vue3d/releves.py) :
+    une couche effacée se réunit des relevés, sans lire l'orthophoto ni
+    détecter. Ce qui manque aux relevés se détecte, sur une lecture
+    partagée par les seules couches qui en ont besoin."""
+    import shutil
     appels = []
     cache = Cache(str(tmp_path), lire_vehicules=_lecteur_vehicules("tous", appels))
     cache.obtenir_piscines(48.8049, 2.1204, construire=_scene_nue)
     for detecteur in ("rtmdet", "yolo"):
         cache.obtenir_vehicules(48.8049, 2.1204, detecteur, construire=_scene_nue)
-    os.remove(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("yolo")))
-    os.remove(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("rtmdet")))
+    avant = open(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("yolo")), "rb").read()
     del appels[:]
+
+    def effacer_les_couches():
+        os.remove(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("yolo")))
+        os.remove(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("rtmdet")))
+
+    effacer_les_couches()
+    cache.prelire_vehicules(48.8049, 2.1204)
+    cache.obtenir_vehicules(48.8049, 2.1204, "yolo", construire=_scene_nue)
+    cache.obtenir_vehicules(48.8049, 2.1204, "rtmdet", construire=_scene_nue)
+    assert appels == []
+    assert open(cache.chemin(48.8049, 2.1204, scene.nom_vehicules("yolo")), "rb").read() == avant
+    effacer_les_couches()
+    for detecteur in ("rtmdet", "yolo"):
+        shutil.rmtree(cache.releves._chemin(f"vehicules-{detecteur}"))
     cache.prelire_vehicules(48.8049, 2.1204)
     cache.obtenir_vehicules(48.8049, 2.1204, "yolo", construire=_scene_nue)
     cache.obtenir_vehicules(48.8049, 2.1204, "rtmdet", construire=_scene_nue)
     assert appels == ["orthophoto", "rtmdet", "yolo"]
+
+
+def _lecteur_qui_note(notes, retenir=None):
+    """Doublure de vehicules.Lecteur en mode rtmdet, sans boîte : `notes`
+    reçoit l'emprise de chaque orthophoto lue et de chaque détection
+    ('piscines' ou le détecteur). `retenir` : Event que chaque détection
+    attend."""
+    import types
+
+    import numpy as np
+
+    def orthophoto(west, south, east, north):
+        notes.append(("orthophoto", (west, south, east, north)))
+        # À 0,2 m, comme ortho.fetch_ortho_rgb : l'image se recadre.
+        kx = 111320 * math.cos(math.radians((south + north) / 2))
+        return np.zeros((int((north - south) * 111320 / 0.2), int((east - west) * kx / 0.2), 3),
+                        dtype=np.uint8)
+
+    def lecture(quoi):
+        def lire(*bbox, rgb=None):
+            assert retenir is None or retenir.wait(10)
+            notes.append((quoi, bbox))
+            return {"largeur": 4, "hauteur": 4, "boites": [], "piscines": []}
+        return lire
+
+    return types.SimpleNamespace(mode="rtmdet", detecteurs=("rtmdet",), orthophoto=orthophoto,
+                                 piscines=lecture("piscines"), vehicules=lecture)
+
+
+# Gordes, puis une flèche vers le nord : un quart de zone, la bande nouvelle
+# de 8 cellules sur les 32 de l'emprise. L'image est lue à la marge des
+# piscines ; les véhicules la prennent recadrée à la leur.
+DEPART, NORD = (43.9116, 5.2003), (43.9124, 5.2003)
+ENTIER = emprise_image(rectangle(*emprise(*DEPART)), MARGE_PISCINES_PX)
+BANDE = emprise_image((51987, 439132, 52019, 439140), MARGE_PISCINES_PX)
+
+
+def _sans_marge(notes):
+    """Les notes, chaque emprise ramenée à son cœur au mètre près : celle des
+    véhicules, recadrée, ne tombe sur la grille qu'au pixel près."""
+    marges = {"orthophoto": MARGE_PISCINES_PX, "piscines": MARGE_PISCINES_PX}
+    return [(quoi, _retirer(bbox, marges.get(quoi, MARGE_VEHICULES_PX))) for quoi, bbox in notes]
+
+
+def _retirer(bbox, marge_px):
+    west, south, east, north = bbox
+    dlat = marge_px * 0.2 / 111320
+    dlon = dlat / math.cos(math.radians((south + north) / 2))
+    return rectangle(*(round(v * 10000) / 10000 for v in (west + dlon, south + dlat, east - dlon, north - dlat)))
+
+
+def test_un_point_decale_ne_detecte_que_la_bande_nouvelle(tmp_path):
+    """Seule la bande que les relevés du point d'avant ne couvrent pas est
+    lue et détectée ; revenu au point de départ, plus rien."""
+    notes = []
+    cache = Cache(str(tmp_path), lire_vehicules=_lecteur_qui_note(notes))
+    for point in (DEPART, NORD, DEPART):
+        cache.obtenir_piscines(*point, construire=_scene_nue)
+        cache.obtenir_vehicules(*point, "rtmdet", construire=_scene_nue)
+    os.remove(cache.chemin(*DEPART, scene.nom_vehicules("rtmdet")))
+    cache.obtenir_vehicules(*DEPART, "rtmdet", construire=_scene_nue)
+    assert [n[0] for n in notes] == ["orthophoto", "piscines", "rtmdet", "orthophoto", "piscines", "rtmdet"]
+    assert notes[0][1] == ENTIER and notes[3][1] == BANDE
+    entier, bande = rectangle(*emprise(*DEPART)), (51987, 439132, 52019, 439140)
+    assert [c for _, c in _sans_marge(notes)] == [entier] * 3 + [bande] * 3
+
+
+def test_un_decalage_pendant_la_detection_du_point_d_avant_ne_refait_pas_ce_qu_elle_voit(tmp_path):
+    """Deux flèches coup sur coup : le second lot compte comme faits les
+    relevés que le premier est en train de détecter."""
+    notes, retenir = [], threading.Event()
+    cache = Cache(str(tmp_path), lire_vehicules=_lecteur_qui_note(notes, retenir))
+    cache.prelire_vehicules(*DEPART)
+    cache.prelire_vehicules(*NORD)
+    retenir.set()
+    for tache in list(cache._lectures.values()):
+        tache.result(10)
+    # Les deux images se lisent ensemble, dans un ordre quelconque.
+    assert sorted(b for q, b in notes if q == "orthophoto") == sorted([ENTIER, BANDE])
+    entier, bande = rectangle(*emprise(*DEPART)), (51987, 439132, 52019, 439140)
+    assert [n for n in _sans_marge(notes) if n[0] != "orthophoto"] == [
+        ("piscines", entier), ("rtmdet", entier), ("piscines", bande), ("rtmdet", bande)]
+    assert cache._releves_en_attente == {"piscines-rtmdet": [], "vehicules-rtmdet": []}
+
+
+def test_reconstruire_refait_aussi_les_detections(tmp_path):
+    """Le bouton de la page relit l'IGN du moment, orthophoto comprise : les
+    relevés de l'emprise sont effacés avec la scène mise de côté."""
+    notes = []
+    cache = Cache(str(tmp_path), lire_vehicules=_lecteur_qui_note(notes))
+    cache.obtenir_vehicules(48.8049, 2.1204, "rtmdet", construire=_scene_nue)
+    _vieillir(cache, 48.8049, 2.1204)
+    cache.reconstruire(48.8049, 2.1204)
+    del notes[:]
+    cache.obtenir_vehicules(48.8049, 2.1204, "rtmdet", construire=_scene_nue)
+    assert [q for q, _ in notes] == ["orthophoto", "piscines", "rtmdet"]
 
 
 def test_si_l_orthophoto_partagee_echoue_chaque_detection_retente_la_sienne(tmp_path):
@@ -749,10 +863,12 @@ def test_les_orthophotos_tenues_en_attendant_le_fil_des_detections_sont_bornees(
 
     def orthophoto(*bbox):
         lues.append(bbox)
-        return np.zeros((4, 4, 3), dtype=np.uint8)
+        return np.zeros((400, 400, 3), dtype=np.uint8)
 
-    def detection(*bbox, rgb=None):
-        assert rgb is not None and libres[bbox].wait(10)
+    def detection(west, south, east, north, rgb=None):
+        # Par le centre de l'image : celle des véhicules est recadrée.
+        centre = (round((south + north) / 2, 4), round((west + east) / 2, 4))
+        assert rgb is not None and libres[centre].wait(10)
         return {"largeur": 4, "hauteur": 4, "boites": [], "piscines": []}
 
     lecteur = types.SimpleNamespace(mode="rtmdet", detecteurs=("rtmdet",), orthophoto=orthophoto,
@@ -760,8 +876,10 @@ def test_les_orthophotos_tenues_en_attendant_le_fil_des_detections_sont_bornees(
     cache = Cache(str(tmp_path), lire_vehicules=lecteur)
     assert Cache.IMAGES_TENUES == 2
     points = [point_normalise(48.8049 + i / 100, 2.1204) for i in range(4)]
+    # Des points éloignés : un relevé chacun, son image autour de l'emprise.
+    image = {p: emprise_image(rectangle(*emprise(*p)), MARGE_PISCINES_PX) for p in points}
     for lat, lon in points:
-        libres[emprise(lat, lon)] = threading.Event()
+        libres[(lat, lon)] = threading.Event()
         cache.prelire_vehicules(lat, lon)
 
     def lues_apres(n):
@@ -773,14 +891,14 @@ def test_les_orthophotos_tenues_en_attendant_le_fil_des_detections_sont_bornees(
         return list(lues)
 
     # Le premier point se détecte, le deuxième a son image ; les autres attendent.
-    assert lues_apres(2) == [emprise(*p) for p in points[:2]]
-    libres[emprise(*points[0])].set()
-    assert lues_apres(3) == [emprise(*p) for p in points[:3]]
+    assert lues_apres(2) == [image[p] for p in points[:2]]
+    libres[points[0]].set()
+    assert lues_apres(3) == [image[p] for p in points[:3]]
     for evenement in libres.values():
         evenement.set()
     for tache in list(cache._lectures.values()):
         tache.result(10)
-    assert lues == [emprise(*p) for p in points]
+    assert lues == [image[p] for p in points]
 
 
 def _noter_le_fil(lecteur, fils):

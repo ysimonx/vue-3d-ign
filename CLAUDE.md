@@ -42,6 +42,7 @@ vue3d/
   ouvrages.py   murs, ponts, voies ferrées, terrains de sport : couche à part, chargée après la scène
   nuage.py      bâti du nuage de points LiDAR HD (dalles COPC lues par plages, via geopf) ; ouvrages ajourés en points : couche à part
   vehicules.py  véhicules et piscines lus sur l'orthophoto par un réseau ONNX : couche à part, optionnelle (VUE3D_VEHICULES)
+  releves.py    détections gardées par rectangle de terrain (cache/releves/) : un point décalé ne détecte que la bande nouvelle
   panneaux.py   panneaux solaires du registre OpenPVMapper (SQLite R-tree) : couche à part, optionnelle (VUE3D_PANNEAUX)
   geopf.py      GET avec reprise sur la Géoplateforme ; 8 places pour tout le service, lectures groupées abandonnées au premier échec
   static/index.html   la page entière : HTML, CSS et JavaScript (three.js r160)

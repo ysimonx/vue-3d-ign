@@ -1,8 +1,10 @@
 """Serveur (vue3d/app.py) : paramètres, codes d'erreur, en-têtes."""
 import gzip
 import json
+import math
 import types
 
+import numpy as np
 import pytest
 
 from vue3d import app as module_app
@@ -53,20 +55,26 @@ def client_vehicules(tmp_path):
         return gzip.compress(json.dumps(scene).encode()), b"\xff\xd8jpeg"
 
     def orthophoto(west, south, east, north):
+        """Une image noire à 0,2 m, comme ortho.fetch_ortho_rgb."""
         if south < 46:
             raise ConnectionError("Read timed out")
-        return "orthophoto"
+        kx = 111320 * math.cos(math.radians((south + north) / 2))
+        return np.zeros((int((north - south) * 111320 / 0.2), int((east - west) * kx / 0.2), 3),
+                        dtype=np.uint8)
 
     def lire_piscines(west, south, east, north, rgb=None):
-        rgb = rgb or orthophoto(west, south, east, north)
-        return {"largeur": 1173, "hauteur": 1781,
+        if rgb is None:
+            rgb = orthophoto(west, south, east, north)
+        return {"largeur": rgb.shape[1], "hauteur": rgb.shape[0],
                 "piscines": [[300, 400, 50, 25, 0.0, 0.3, 0x5AC8D2, "rtmdet"]]}
 
     def lire_vehicules(detecteur):
         def lire(west, south, east, north, rgb=None):
-            rgb = rgb or orthophoto(west, south, east, north)
-            return {"largeur": 1173, "hauteur": 1781,
-                    "boites": [[586.5, 890.5, 22, 10, 0.0, 0.6, 0, 0xC81E28, detecteur]]}
+            if rgb is None:
+                rgb = orthophoto(west, south, east, north)
+            largeur, hauteur = rgb.shape[1], rgb.shape[0]
+            return {"largeur": largeur, "hauteur": hauteur,
+                    "boites": [[largeur / 2, hauteur / 2, 22, 10, 0.0, 0.6, 0, 0xC81E28, detecteur]]}
         return lire
 
     lecteur = types.SimpleNamespace(mode="rtmdet", detecteurs=("rtmdet",), orthophoto=orthophoto,

@@ -15,6 +15,22 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Un décalage ne redétecte que la bande nouvelle.** Ce que les réseaux
+  voient sur l'orthophoto (véhicules et piscines) est désormais gardé par
+  rectangle de terrain, dans `cache/releves/`, et non plus seulement dans la
+  couche d'un point : la couche d'un point se réunit des relevés qui
+  couvrent son emprise, et seul ce qu'aucun ne couvre est détecté. Après une
+  flèche (un quart de zone), les détections passent de 9,2 à 4,2 s à Gordes
+  sur l'emprise par défaut, et de 64 à 23 s en zone de 1 000 m (CoreML, Mac
+  M4) ; un point entre deux lieux déjà vus ne détecte plus rien, et une
+  nouvelle version de la scène réutilise les relevés. Pour voir entier ce
+  qui chevauche la limite de deux relevés, chacun détecte sur une image
+  élargie d'une marge (12,8 m pour les véhicules, 25,6 m pour les
+  piscines) : la première ouverture d'un lieu coûte 10 à 20 % de plus. Sur
+  24 décalages autour de six centres de villes, la limite n'est pas plus mal
+  vue que le reste. « Reconstruire la scène » efface aussi les relevés de
+  l'emprise. Les couches déjà en cache restent servies telles quelles.
+
 - **Décaler la scène d'un clic.** Quatre flèches, N, E, S et O, au bord de la
   vue, là où chaque point cardinal se trouve à l'écran ; elles tournent avec
   la vue, comme la boussole. Une flèche décale le point d'un quart du côté de

@@ -14,7 +14,7 @@ import pytest
 
 from vue3d import vehicules
 from vue3d.vehicules import (COTE, Lecteur, VehiculesMalConfigures, detecter, detecter_piscines,
-                             mode_demande, piscines_pour_emprise, sans_doublons,
+                             en_geographie, mode_demande, piscines_pour_emprise, sans_doublons,
                              vehicules_pour_emprise)
 
 
@@ -295,7 +295,7 @@ def test_une_piscine_vue_des_deux_detecteurs_n_est_gardee_qu_une_fois():
 
 
 def test_les_piscines_passent_les_memes_filtres_que_les_vehicules():
-    brut = {"largeur": 1000, "hauteur": 1000, "boites": [], "piscines": [
+    brut = {"largeur": 1000, "hauteur": 1000, "piscines": [
         [500, 500, 50, 25, 0.0, 0.4, 0x5AC8D2, "rtmdet"],       # 10 m sur 5 m, au centre
         [550, 300, 50, 25, 0.0, 0.4, 0x5AC8D2, "rtmdet"],       # sur un bâtiment : une véranda
         [300, 700, 50, 25, 0.0, 0.4, 0x5AC8D2, "rtmdet"],       # sur une eau de la BD TOPO
@@ -303,6 +303,7 @@ def test_les_piscines_passent_les_memes_filtres_que_les_vehicules():
         [700, 300, 400, 200, 0.0, 0.4, 0x5AC8D2, "rtmdet"]]}    # 80 m : pas une piscine
     batiments = {"features": [{"type": "Feature", "properties": {}, "geometry": _carre(5, 35, 15, 45)}]}
     eau = {"surfaces": [{"geometrie": _carre(-50, -50, -30, -30)}], "cours": []}
+    brut = {"piscines": en_geographie(*BBOX, brut, "piscines")}
     couche = piscines_pour_emprise(*BBOX, brut, "rtmdet", batiments, eau)
     assert couche["mode"] == "rtmdet" and "vehicules" not in couche
     (lon, lat, longueur, largeur, cap, couleur), = couche["piscines"]
@@ -319,8 +320,10 @@ BBOX = (LON - 100 / KX, LAT - 100 / KY, LON + 100 / KX, LAT + 100 / KY)
 
 
 def _brut(*boites):
-    return {"largeur": 1000, "hauteur": 1000,
-            "boites": [[*b, 0.5, 0, 0x808080, "rtmdet"] for b in boites]}
+    """Boîtes en pixels d'une image de 1 000 px de l'emprise, passées en
+    coordonnées comme le fait un relevé."""
+    return {"boites": en_geographie(*BBOX, {"largeur": 1000, "hauteur": 1000, "boites": [
+        [*b, 0.5, 0, 0x808080, "rtmdet"] for b in boites]}, "boites")}
 
 
 def _carre(x0, y0, x1, y1):

@@ -80,6 +80,8 @@ from .ortho import fetch_exg_grid, fetch_ortho_jpeg
 from .nuage import NUAGE_VERSION, fetch_nuage, nuage_pour_emprise
 from .ouvrages import OUVRAGES_VERSION, fetch_ouvrages, ouvrages_pour_emprise
 from .panneaux import PANNEAUX_VERSION, panneaux_pour_emprise
+from .releves import MARGE_PISCINES_PX, MARGE_VEHICULES_PX, Releves, emprise_image
+from .releves import rectangle as rectangle_releve
 from .relief import RELIEF_TAILLE, fetch_relief, fetch_relief_anneau
 from .toits import TOITS_RESOLUTION_M, toits_pour_emprise
 from .vehicules import (PISCINES_VERSION, VEHICULES_VERSION, piscines_pour_emprise,
@@ -625,7 +627,10 @@ class Cache:
     lue est toujours une scène entière.
 
     Les couches à part — monuments OSM, ouvrages BD TOPO — se rangent à côté
-    de la scène, sous la même règle : écrites entières, ou pas du tout.
+    de la scène, sous la même règle : écrites entières, ou pas du tout. Les
+    détections sur l'orthophoto, elles, se rangent aussi par morceau de
+    terrain, hors du dossier du point (`releves`, vue3d/releves.py) : un
+    point voisin réunit sa couche de ce qui est déjà vu.
 
     Les détections sur l'orthophoto cèdent le processeur aux scènes.
     Chacune occupe tous les cœurs (onnxruntime) pendant des secondes, et
@@ -760,6 +765,12 @@ class Cache:
             self._images = threading.Condition()
             self._lots_lances = 0
             self._lots_finis = 0
+        # Les détections, gardées par morceau de terrain plutôt que par
+        # point (vue3d/releves.py) : hors du dossier de la version de la
+        # scène, qu'elles ne lisent pas. Et, par genre, les relevés que les
+        # lots lancés vont faire (prelire_vehicules).
+        self.releves = Releves(os.path.join(dossier, "releves"))
+        self._releves_en_attente = {}
 
     def _qui_cede(self, lecteur):
         """Le lecteur des véhicules, celles de ses sessions d'inférence qui
@@ -926,6 +937,11 @@ class Cache:
                 ancienne = dossier + self.MISE_DE_COTE
                 shutil.rmtree(ancienne, ignore_errors=True)
                 os.replace(dossier, ancienne)
+                # Ses relevés aussi (vue3d/releves.py) : les détections se
+                # refont sur l'orthophoto du moment. Ils ne reviennent pas si
+                # la reconstruction échoue : les couches mises de côté
+                # reviennent avec la scène, et un relevé se refait.
+                self.releves.oublier(rectangle_releve(*emprise(lat, lon, zone)))
             journal.info("Scène %.4f, %.4f (zone %s) mise de côté, à reconstruire",
                          lat, lon, zone or "par défaut")
         finally:
@@ -1082,6 +1098,24 @@ class Cache:
             lambda message: PanneauxIndisponibles(f"panneaux solaires illisibles : {message}"),
             lambda bbox, brut, scene: panneaux_pour_emprise(*bbox, brut), zone=zone)
 
+    def _detections(self):
+        """Les couches de l'orthophoto du service, dans l'ordre où elles se
+        détectent : [(fichier de la couche, genre de ses relevés, lecture
+        d'une image, clé de ses boîtes, marge de l'image de ses relevés)]."""
+        lecteur, mode = self.lire_vehicules, self.mode_vehicules
+        return [(nom_piscines(mode), f"piscines-{mode}", lecteur.piscines, "piscines",
+                 MARGE_PISCINES_PX)] + [
+            (nom_vehicules(d), f"vehicules-{d}", lecteur.vehicules(d), "boites", MARGE_VEHICULES_PX)
+            for d in lecteur.detecteurs]
+
+    def _relever(self, genre, lire, cle, marge_px, bbox, images=None):
+        """Brut de la couche sur l'emprise, réuni des relevés qui la couvrent
+        (vue3d/releves.py) ; ceux qui manquent sont détectés d'abord, sur
+        `images` quand elles y sont."""
+        return {cle: self.releves.relever(genre, bbox, lire, cle, self.lire_vehicules.detecteurs,
+                                          marge_px, centre_dans_l_autre=cle == "piscines",
+                                          images=images)}
+
     def prelire_vehicules(self, lat, lon, zone=None):
         """Lance en tâche de fond les détections sur l'orthophoto à 0,2 m, si
         le service a un détecteur : les piscines d'abord (une demi-seconde),
@@ -1089,21 +1123,27 @@ class Cache:
         orthophoto se lit pendant que la scène se construit ; au processeur,
         leurs inférences attendent qu'elle soit écrite (attendre_les_scenes).
 
+        Seul ce que les relevés déjà faits ne couvrent pas est détecté
+        (vue3d/releves.py) : rien quand la couche du point se réunit de
+        relevés existants, une bande d'un quart de zone après un décalage.
+        Les relevés que les lots déjà lancés vont faire sont comptés comme
+        faits : un point décalé pendant que le précédent se détecte ne
+        refait pas ce que celui-ci est en train de voir.
+
         Les détections lancées ensemble se partagent une seule lecture de
-        l'orthophoto : sur une zone de 1 000 m, six tuiles de 2 048 px, lues
-        trois fois l'une après l'autre avant le partage (11 à 16 s chaque
-        fois), une fois ensemble depuis (5 s environ). Si cette lecture
-        échoue, chaque détection retente la sienne, comme avant le partage :
-        une couche ne tombe pas pour une autre. Les images ainsi lues
-        d'avance sont bornées (IMAGES_TENUES)."""
+        chaque orthophoto : sur une zone de 1 000 m, six tuiles de 2 048 px,
+        lues trois fois l'une après l'autre avant le partage (11 à 16 s
+        chaque fois), une fois ensemble depuis (5 s environ). Si cette
+        lecture échoue, chaque détection retente la sienne, comme avant le
+        partage : une couche ne tombe pas pour une autre. Les images ainsi
+        lues d'avance sont bornées (IMAGES_TENUES)."""
         if not self.lire_vehicules:
             return
         lat, lon = point_normalise(lat, lon)
         zone = zone_normalisee(zone)
         lecteur = self.lire_vehicules
-        couches = [(nom_piscines(self.mode_vehicules), lecteur.piscines)]
-        couches += [(nom_vehicules(d), lecteur.vehicules(d)) for d in lecteur.detecteurs]
         bbox = emprise(lat, lon, zone)
+        besoin = rectangle_releve(*bbox)
 
         def en_cours(cle):
             """Lancée, ou attendue par une demande qui la tient (verrou de
@@ -1117,41 +1157,58 @@ class Cache:
             # plus tôt et la prise du verrou, sa tâche déjà retirée, la couche
             # était relancée (reproduit à la contre-vérification : yolo
             # détecté deux fois, une tâche restée pour toujours).
-            couches = [(nom, lire) for nom, lire in couches
-                       if not en_cours((nom, lat, lon, zone))
-                       and not os.path.exists(self.chemin(lat, lon, nom, zone))]
+            couches = [c for c in self._detections()
+                       if not en_cours((c[0], lat, lon, zone))
+                       and not os.path.exists(self.chemin(lat, lon, c[0], zone))]
             if not couches:
                 return
+            prevus = {genre: self.releves.a_detecter(genre, besoin, marge,
+                                                     self._releves_en_attente.get(genre, ()))
+                      for _, genre, _, _, marge in couches}
+            for genre, rects in prevus.items():
+                self._releves_en_attente.setdefault(genre, []).extend(rects)
+            # Une image par relevé prévu, partagée par les couches qui le
+            # prévoient toutes — le cas ordinaire, leurs relevés étant faits
+            # ensemble —, lue à la plus large de leurs marges.
+            a_lire = {}
+            for _, genre, _, _, marge in couches:
+                for r in prevus[genre]:
+                    a_lire[r] = max(a_lire.get(r, 0), marge)
             # Rang du lot, pris sous le verrou comme la place de ses tâches
             # dans la file : rangs et file vont dans le même ordre.
             rang, restantes = self._lots_lances, [len(couches)]
             self._lots_lances += 1
 
-            def lire_l_image():
+            def lire_les_images():
                 with self._images:
                     self._images.wait_for(lambda: rang - self._lots_finis < self.IMAGES_TENUES)
-                return lecteur.orthophoto(*bbox)
+                return {r: (marge, lecteur.orthophoto(*emprise_image(r, marge)))
+                        for r, marge in a_lire.items()}
 
-            image = self._orthophotos.submit(lire_l_image)
+            images = self._orthophotos.submit(lire_les_images)
 
-            def sur_l_image(lire):
+            def sur_les_images(genre, lire, cle, marge):
                 try:
                     try:
-                        rgb = image.result()
+                        rgb = images.result()
                     except Exception:
                         rgb = None              # chacune la sienne
-                    return lire(*bbox, rgb=rgb)
+                    return self._relever(genre, lire, cle, marge, bbox, rgb)
                 finally:
+                    with self._verrou_global:
+                        for r in prevus[genre]:
+                            self._releves_en_attente[genre].remove(r)
                     with self._images:
                         restantes[0] -= 1
                         if not restantes[0]:
                             self._lots_finis += 1
                             self._images.notify_all()
 
-            # L'image n'est tenue que par ces tâches : libérée avec la
+            # Les images ne sont tenues que par ces tâches : libérées avec la
             # dernière, qu'on vienne ou non chercher sa couche.
-            for nom, lire in couches:
-                self._lectures[(nom, lat, lon, zone)] = self._taches[nom].submit(sur_l_image, lire)
+            for nom, genre, lire, cle, marge in couches:
+                self._lectures[(nom, lat, lon, zone)] = self._taches[nom].submit(
+                    sur_les_images, genre, lire, cle, marge)
 
     def _detections_si_absente(self, nom, lat, lon, zone):
         """Une couche de l'orthophoto demandée sans tâche lancée — scène
@@ -1176,10 +1233,10 @@ class Cache:
         """
         if not self.lire_vehicules:
             raise VehiculesDesactives("service lancé sans détecteur de véhicules")
-        nom = nom_piscines(self.mode_vehicules)
+        nom, genre, lire, cle, marge = self._detections()[0]
         self._detections_si_absente(nom, lat, lon, zone)
         return self._obtenir_couche(
-            nom, lat, lon, construire, self.lire_vehicules.piscines,
+            nom, lat, lon, construire, lambda *bbox: self._relever(genre, lire, cle, marge, bbox),
             lambda message: VehiculesIndisponibles(f"piscines illisibles : {message}"),
             lambda bbox, brut, scene: piscines_pour_emprise(
                 *bbox, brut, self.mode_vehicules, scene.get("batiments"),
@@ -1193,10 +1250,11 @@ class Cache:
         """
         if not self.lire_vehicules or detecteur not in self.lire_vehicules.detecteurs:
             raise VehiculesDesactives(f"service lancé sans le détecteur {detecteur!r}")
-        nom = nom_vehicules(detecteur)
+        nom, genre, lire, cle, marge = next(c for c in self._detections()
+                                            if c[0] == nom_vehicules(detecteur))
         self._detections_si_absente(nom, lat, lon, zone)
         return self._obtenir_couche(
-            nom, lat, lon, construire, self.lire_vehicules.vehicules(detecteur),
+            nom, lat, lon, construire, lambda *bbox: self._relever(genre, lire, cle, marge, bbox),
             lambda message: VehiculesIndisponibles(f"véhicules illisibles : {message}"),
             lambda bbox, brut, scene: vehicules_pour_emprise(
                 *bbox, brut, detecteur, scene.get("batiments"), scene.get("eau")), zone=zone), nom
