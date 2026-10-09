@@ -16,7 +16,8 @@ messages de commit et dans les commentaires des modules.
 ### Ajouté
 
 - **DPE et ventes immobilières, au clic.** Deux boutons du panneau,
-  éteints à l'ouverture : rien n'est demandé tant qu'on ne clique pas.
+  éteints à l'ouverture, et deux couches à part (`/api/dpe`, `/api/dvf`) :
+  rien n'est demandé à l'ADEME ni à DVF tant qu'on ne clique pas.
   « DPE » lit les diagnostics de performance énergétique de l'ADEME
   (logements existants et neufs, depuis juillet 2021) et colore chaque
   bâtiment selon son étiquette énergie médiane, de A à G ; la fiche d'une
@@ -31,7 +32,9 @@ messages de commit et dans les commentaires des modules.
   couleur et cerné de cyan, ventes au survol et au clic, prix médian des
   maisons et des appartements dans le panneau. Pas de DVF en
   Alsace-Moselle : la page le dit. Les deux couches sont datées, gardées
-  avec la scène, et relues par « Reconstruire la scène ».
+  avec la scène, et relues par « Reconstruire la scène ». Sans clé : API de
+  l'ADEME et fichiers d'Etalab, sous Licence Ouverte 2.0, cités dans les
+  crédits dès que leur couche est affichée.
 
 - **Un décalage ne redétecte que la bande nouvelle.** Ce que les réseaux
   voient sur l'orthophoto (véhicules et piscines) est désormais gardé par
@@ -156,6 +159,11 @@ messages de commit et dans les commentaires des modules.
   calcule ; le refus dit pourquoi. Route : `POST /api/reconstruire`.
 
 ### Modifié
+
+- **L'essai dans le navigateur clique « DPE » et « Ventes DVF ».**
+  `outils/essai-navigateur.mjs` les allume, attend leur section du panneau
+  et relève la fiche du bâtiment visé, puis les éteint avant le décalage :
+  il lit désormais aussi l'ADEME, le cadastre et les fichiers DVF.
 
 - **L'orbite tourne à 60 images par seconde dans une forêt.** À
   Porquerolles en zone de 1 000 m (17 613 houppiers), sous Metal, fenêtre de
