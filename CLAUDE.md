@@ -25,7 +25,7 @@ npm install puppeteer-core && node outils/essai-navigateur.mjs "http://localhost
 
 ```
 vue3d/
-  app.py        Flask : /, /api/scene, /api/ortho, /api/monuments, /api/ouvrages, /api/nuage, /api/piscines, /api/vehicules, /api/panneaux, /api/avancement, /api/sante, POST /api/reconstruire
+  app.py        Flask : /, /api/scene, /api/ortho, /api/monuments, /api/ouvrages, /api/nuage, /api/piscines, /api/vehicules, /api/panneaux, /api/dpe, /api/dvf, /api/avancement, /api/sante, POST /api/reconstruire
   scene.py      assemblage d'une scène, cache disque par point arrondi
   couches.py    lecture WFS (bâtiments, végétation, BD Forêt, routes)
   batiments.py  bâtiments découpés sur l'emprise, en retrait du bord
@@ -44,6 +44,8 @@ vue3d/
   vehicules.py  véhicules et piscines lus sur l'orthophoto par un réseau ONNX : couche à part, optionnelle (VUE3D_VEHICULES)
   releves.py    détections gardées par rectangle de terrain (cache/releves/) : un point décalé ne détecte que la bande nouvelle
   panneaux.py   panneaux solaires du registre OpenPVMapper (SQLite R-tree) : couche à part, optionnelle (VUE3D_PANNEAUX)
+  dpe.py        DPE de l'ADEME rattachés aux bâtiments (RNB, sinon adresse à 5 m) : couche à part, lue au clic seulement, datée
+  dvf.py        ventes DVF (fichiers Etalab) jointes aux parcelles du cadastre IGN : couche à part, lue au clic seulement, datée
   geopf.py      GET avec reprise sur la Géoplateforme ; 8 places pour tout le service, lectures groupées abandonnées au premier échec
   static/index.html   la page entière : HTML, CSS et JavaScript (three.js r160)
 ```

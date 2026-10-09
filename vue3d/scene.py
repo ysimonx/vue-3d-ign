@@ -69,6 +69,8 @@ from .constructions import (COUCHE_PONCTUELLES, COUCHE_RESERVOIRS,
                             constructions_pour_emprise)
 from .couches import (COUCHE_BATIMENTS, COUCHE_FORET, COUCHE_ROUTES,
                       COUCHE_VEGETATION, lire_couche)
+from .dpe import DPE_VERSION, dpe_pour_emprise, fetch_dpe
+from .dvf import DVF_VERSION, dvf_pour_emprise, fetch_dvf
 from .eau import (COUCHE_COURS_EAU, COUCHE_SURFACES_EAU, eau_pour_emprise,
                   masque_eau)
 from .geopf import Groupe
@@ -164,6 +166,9 @@ NOM_OUVRAGES = f"ouvrages-v{OUVRAGES_VERSION}.json.gz"
 # Les panneaux solaires ont une seule source : le registre, à sa version.
 NOM_PANNEAUX = f"panneaux-v{PANNEAUX_VERSION}.json.gz"
 NOM_NUAGE = f"nuage-v{NUAGE_VERSION}.json.gz"
+# DPE de l'ADEME et ventes DVF : lus seulement à la demande de la page.
+NOM_DPE = f"dpe-v{DPE_VERSION}.json.gz"
+NOM_DVF = f"dvf-v{DVF_VERSION}.json.gz"
 
 
 def nom_vehicules(detecteur):
@@ -205,6 +210,14 @@ class PanneauxIndisponibles(RuntimeError):
 
 class PanneauxDesactives(RuntimeError):
     """Le service tourne sans registre des panneaux : la couche n'existe pas."""
+
+
+class DpeIndisponibles(RuntimeError):
+    """L'API de l'ADEME n'a pas répondu : rien n'est mis en cache."""
+
+
+class DvfIndisponible(RuntimeError):
+    """Le cadastre ou les fichiers DVF n'ont pas répondu : rien n'est mis en cache."""
 
 
 class HorsEmprise(ValueError):
@@ -699,7 +712,8 @@ class Cache:
     IMAGES_TENUES = 2
 
     def __init__(self, dossier, lire_monuments=fetch_monuments, lire_ouvrages=fetch_ouvrages,
-                 lire_vehicules=None, lire_panneaux=None, lire_nuage=fetch_nuage):
+                 lire_vehicules=None, lire_panneaux=None, lire_nuage=fetch_nuage,
+                 lire_dpe=fetch_dpe, lire_dvf=fetch_dvf):
         """`lire_vehicules` : de `vehicules.lecteur()`, ou une doublure qui a
         la même forme — `mode`, `detecteurs`, `orthophoto(emprise)` -> tableau
         RGB, `piscines(emprise, rgb=None)` et `vehicules(detecteur)` -> une
@@ -731,6 +745,8 @@ class Cache:
         self.mode_vehicules = lire_vehicules.mode if lire_vehicules else None
         self.lire_panneaux = lire_panneaux
         self.lire_nuage = lire_nuage
+        self.lire_dpe = lire_dpe
+        self.lire_dvf = lire_dvf
         self._lectures = {}
         self._taches = {
             NOM_MONUMENTS: concurrent.futures.ThreadPoolExecutor(
@@ -1097,6 +1113,39 @@ class Cache:
             NOM_PANNEAUX, lat, lon, construire, self.lire_panneaux,
             lambda message: PanneauxIndisponibles(f"panneaux solaires illisibles : {message}"),
             lambda bbox, brut, scene: panneaux_pour_emprise(*bbox, brut), zone=zone)
+
+    def obtenir_dpe(self, lat, lon, construire=construire, zone=None):
+        """Chemin du dossier où la couche des DPE du point est écrite.
+
+        Jamais lue d'avance : la page ne la demande qu'au clic sur son
+        bouton. Elle lit les bâtiments de la scène, auxquels chaque DPE est
+        rattaché (vue3d/dpe.py), et porte la date de sa lecture ; « Reconstruire
+        la scène » la relit avec le reste.
+
+        Raises:
+            DpeIndisponibles si l'API de l'ADEME n'a pas répondu : rien n'est
+            écrit, la demande suivante réessaie.
+        """
+        return self._obtenir_couche(
+            NOM_DPE, lat, lon, construire, self.lire_dpe,
+            lambda message: DpeIndisponibles(f"DPE de l'ADEME illisibles : {message}"),
+            lambda bbox, brut, scene: dpe_pour_emprise(*bbox, brut, scene.get("batiments")),
+            zone=zone)
+
+    def obtenir_dvf(self, lat, lon, construire=construire, zone=None):
+        """Chemin du dossier où la couche des ventes DVF du point est écrite.
+
+        Jamais lue d'avance, datée, relue par « Reconstruire la scène »,
+        comme les DPE ; elle ne lit rien de la scène (vue3d/dvf.py).
+
+        Raises:
+            DvfIndisponible si le cadastre ou les fichiers DVF n'ont pas
+            répondu : rien n'est écrit, la demande suivante réessaie.
+        """
+        return self._obtenir_couche(
+            NOM_DVF, lat, lon, construire, self.lire_dvf,
+            lambda message: DvfIndisponible(f"ventes DVF illisibles : {message}"),
+            lambda bbox, brut, scene: dvf_pour_emprise(*bbox, brut), zone=zone)
 
     def _detections(self):
         """Les couches de l'orthophoto du service, dans l'ordre où elles se

@@ -348,3 +348,66 @@ def test_le_bouton_reconstruit_la_scene(client, tmp_path):
     assert client.post("/api/reconstruire?lat=48.8049&lon=2.1204").status_code == 429
     assert client.post("/api/reconstruire?lat=abc&lon=2").status_code == 400
     assert client.get("/api/reconstruire?lat=48.8049&lon=2.1204").status_code == 405
+
+
+@pytest.fixture
+def client_dpe_dvf(tmp_path):
+    """DPE et DVF doublés : chaque lecture est notée ; au sud de 46°, les
+    deux sources sont en panne."""
+    lectures = []
+    scene = {"version": 1, "bbox": [0, 0, 1, 1], "batiments": {"features": []}}
+
+    def construire(lat, lon, avancer=None):
+        return gzip.compress(json.dumps(scene).encode()), b"\xff\xd8jpeg"
+
+    def lire_dpe(west, south, east, north):
+        lectures.append("dpe")
+        if south < 46:
+            raise ConnectionError("API de l'ADEME injoignable")
+        return {"lu_le": "2026-10-09", "lignes": [{
+            "numero_dpe": "1", "etiquette_dpe": "C", "etiquette_ges": "B", "type_batiment": "maison",
+            "_geopoint": f"{(south + north) / 2},{(west + east) / 2}"}]}
+
+    def lire_dvf(west, south, east, north):
+        lectures.append("dvf")
+        if south < 46:
+            raise ConnectionError("fichiers DVF injoignables")
+        return {"lu_le": "2026-10-09", "parcelles": {"features": []}, "lignes": [],
+                "millesimes": [2025], "absent": ["Bas-Rhin"]}
+
+    appli = module_app.creer_app(str(tmp_path), construire=construire,
+                                 lire_monuments=lambda *b: {"elements": []},
+                                 lire_ouvrages=lambda *b: {}, lire_nuage=lambda *b: None,
+                                 lire_dpe=lire_dpe, lire_dvf=lire_dvf)
+    return appli.test_client(), lectures
+
+
+def test_dpe_et_dvf_ne_sont_lus_qu_a_la_demande(client_dpe_dvf):
+    """Choix de l'utilisateur : la scène ne les lit jamais d'office ; leur
+    route les lit une fois, puis les sert du cache, datés."""
+    client, lectures = client_dpe_dvf
+    assert client.get("/api/scene?lat=48.8049&lon=2.1204").status_code == 200
+    assert lectures == []
+    for route in ("dpe", "dvf"):
+        r = client.get(f"/api/{route}?lat=48.8049&lon=2.1204")
+        assert r.status_code == 200 and r.headers["Content-Encoding"] == "gzip"
+        assert r.headers["Cache-Control"] == "no-cache"
+        couche = json.loads(gzip.decompress(r.data))
+        assert couche["lu_le"] == "2026-10-09"
+        client.get(f"/api/{route}?lat=48.8049&lon=2.1204")
+    assert lectures == ["dpe", "dvf"]
+    assert couche["absent"] == ["Bas-Rhin"]
+    r = client.get("/api/dpe?lat=48.8049&lon=2.1204")
+    (adresse,) = json.loads(gzip.decompress(r.data))["adresses"]
+    assert adresse["resume"]["mediane"] == "C" and adresse["dpe"][0]["numero"] == "1"
+
+
+def test_une_panne_de_l_ademe_ou_de_dvf_rend_503_sans_rien_ecrire(client_dpe_dvf):
+    client, lectures = client_dpe_dvf
+    r = client.get("/api/dpe?lat=45.5&lon=2")
+    assert r.status_code == 503 and "ADEME" in r.get_json()["erreur"]
+    r = client.get("/api/dvf?lat=45.5&lon=2")
+    assert r.status_code == 503 and "DVF" in r.get_json()["erreur"]
+    client.get("/api/dpe?lat=45.5&lon=2")
+    assert lectures == ["dpe", "dvf", "dpe"]
+    assert client.get("/api/dpe?lat=40&lon=2").status_code == 422

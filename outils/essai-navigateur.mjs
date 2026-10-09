@@ -77,6 +77,24 @@ await page.evaluate(() => { const h = document.getElementById('heure'); h.value 
 console.log('soleil au 21 décembre, 13 h :', await page.$eval('#s-date', e => e.textContent), '·', await page.$eval('#s-hauteur', e => e.textContent));
 await new Promise(r => setTimeout(r, 800));
 await page.screenshot({ path: sortie });
+// DPE et ventes DVF : lus seulement au clic (ADEME, cadastre et fichiers
+// DVF), leur section du panneau s'ouvre ; la fiche du bâtiment visé dit
+// ses DPE, ou qu'il n'en a pas.
+for (const [bouton, section, resume] of [['#t-dpe', '#sec-dpe', '#dpe-resume'], ['#t-dvf', '#sec-dvf', '#dvf-resume']]) {
+  try {
+    await page.click(bouton);
+    await page.waitForFunction(s => !document.querySelector(s).hidden, { timeout: 90000 }, section);
+    console.log(`${bouton.slice(3).toUpperCase()} :`, (await page.$eval(resume, e => e.innerText.replace(/\s+/g, ' ').trim())).slice(0, 200));
+  } catch (e) {
+    erreurs.push(`${bouton} : ` + (await page.$eval('#etat-foncier', e => e.textContent).catch(() => e.message)));
+  }
+}
+console.log('fiche avec DPE :', (await page.$eval('#fiche-batiment', e => e.innerText.replace(/\s+/g, ' '))).match(/DPE.{0,120}/)?.[0] || '(aucun)');
+await new Promise(r => setTimeout(r, 800));
+await page.screenshot({ path: sortie.replace(/(\.png)?$/, '-dpe-dvf.png') });
+// Éteints, pour que la suite voie la page telle qu'elle s'ouvre.
+await page.click('#t-dpe');
+await page.click('#t-dvf');
 // Flèche du nord : un quart de zone plus au nord, au pas de la clé du cache ;
 // la caméra garde son cap (les pointes des flèches n'ont pas tourné) et
 // l'orbite, arrêtée plus haut, ne repart pas.

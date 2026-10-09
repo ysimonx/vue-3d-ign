@@ -10,6 +10,8 @@
     GET /api/piscines?lat=…&lon=…    les piscines de l'orthophoto, si le service a un détecteur
     GET /api/vehicules?lat=…&lon=…&detecteur=…   les véhicules vus d'un détecteur du service
     GET /api/panneaux?lat=…&lon=…    les panneaux solaires du registre, si le service en a un
+    GET /api/dpe?lat=…&lon=…         les DPE de l'ADEME, à la demande de la page seulement
+    GET /api/dvf?lat=…&lon=…         les ventes DVF des parcelles, de même
     GET /api/avancement?lat=…&lon=…  l'étape de la construction en cours
     GET /api/sante                 contrôle de vie, pour Docker
 
@@ -25,13 +27,16 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from .dpe import fetch_dpe
+from .dvf import fetch_dvf
 from .monuments import fetch_monuments
 from .nuage import fetch_nuage
 from .ouvrages import fetch_ouvrages
 from .panneaux import REGISTRE_LICENCE
 from .panneaux import lecteur as lecteur_panneaux
-from .scene import (NOM_MONUMENTS, NOM_NUAGE, NOM_ORTHO, NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE,
-                    Cache, HorsEmprise, MonumentsIndisponibles, NuageIndisponible,
+from .scene import (NOM_DPE, NOM_DVF, NOM_MONUMENTS, NOM_NUAGE, NOM_ORTHO, NOM_OUVRAGES,
+                    NOM_PANNEAUX, NOM_SCENE, Cache, DpeIndisponibles, DvfIndisponible,
+                    HorsEmprise, MonumentsIndisponibles, NuageIndisponible,
                     OuvragesIndisponibles,
                     PanneauxIndisponibles, ReconstructionRefusee, SceneIncomplete,
                     VehiculesDesactives, VehiculesIndisponibles, zone_normalisee)
@@ -53,10 +58,11 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 
 def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fetch_monuments,
               lire_ouvrages=fetch_ouvrages, lire_vehicules=None, lire_panneaux=None,
-              lire_nuage=fetch_nuage):
+              lire_nuage=fetch_nuage, lire_dpe=fetch_dpe, lire_dvf=fetch_dvf):
     """`construire`, `lire_monuments`, `lire_ouvrages`, `lire_vehicules`,
-    `lire_panneaux` et `lire_nuage` sont injectables pour les tests, qui
-    n'appellent ni l'IGN ni Overpass et ne chargent aucun réseau ni registre. `lire_vehicules` :
+    `lire_panneaux`, `lire_nuage`, `lire_dpe` et `lire_dvf` sont injectables
+    pour les tests, qui n'appellent ni l'IGN, ni Overpass, ni l'ADEME, ni
+    data.gouv, et ne chargent aucun réseau ni registre. `lire_vehicules` :
     de `vehicules.lecteur()` ; None, le service n'a ni véhicules ni piscines.
     `lire_panneaux` : de `panneaux.lecteur()` ; None, pas de panneaux."""
     app = Flask(__name__, static_folder=os.path.join(ICI, "static"), static_url_path="/static")
@@ -66,7 +72,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
     cache = Cache(os.path.abspath(dossier_cache or os.environ.get("VUE3D_CACHE", "/tmp/vue3d-cache")),
                   lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
                   lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
-                  lire_nuage=lire_nuage)
+                  lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf)
 
     def point():
         """(lat, lon, zone) de la requête ; None si l'un d'eux est illisible."""
@@ -94,6 +100,10 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
                 return cache.obtenir_ouvrages(*p, construire=construire, zone=zone), None
             if couche == NOM_NUAGE:
                 return cache.obtenir_nuage(*p, construire=construire, zone=zone), None
+            if couche == NOM_DPE:
+                return cache.obtenir_dpe(*p, construire=construire, zone=zone), None
+            if couche == NOM_DVF:
+                return cache.obtenir_dvf(*p, construire=construire, zone=zone), None
             if couche == COUCHE_PISCINES:
                 return cache.obtenir_piscines(*p, construire=construire, zone=zone), None
             if couche == NOM_PANNEAUX:
@@ -136,6 +146,16 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
         except VehiculesIndisponibles as exc:
             app.logger.warning("Détection indisponible pour %s : %s", p, exc)
             return None, erreur(503, "La détection sur l'orthophoto n'a pas abouti ("
+                                f"{exc}). Rien n'a été mis en cache : réessayez "
+                                "dans quelques instants.")
+        except DpeIndisponibles as exc:
+            app.logger.warning("DPE indisponibles pour %s : %s", p, exc)
+            return None, erreur(503, "L'API des DPE de l'ADEME n'a pas répondu ("
+                                f"{exc}). Rien n'a été mis en cache : réessayez "
+                                "dans quelques instants.")
+        except DvfIndisponible as exc:
+            app.logger.warning("DVF indisponible pour %s : %s", p, exc)
+            return None, erreur(503, "Le cadastre ou les fichiers DVF n'ont pas répondu ("
                                 f"{exc}). Rien n'a été mis en cache : réessayez "
                                 "dans quelques instants.")
         except PanneauxIndisponibles as exc:
@@ -262,6 +282,24 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
         if err:
             return err
         return servir_gzip(dossier, NOM_PANNEAUX)
+
+    @app.get("/api/dpe")
+    def dpe():
+        """Les DPE de l'ADEME autour du point, rattachés aux bâtiments :
+        demandés par la page au clic sur leur bouton, jamais d'office."""
+        dossier, err = dossier_scene(couche=NOM_DPE)
+        if err:
+            return err
+        return servir_gzip(dossier, NOM_DPE)
+
+    @app.get("/api/dvf")
+    def dvf():
+        """Les ventes DVF des parcelles autour du point : au clic, comme les
+        DPE. Sans DVF ici (Alsace-Moselle), la couche le dit (`absent`)."""
+        dossier, err = dossier_scene(couche=NOM_DVF)
+        if err:
+            return err
+        return servir_gzip(dossier, NOM_DVF)
 
     @app.get("/api/ortho")
     def ortho():

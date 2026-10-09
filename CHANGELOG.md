@@ -15,6 +15,24 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **DPE et ventes immobilières, au clic.** Deux boutons du panneau,
+  éteints à l'ouverture : rien n'est demandé tant qu'on ne clique pas.
+  « DPE » lit les diagnostics de performance énergétique de l'ADEME
+  (logements existants et neufs, depuis juillet 2021) et colore chaque
+  bâtiment selon son étiquette énergie médiane, de A à G ; la fiche d'une
+  maison liste ses DPE, celle d'un immeuble n'en donne que la répartition.
+  Le bâtiment est désigné par l'identifiant RNB du DPE, sinon par son point
+  d'adresse à 5 m près : sur 1 715 DPE de huit lieux dont le RNB fait foi,
+  la règle de l'adresse trouve le bon bâtiment 93 % du temps quand le point
+  tombe dedans, 75 % entre 2 et 5 m, et se trompe une fois sur trois
+  au-delà. « Ventes DVF » lit les ventes de 2021 à 2025 (fichiers DVF
+  géolocalisées d'Etalab, parcelles du cadastre IGN) : parcelles vendues
+  teintées par leur prix au m² médian, bâtiment posé dessus de la même
+  couleur et cerné de cyan, ventes au survol et au clic, prix médian des
+  maisons et des appartements dans le panneau. Pas de DVF en
+  Alsace-Moselle : la page le dit. Les deux couches sont datées, gardées
+  avec la scène, et relues par « Reconstruire la scène ».
+
 - **Un décalage ne redétecte que la bande nouvelle.** Ce que les réseaux
   voient sur l'orthophoto (véhicules et piscines) est désormais gardé par
   rectangle de terrain, dans `cache/releves/`, et non plus seulement dans la

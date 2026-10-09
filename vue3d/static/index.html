@@ -39,6 +39,16 @@
                 color:var(--muted); padding:2px 0; }
         .stat b { color:var(--text); font-weight:600; }
         .note { font-size:10px; color:var(--muted); line-height:1.45; margin-top:8px; }
+        /* DPE et ventes : une barre des étiquettes (ou des classes de prix),
+           chaque part à la taille de son compte ; une pastille par étiquette. */
+        .barre { display:flex; height:16px; border-radius:3px; overflow:hidden; margin:6px 0 4px; }
+        .barre span { display:flex; align-items:center; justify-content:center; min-width:0;
+                      font-size:10px; font-weight:700; color:#111; overflow:hidden; }
+        .pastille { display:inline-block; min-width:15px; padding:0 3px; border-radius:3px; text-align:center;
+                    font-weight:700; color:#111; font-size:10px; line-height:15px; }
+        .liste-foncier { font-size:11px; margin-top:6px; }
+        .liste-foncier div { padding:3px 0; border-top:1px solid rgba(255,255,255,.07); }
+        .sous-titre { font-size:11px; font-weight:600; margin:10px 0 2px; color:var(--text); }
         .lien-ext { display:inline-block; margin-top:8px; font-size:11px; color:var(--accent);
                     text-decoration:none; border:1px solid var(--line); border-radius:5px;
                     padding:4px 8px; }
@@ -200,6 +210,8 @@
                 <button class="toggle on" id="t-vehicules" hidden title="Véhicules vus sur l'orthophoto, le jour de la prise de vue">Véhicules</button>
                 <button class="toggle on" id="t-piscines" hidden title="Piscines vues sur l'orthophoto">Piscines</button>
                 <button class="toggle on" id="t-panneaux" hidden title="Panneaux solaires du registre OpenPVMapper">Panneaux solaires</button>
+                <button class="toggle" id="t-dpe" title="Diagnostics de performance énergétique (ADEME) des bâtiments autour du point : lus au premier clic">DPE</button>
+                <button class="toggle" id="t-dvf" title="Ventes immobilières des cinq dernières années (DVF) autour du point : lues au premier clic">Ventes DVF</button>
                 <button class="toggle" id="t-moi">Ma position</button>
             </div>
             <div class="row">
@@ -259,6 +271,19 @@
             <div class="note" id="note-batiment">Chargement des bâtiments…</div>
         </div>
 
+        <div class="section" id="sec-dpe" hidden>
+            <h2>DPE (ADEME)</h2>
+            <div id="dpe-resume"></div>
+            <div class="note" id="dpe-note"></div>
+        </div>
+
+        <div class="section" id="sec-dvf" hidden>
+            <h2>Ventes (DVF)</h2>
+            <div id="dvf-resume"></div>
+            <div id="dvf-parcelle"></div>
+            <div class="note" id="dvf-note"></div>
+        </div>
+
         <div class="section">
             <h2>Terrain</h2>
             <div class="stat"><span>source</span><b id="s-src">—</b></div>
@@ -294,6 +319,7 @@
             <div id="etat-ouvrages" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-nuage" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-vehicules" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
+            <div id="etat-foncier" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="conseil-veg" class="etat-couche conseil" role="status" hidden>
                 <span></span>
                 <button type="button" class="agir">Masquer la végétation</button>
@@ -1793,6 +1819,8 @@ function majCiblesSurvol() {
     if (groupeVehicules && groupeVehicules.visible) ciblesSurvol.push(...groupeVehicules.children);
     if (groupePiscines && groupePiscines.visible) ciblesSurvol.push(...groupePiscines.children);
     if (groupePanneaux && groupePanneaux.visible) ciblesSurvol.push(...groupePanneaux.children);
+    if (groupeDpe && groupeDpe.visible) ciblesSurvol.push(...groupeDpe.children);
+    if (groupeDvf && groupeDvf.visible) ciblesSurvol.push(...groupeDvf.children);
 }
 
 /** Point dans polygone par lancer de rayon. Coordonnées en degrés (lon, lat). */
@@ -1954,6 +1982,7 @@ const LIBELLES_BDTOPO = [
 /** Remplit la fiche latérale d'un bâtiment, avec ses mesures LiDAR. */
 function afficherFicheBatiment(ud) {
     const jeton = ++jetonFiche;
+    ficheUd = ud;
     orienterStreetView(ud.anneau, jeton);
     const p = ud.p || {};
     const lignes = LIBELLES_BDTOPO.map(([cle, libelle, unite]) => {
@@ -1988,7 +2017,7 @@ function afficherFicheBatiment(ud) {
         ? '<div class="note">Coupé par le bord de la scène : ' + Math.round(100 * p.coupe.part)
           + ' % de son emprise est dessinée. Les attributs BD TOPO sont ceux du bâtiment entier.</div>'
         : '';
-    document.getElementById('fiche-batiment').innerHTML = vise + lignes + mesure + coupe
+    document.getElementById('fiche-batiment').innerHTML = vise + lignes + mesure + coupe + ficheDpe(ud)
         + '<div class="note">BD TOPO <code>' + (p.cleabs || '—') + '</code></div>'
         + lienStreetView(ud.anneau) + lienRecentrer(ud.anneau);
 }
@@ -2739,6 +2768,8 @@ function appliquerTextureToits() {
             map: fondTexture, roughness: 0.9, metalness: 0,
             ...(toit.userData.dessus ? DECALAGE_DESSUS : {}) });
     }
+    // Les bâtiments qui ont des DPE gardent leur couleur, toits compris.
+    appliquerCouleurs();
 }
 
 let fondActif = 'ortho';
@@ -2781,6 +2812,15 @@ function majCredits() {
     if (panneauxPoses && panneauxPoses.length && groupePanneaux.visible) {
         html += ' · Panneaux solaires © <a href="https://doi.org/10.5281/zenodo.19188878"'
             + ' target="_blank" rel="noopener">OpenPVMapper</a> (G. Kasmi), CC-BY 4.0';
+    }
+    // Déclarés en `var` plus bas : undefined au premier appel.
+    if (dpeActif) {
+        html += ' · DPE © <a href="https://data.ademe.fr/datasets/dpe03existant"'
+            + ' target="_blank" rel="noopener">ADEME</a>';
+    }
+    if (dvfActif) {
+        html += ' · Ventes © DGFiP, <a href="https://www.data.gouv.fr/fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/"'
+            + ' target="_blank" rel="noopener">DVF géolocalisées</a> (Etalab) ; parcelles © IGN';
     }
     document.getElementById('credits').innerHTML = html;
 }
@@ -3522,6 +3562,7 @@ function maillageDrape(tris, materiau, groupe, decalage) {
     mesh.receiveShadow = true;
     groupe.add(mesh);
     drapes.push({ mesh, alts, decalage });
+    return mesh;
 }
 
 function construireEau() {
@@ -4750,6 +4791,396 @@ async function chargerPanneaux() {
 document.getElementById('t-panneaux').addEventListener('click', e => {
     groupePanneaux.visible = !groupePanneaux.visible;
     e.currentTarget.classList.toggle('on', groupePanneaux.visible);
+    majCiblesSurvol();
+    majCredits();
+});
+
+// --- DPE et ventes DVF : lus au clic, jamais d'office ----------------------
+// Deux couches à part (/api/dpe, /api/dvf ; vue3d/dpe.py, vue3d/dvf.py) que
+// la page ne demande qu'au premier clic sur leur bouton : choix de
+// l'utilisateur, qui ne veut ni l'ADEME ni DVF interrogés à chaque scène.
+// Chacune porte la date de sa lecture ; « Reconstruire la scène » la relit.
+//
+// DPE : chaque bâtiment qui en a prend la couleur de son étiquette énergie
+// médiane, murs et toit ; les DPE sans bâtiment de la scène sont des
+// pastilles posées au sol, à leur adresse. D'un immeuble, la fiche ne donne
+// que la répartition des étiquettes ; d'une maison, ses DPE.
+// Ventes : les parcelles vendues depuis cinq ans, drapées sur le sol et
+// teintées par leur prix au m² médian ; le bâtiment posé dessus en prend la
+// couleur. Dans un village, la parcelle vendue est presque toute sous son
+// bâtiment : à Gordes, le sol teinté seul ne se voyait pas. Les DPE affichés,
+// eux seuls colorent les bâtiments : les deux palettes partagent leurs
+// jaunes et leurs rouges.
+const URL_DPE = `api/dpe?${REQUETE}`;
+const URL_DVF = `api/dvf?${REQUETE}`;
+// Les couleurs réglementaires de l'étiquette énergie.
+const DPE_COULEURS = { A: 0x009c6d, B: 0x52b153, C: 0xa5cc74, D: 0xf4e70f, E: 0xf0b40f, F: 0xeb8235,
+                       G: 0xd7221f };
+const enHexa = c => '#' + c.toString(16).padStart(6, '0');
+// `var` : appliquerTextureToits() appelle appliquerCouleurs() dès le premier fond
+// posé, avant que ce bloc ne soit évalué.
+var DPE = null;                     // { lu_le, nombre, batiments, adresses }
+var dpeParBatiment = new Map();     // cleabs -> { resume, par_rnb, par_adresse, dpe? }
+var dpeActif = false;
+var dpeAvant = new Map();           // maillage -> son matériau d'avant les couleurs
+var matsCouleur = new Map();        // couleur, et '-dessus' -> matériau
+var venteParBatiment = new Map();   // cleabs -> { parcelle, couleur }
+var contoursVente = [];             // les contours des bâtiments vendus, à retirer
+// Un bâtiment vendu se distingue aussi par son contour, même quand ce sont
+// les DPE qui le colorent : demande de l'utilisateur. Cyan, hors des deux
+// palettes et de l'orange du bâtiment visé.
+const MAT_CONTOUR_VENTE = new THREE.LineBasicMaterial({ color: 0x22d3ee });
+var groupeDpe = new THREE.Group();  // les DPE sans bâtiment, à leur adresse
+groupeDpe.visible = false;
+scene.add(groupeDpe);
+var DVF = null;
+var dvfActif = false;
+var groupeDvf = new THREE.Group();
+groupeDvf.visible = false;
+scene.add(groupeDvf);
+let ficheUd = null;                 // le bâtiment de la fiche, redessinée quand les DPE changent
+
+function materiauCouleur(couleur, dessus) {
+    const cle = couleur + (dessus ? '-dessus' : '');
+    if (!matsCouleur.has(cle)) {
+        matsCouleur.set(cle, new THREE.MeshStandardMaterial({
+            color: couleur, roughness: 0.85, flatShading: !dessus,
+            ...(dessus ? DECALAGE_DESSUS : {}) }));
+    }
+    return matsCouleur.get(cle);
+}
+const materiauDpe = (etiquette, dessus) => materiauCouleur(DPE_COULEURS[etiquette], dessus);
+
+/** La couleur d'un bâtiment : son DPE si les DPE sont affichés, sinon sa vente ; null sinon. */
+function couleurBatiment(ud) {
+    const cle = ud.p && ud.p.cleabs;
+    if (dpeActif && DPE) {
+        const g = dpeParBatiment.get(cle);
+        return g ? DPE_COULEURS[g.resume.mediane] : null;
+    }
+    const v = dvfActif && DVF && venteParBatiment.get(cle);
+    return v ? v.couleur : null;
+}
+
+/**
+ * Murs et toits des bâtiments qui ont un DPE ou une vente, à leur couleur ;
+ * les autres gardent les leurs. Les murs d'un bâtiment vendu ont en plus
+ * leur contour, ventes affichées. Rappelée après chaque pose des toits
+ * (appliquerTextureToits) : les maillages d'avant sont rendus à leur
+ * matériau, sauf ceux qu'on a déjà remplacés entre-temps.
+ */
+function appliquerCouleurs() {
+    if (!dpeAvant) return;                 // bloc pas encore évalué
+    const nos = new Set(matsCouleur.values());
+    for (const [mesh, materiau] of dpeAvant) if (nos.has(mesh.material)) mesh.material = materiau;
+    dpeAvant.clear();
+    for (const { mesh, ligne } of contoursVente) { mesh.remove(ligne); ligne.geometry.dispose(); }
+    contoursVente = [];
+    if (!(dpeActif && DPE) && !(dvfActif && DVF)) return;
+    const murs = new Set([MAT_VOISIN, MAT_CIBLE, MAT_INCONNU]);
+    for (const m of meshes) {
+        if (!m.isMesh || m.isInstancedMesh || m.userData.nuage) continue;
+        const cle = m.userData.p && m.userData.p.cleabs;
+        // Les murs seulement, pas les marches d'un toit mesuré : à
+        // Versailles, leurs arêtes faisaient un gribouillis (habillerCible).
+        if (dvfActif && DVF && venteParBatiment.has(cle) && murs.has(m.material) && m.name !== 'toit') {
+            const ligne = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 40), MAT_CONTOUR_VENTE);
+            m.add(ligne);
+            contoursVente.push({ mesh: m, ligne });
+        }
+        const couleur = couleurBatiment(m.userData);
+        if (couleur == null) continue;
+        dpeAvant.set(m, m.material);
+        m.material = materiauCouleur(couleur, m.userData.dessus);
+    }
+}
+
+const pastille = e => e ? `<span class="pastille" style="background:${enHexa(DPE_COULEURS[e])}">${e}</span>` : '—';
+const nombreFr = v => v == null ? '—' : Math.round(v).toLocaleString('fr-FR');
+const dateFr = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR') : '—';
+const dateLongue = d => d ? new Date(d + 'T12:00:00').toLocaleDateString(
+    'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+/** Barre des étiquettes : chaque part à la taille de son compte. */
+function barreEtiquettes(compte) {
+    return '<div class="barre">' + Object.entries(compte).map(([e, n]) =>
+        `<span style="flex:${n};background:${enHexa(DPE_COULEURS[e])}" title="${n} DPE ${e}">${e}</span>`).join('')
+        + '</div>';
+}
+
+/** Le nombre de logements d'un groupe de DPE, par type. */
+function typesDpe(types) {
+    return Object.entries(types).map(([t, n]) => `${n} ${t}${n > 1 && !/s$/.test(t) ? 's' : ''}`).join(', ');
+}
+
+/** Les lignes de l'infobulle d'un bâtiment, quand les DPE ou les ventes sont affichés. */
+function ligneDpe(ud) {
+    const v = dvfActif && ud && ud.p && venteParBatiment.get(ud.p.cleabs);
+    const vente = v ? '<br>Parcelle vendue : ' + ventesParcelle(v.parcelle, 1)[0] : '';
+    const g = dpeActif && ud && ud.p && dpeParBatiment.get(ud.p.cleabs);
+    if (!g) return vente;
+    const r = g.resume;
+    return `<br>DPE ${pastille(r.mediane)} ` + (r.n > 1 ? `médiane de ${r.n} DPE (${typesDpe(r.types)})`
+                                                       : `${typesDpe(r.types)}, ${dateFr(r.au)}`) + vente;
+}
+
+/** La partie DPE de la fiche d'un bâtiment : le résumé, et le détail d'une maison. */
+function ficheDpe(ud) {
+    const g = dpeActif && ud && ud.p && dpeParBatiment.get(ud.p.cleabs);
+    if (!dpeActif || !DPE) return '';
+    if (!g) return '<div class="sous-titre">DPE</div><div class="note">Aucun DPE rattaché à ce bâtiment.</div>';
+    const r = g.resume;
+    const stat = (libelle, valeur) => '<div class="stat"><span>' + libelle + '</span><b>' + valeur + '</b></div>';
+    let html = '<div class="sous-titre">DPE</div>' + barreEtiquettes(r.energie)
+        + stat(r.n > 1 ? 'étiquette énergie médiane' : 'étiquette énergie', pastille(r.mediane))
+        + stat('DPE', `${r.n} (${typesDpe(r.types)})`)
+        + (r.conso_mediane != null ? stat(r.n > 1 ? 'consommation médiane' : 'consommation',
+                                          `${nombreFr(r.conso_mediane)} kWhEP/m²/an`) : '')
+        + stat(r.du === r.au ? 'établi le' : 'établis', r.du === r.au ? dateFr(r.du)
+                                                                     : `du ${dateFr(r.du)} au ${dateFr(r.au)}`);
+    for (const d of g.dpe || []) {
+        html += '<div class="liste-foncier"><div>' + pastille(d.energie) + ' ' + pastille(d.climat)
+            + ` ${echapper(d.type || '')}${d.neuf ? ' neuf' : ''}, ${d.surface != null ? d.surface.toLocaleString('fr-FR') + ' m²' : 'surface inconnue'}`
+            + (d.conso != null ? `, ${nombreFr(d.conso)} kWhEP/m²/an` : '')
+            + `<br><i>${dateFr(d.date)}, valable jusqu'au ${dateFr(d.fin_validite)} · n° ${echapper(d.numero)}</i></div></div>`;
+    }
+    if (g.par_adresse) {
+        html += `<div class="note">${g.par_adresse === r.n ? 'Rattaché' + (r.n > 1 ? 's' : '') : `Dont ${g.par_adresse} rattaché${g.par_adresse > 1 ? 's' : ''}`}`
+            + ' par le point d\'adresse, à 5 m près : le bâtiment peut être le voisin.</div>';
+    }
+    return html;
+}
+
+/** Indicateur de lecture ; un échec reste affiché quelques secondes. */
+let effacerEtatFoncier = null;
+function etatFoncier(texte, enCours = false) {
+    clearTimeout(effacerEtatFoncier);
+    etatCouche('etat-foncier', texte, enCours);
+    if (texte && !enCours) effacerEtatFoncier = setTimeout(() => etatCouche('etat-foncier', null), 8000);
+}
+
+/** Lit une couche au clic : une seule tentative, l'utilisateur recliquera. */
+async function lireALaDemande(libelle, source, url) {
+    etatFoncier(`${libelle} : lecture ${source}…`, true);
+    try {
+        const r = await fetch(url, { cache: 'no-cache' });
+        const couche = await r.json().catch(() => null);
+        if (!r.ok) throw new Error((couche && couche.erreur) || `HTTP ${r.status}`);
+        etatFoncier(null);
+        return couche;
+    } catch (e) {
+        etatFoncier(`${libelle} indisponibles : ${e.message} Cliquer à nouveau pour réessayer.`);
+        return null;
+    }
+}
+
+/** Les DPE sans bâtiment : une pastille au sol, à leur adresse. */
+function construireAdressesDpe() {
+    const R = 2.5, N = 16;
+    for (const a of DPE.adresses) {
+        const [cx, cy] = toLocal(a.lon, a.lat);
+        const tris = [];
+        for (let k = 0; k < N; k++) {
+            const t0 = 2 * Math.PI * k / N, t1 = 2 * Math.PI * (k + 1) / N;
+            tris.push([[cx, cy], [cx + R * Math.cos(t0), cy + R * Math.sin(t0)],
+                       [cx + R * Math.cos(t1), cy + R * Math.sin(t1)]]);
+        }
+        const mesh = maillageDrape(tris, materiauDpe(a.resume.mediane, true), groupeDpe, 0.4);
+        const r = a.resume;
+        mesh.userData = { infobulle: `<b>${echapper(a.adresse || 'DPE sans bâtiment')}</b><br>DPE ${pastille(r.mediane)} `
+            + (r.n > 1 ? `médiane de ${r.n} DPE (${typesDpe(r.types)})` : `${typesDpe(r.types)}, ${dateFr(r.au)}`)
+            + '<br><i>aucun bâtiment de la scène à moins de 5 m de cette adresse</i>' };
+    }
+    placerDrapes();
+}
+
+function resumerDpe() {
+    const total = {};
+    for (const g of [...DPE.batiments, ...DPE.adresses]) {
+        for (const [e, n] of Object.entries(g.resume.energie)) total[e] = (total[e] || 0) + n;
+    }
+    const ordre = Object.fromEntries(Object.keys(DPE_COULEURS).filter(e => total[e]).map(e => [e, total[e]]));
+    document.getElementById('dpe-resume').innerHTML = DPE.nombre
+        ? barreEtiquettes(ordre)
+          + `<div class="stat"><span>DPE</span><b>${DPE.nombre.toLocaleString('fr-FR')}</b></div>`
+          + `<div class="stat"><span>bâtiments colorés</span><b>${DPE.batiments.length}</b></div>`
+          + (DPE.adresses.length ? `<div class="stat"><span>adresses sans bâtiment</span><b>${DPE.adresses.length}</b></div>` : '')
+        : '<div class="note">Aucun DPE dans l\'emprise.</div>';
+    document.getElementById('dpe-note').innerHTML =
+        `DPE des logements établis depuis juillet 2021, lus le ${dateLongue(DPE.lu_le)} ; « Reconstruire la scène » les relit. `
+        + 'Un bâtiment prend la couleur de son étiquette énergie médiane. Il est désigné par l\'identifiant '
+        + 'RNB du DPE, sinon par son point d\'adresse, à 5 m près. Clic sur un bâtiment : sa fiche. '
+        + '<a href="https://data.ademe.fr/datasets/dpe03existant" target="_blank" rel="noopener">ADEME</a>, Licence Ouverte 2.0.';
+}
+
+document.getElementById('t-dpe').addEventListener('click', async e => {
+    const bouton = e.currentTarget;
+    if (!DPE) {
+        if (bouton.dataset.lecture) return;
+        bouton.dataset.lecture = '1';
+        const couche = await lireALaDemande('DPE', 'de l\'ADEME', URL_DPE);
+        delete bouton.dataset.lecture;
+        if (!couche) return;
+        DPE = couche;
+        dpeParBatiment = new Map(DPE.batiments.map(g => [g.batiment, g]));
+        construireAdressesDpe();
+        resumerDpe();
+    }
+    dpeActif = !dpeActif;
+    bouton.classList.toggle('on', dpeActif);
+    groupeDpe.visible = dpeActif;
+    document.getElementById('sec-dpe').hidden = !dpeActif;
+    appliquerCouleurs();
+    majCiblesSurvol();
+    majCredits();
+    if (ficheUd) afficherFicheBatiment(ficheUd);
+});
+
+// Prix au m² : cinq classes, aux quintiles des parcelles de l'emprise. Les
+// prix vont de 1 à 10 d'une région à l'autre (4 700 €/m² pour une maison à
+// Gordes, 11 100 pour un appartement place de la République) : une échelle
+// fixe peindrait tout un lieu d'une seule couleur.
+const DVF_COULEURS = [0xfde68a, 0xfbbf24, 0xf97316, 0xdc2626, 0x7f1d1d];
+const DVF_SANS_PRIX = 0x8aa4c8;            // terrain, plusieurs logements, commerce…
+const DVF_DECALAGE = 0.25;                 // au-dessus de l'eau (0,15 m)
+var matsDvf = new Map();
+function materiauDvf(couleur) {
+    if (!matsDvf.has(couleur)) {
+        matsDvf.set(couleur, new THREE.MeshStandardMaterial({
+            color: couleur, roughness: 0.9, transparent: true, opacity: 0.8, depthWrite: false,
+            polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    }
+    return matsDvf.get(couleur);
+}
+
+// Les types de local de DVF, au singulier et au pluriel.
+const LIBELLES_TYPES = { Maison: ['maison', 'maisons'], Appartement: ['appartement', 'appartements'],
+                         'Local industriel. commercial ou assimilé': ['local d\'activité', 'locaux d\'activité'] };
+/** Une vente sur une ligne : date, ce qui a été vendu (par type), prix. */
+function ligneVente(v) {
+    const parType = new Map();
+    for (const l of v.locaux) if (l.type !== 'Dépendance') {
+        (parType.get(l.type) || parType.set(l.type, []).get(l.type)).push(l);
+    }
+    const quoi = parType.size
+        ? [...parType].map(([type, locaux]) => {
+            const [un, plusieurs] = LIBELLES_TYPES[type] || [type.toLowerCase(), type.toLowerCase()];
+            const surface = locaux.reduce((t, l) => t + (l.surface || 0), 0);
+            return locaux.length === 1
+                ? echapper(un) + (locaux[0].pieces ? ` ${locaux[0].pieces} p.` : '') + (surface ? ` ${nombreFr(surface)} m²` : '')
+                : `${locaux.length} ${echapper(plusieurs)}` + (surface ? `, ${nombreFr(surface)} m²` : '');
+        }).join(', ')
+        : (v.terrain ? `terrain ${nombreFr(v.terrain)} m²` : echapper(v.nature || 'vente'));
+    return `${dateFr(v.date)} · ${quoi} · ${v.valeur != null ? nombreFr(v.valeur) + ' €' : 'prix inconnu'}`
+        + (v.prix_m2 ? ` · <b>${nombreFr(v.prix_m2)} €/m²</b>` : '')
+        + (v.nature && !/^Vente$/.test(v.nature) ? ` <i>(${echapper(v.nature.toLowerCase())})</i>` : '');
+}
+
+/** Prix au m² médian des ventes d'une parcelle qui en ont un ; null sinon. */
+function prixParcelle(p) {
+    const prix = p.ventes.map(i => DVF.ventes[i].prix_m2).filter(Boolean).sort((a, b) => a - b);
+    return prix.length ? prix[(prix.length - 1) >> 1] : null;
+}
+
+/** Les ventes d'une parcelle : toutes s'il y en a peu ; sinon un résumé et les trois dernières. */
+function ventesParcelle(p, max = 5) {
+    const ventes = p.ventes.map(i => DVF.ventes[i]);
+    if (ventes.length <= max) return ventes.map(ligneVente);
+    const parType = {};
+    for (const v of ventes) if (v.type) (parType[v.type] = parType[v.type] || []).push(v.prix_m2);
+    const resume = Object.entries(parType).map(([t, prix]) => {
+        const p2 = prix.filter(Boolean).sort((a, b) => a - b);
+        return `${prix.length} ${t === 'Maison' ? 'maison' : 'appartement'}${prix.length > 1 ? 's' : ''}`
+            + (p2.length ? `, ${nombreFr(p2[(p2.length - 1) >> 1])} €/m² en médiane` : '');
+    }).join(' ; ');
+    return [`<b>${ventes.length} ventes</b>${resume ? ' : ' + resume : ''}`,
+            ...ventes.slice(0, 3).map(ligneVente), `<i>… et ${ventes.length - 3} plus anciennes</i>`];
+}
+
+function afficherVentesParcelle(p) {
+    const idu = p.idu;
+    document.getElementById('dvf-parcelle').innerHTML =
+        `<div class="sous-titre">Parcelle ${echapper(idu.slice(5, 8))} ${echapper(idu.slice(8, 10))} ${echapper(idu.slice(10))}`
+        + (p.contenance ? ` · ${nombreFr(p.contenance)} m²` : '') + '</div>'
+        + '<div class="liste-foncier">' + ventesParcelle(p, 8).map(l => `<div>${l}</div>`).join('') + '</div>';
+}
+
+function construireParcelles() {
+    const prix = DVF.parcelles.map(prixParcelle).filter(Boolean).sort((a, b) => a - b);
+    // Bornes des cinq classes : les quintiles des parcelles qui ont un prix.
+    const bornes = [1, 2, 3, 4].map(k => prix[Math.floor(k * prix.length / 5)]);
+    const classe = v => bornes.filter(b => v >= b).length;
+    const polygones = g => g.type === 'Polygon' ? [g.coordinates]
+                         : g.type === 'MultiPolygon' ? g.coordinates : [];
+    for (const p of DVF.parcelles) {
+        const tris = polygones(p.geometrie).flatMap(a => subdiviser(trianglesPolygone(a), EAU_MAILLE));
+        if (!tris.length) continue;
+        const v = prixParcelle(p);
+        const mesh = maillageDrape(tris, materiauDvf(v ? DVF_COULEURS[classe(v)] : DVF_SANS_PRIX), groupeDvf,
+                                   DVF_DECALAGE);
+        const lignes = ventesParcelle(p, 3);
+        mesh.userData = { parcelle: p, infobulle: `<b>Parcelle vendue</b>`
+            + (v ? ` · ${nombreFr(v)} €/m² en médiane` : '')
+            + lignes.map(l => '<br>' + l).join('') + '<br><i>clic pour le détail dans le panneau</i>' };
+        p.couleur = v ? DVF_COULEURS[classe(v)] : DVF_SANS_PRIX;
+    }
+    placerDrapes();
+    // Le bâtiment dont le centre tombe dans une parcelle vendue en prend la couleur.
+    venteParBatiment = new Map();
+    for (const m of meshes) {
+        const cle = m.userData.p && m.userData.p.cleabs;
+        if (!cle || !m.userData.anneau || venteParBatiment.has(cle)) continue;
+        const [lon, lat] = centreAnneau(m.userData.anneau);
+        const p = DVF.parcelles.find(q => polygones(q.geometrie).some(a => pointDansAnneau(lon, lat, a[0])));
+        if (p) venteParBatiment.set(cle, { parcelle: p, couleur: p.couleur });
+    }
+    return prix.length ? [prix[0], ...bornes, prix[prix.length - 1]] : null;
+}
+
+function resumerDvf(bornes) {
+    const r = DVF.resume;
+    const ligne = (t, libelle) => r[t] ? `<div class="stat"><span>${libelle} (${r[t].ventes} ventes)</span>`
+        + `<b>${nombreFr(r[t].mediane)} €/m²</b></div>`
+        + `<div class="note" style="margin-top:0">la moitié entre ${nombreFr(r[t].q1)} et ${nombreFr(r[t].q3)} €/m²</div>` : '';
+    const annees = DVF.millesimes.length ? `${DVF.millesimes[0]} à ${DVF.millesimes[DVF.millesimes.length - 1]}` : '';
+    const legende = bornes ? '<div class="barre">' + DVF_COULEURS.map((c, k) =>
+        `<span style="flex:1;background:${enHexa(c)}" title="de ${nombreFr(bornes[k])} à ${nombreFr(bornes[k + 1])} €/m²"></span>`).join('')
+        + `<span style="flex:1;background:${enHexa(DVF_SANS_PRIX)}" title="vente sans prix au m²"></span></div>`
+        + `<div class="stat"><span>${nombreFr(bornes[0])} €/m²</span><b>${nombreFr(bornes[5])} €/m²</b></div>` : '';
+    document.getElementById('dvf-resume').innerHTML = DVF.absent.length && !DVF.parcelles.length
+        ? `<div class="note">Pas de DVF ici : en ${DVF.absent.map(echapper).join(', ')}, la publicité foncière relève `
+          + 'du livre foncier d\'Alsace-Moselle, que la DGFiP ne publie pas.</div>'
+        : (DVF.parcelles.length
+            ? ligne('Maison', 'Maisons') + ligne('Appartement', 'Appartements') + legende
+              + `<div class="stat"><span>parcelles vendues</span><b>${DVF.parcelles.length}</b></div>`
+            : `<div class="note">Aucune vente de ${annees} dans l'emprise.</div>`);
+    document.getElementById('dvf-parcelle').innerHTML = '';
+    document.getElementById('dvf-note').innerHTML =
+        `Ventes de ${annees}, lues le ${dateLongue(DVF.lu_le)} ; « Reconstruire la scène » les relit. `
+        + 'Prix au m² : vente d\'un seul logement, sur sa surface bâtie déclarée (pas la loi Carrez) ; '
+        + 'couleur : prix médian de la parcelle, en cinq classes aux quintiles de l\'emprise, bleu sans prix au m², '
+        + 'reprise par le bâtiment posé dessus quand les DPE ne sont pas affichés ; contour cyan : bâtiment vendu. '
+        + 'Clic sur une parcelle : ses ventes. Réutilisation : interdiction de réidentifier les personnes. '
+        + '<a href="https://www.data.gouv.fr/fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/" target="_blank" rel="noopener">DGFiP, Etalab</a>, '
+        + 'Licence Ouverte 2.0 ; parcelles : Parcellaire Express, IGN.';
+}
+
+document.getElementById('t-dvf').addEventListener('click', async e => {
+    const bouton = e.currentTarget;
+    if (!DVF) {
+        if (bouton.dataset.lecture) return;
+        bouton.dataset.lecture = '1';
+        const couche = await lireALaDemande('Ventes', 'du cadastre et des fichiers DVF', URL_DVF);
+        delete bouton.dataset.lecture;
+        if (!couche) return;
+        DVF = couche;
+        resumerDvf(construireParcelles());
+    }
+    dvfActif = !dvfActif;
+    bouton.classList.toggle('on', dvfActif);
+    groupeDvf.visible = dvfActif;
+    document.getElementById('sec-dvf').hidden = !dvfActif;
+    appliquerCouleurs();
     majCiblesSurvol();
     majCredits();
 });
@@ -6043,7 +6474,7 @@ renderer.domElement.addEventListener('pointermove', e => {
     const hit = raycaster.intersectObjects(ciblesSurvol, false)[0];
     const ud = hit ? hit.object.userData : null;
     if (!ud || !ud.anneau) { tip.style.display = 'none'; return; }
-    tip.innerHTML = resumeBatiment(ud) + '<br><i>clic pour la fiche</i>';
+    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + '<br><i>clic pour la fiche</i>';
     tip.style.display = 'block';
     tip.style.left = (e.clientX - r.left + 14) + 'px';
     tip.style.top = (e.clientY - r.top + 14) + 'px';
@@ -6088,7 +6519,7 @@ function resumeBatiment(ud) {
 // souris qui va vers le lien.
 let tipEpingle = false;
 function epinglerTip(ud, e, r) {
-    tip.innerHTML = resumeBatiment(ud) + '<br><i>fiche dans le panneau</i>'
+    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + '<br><i>fiche dans le panneau</i>'
         + '<br>' + lienRecentrer(ud.anneau).trim() + '<br>' + lienStreetView(ud.anneau);
     tip.style.display = 'block';
     tip.style.left = (e.clientX - r.left + 14) + 'px';
@@ -6292,6 +6723,10 @@ renderer.domElement.addEventListener('pointerup', e => {
     const hit = raycaster.intersectObjects(ciblesSurvol, false)[0];
     if (!hit) return;
     const ud = hit.object.userData;
+    // Une parcelle vendue, ou un bâtiment posé dessus : ses ventes dans le panneau.
+    if (ud.parcelle) { afficherVentesParcelle(ud.parcelle); return; }
+    const vendu = dvfActif && ud.p && venteParBatiment.get(ud.p.cleabs);
+    if (vendu) afficherVentesParcelle(vendu.parcelle);
     // La végétation se survole mais ne s'ouvre pas : elle n'a pas de fiche.
     if (ud.vegetation || !ud.anneau) return;
     afficherFicheBatiment(ud);

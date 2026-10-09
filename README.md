@@ -249,6 +249,43 @@ des arbres y rend 0 houppier sans la moindre erreur (2 160 en 3.12 sur Gordes,
 mêmes données). Et comme le cache ne périme pas, une scène construite ainsi
 resterait fausse.
 
+### DPE et ventes immobilières, à la demande
+
+Deux boutons du panneau, éteints à l'ouverture : rien n'est demandé à
+l'ADEME ni à DVF tant qu'on ne clique pas, et rien n'est à installer.
+
+- **DPE** colore chaque bâtiment qui a des diagnostics de performance
+  énergétique selon son étiquette énergie médiane, de A (vert) à G (rouge),
+  murs et toit. La fiche d'une maison liste ses DPE (date, étiquettes
+  énergie et climat, surface, consommation, validité) ; celle d'un
+  immeuble n'en donne que la répartition des étiquettes, la médiane et la
+  période. Ce sont les DPE des logements établis depuis juillet 2021 (les
+  précédents ne sont plus valables), existants et neufs, de
+  l'[ADEME](https://data.ademe.fr/datasets/dpe03existant). Un DPE désigne
+  son bâtiment par son identifiant au Référentiel national des bâtiments
+  quand il l'a (six sur dix sur huit lieux mesurés), sinon par son point
+  d'adresse, à 5 m près : la fiche le dit, le bâtiment peut alors être le
+  voisin. Un DPE sans bâtiment à moins de 5 m est une pastille au sol, à son
+  adresse.
+- **Ventes DVF** teinte les parcelles vendues depuis cinq ans (2021 à 2025
+  aujourd'hui) par leur prix au m² médian, en cinq classes aux quintiles de
+  l'emprise, et le bâtiment posé dessus en prend la couleur ; un contour
+  cyan le distingue même quand les DPE le colorent. Le survol donne les
+  dernières ventes, le clic toutes celles de la parcelle (un résumé au-delà
+  de huit) ; le panneau donne le prix médian des maisons et des
+  appartements. Le prix n'est ramené au m² que pour la vente d'un seul
+  logement, sur sa surface bâtie déclarée. Sources : les fichiers
+  [DVF géolocalisées](https://www.data.gouv.fr/fr/datasets/demandes-de-valeurs-foncieres-geolocalisees/)
+  d'Etalab (DGFiP) et le Parcellaire Express de l'IGN, joints par
+  l'identifiant de parcelle. **Pas de DVF en Alsace-Moselle**, où la
+  publicité foncière relève du livre foncier : la page le dit.
+
+Les deux sont datés (« lus le … ») et gardés en cache avec la scène ;
+« Reconstruire la scène » les relit. Une seconde ou deux à la première
+lecture, en zone par défaut. Les conditions de réutilisation de DVF
+interdisent de réidentifier les personnes et de laisser les moteurs de
+recherche indexer ces données : la page ne les publie nulle part.
+
 ## Lieux à essayer
 
 Des lieux publics qui montrent chacun un aspect de la vue. Les chiffres sont ceux
@@ -372,8 +409,14 @@ Toutes servies sans clé par la Géoplateforme de l'IGN, sous
 | Géocodage | `geocodage/search`, `geocodage/reverse` | La recherche d'un lieu (Base Adresse Nationale et lieux nommés), et la commune du point affiché ; appelé par le navigateur |
 | BD TOPO, hydrographie | WFS `surface_hydrographique`, `troncon_hydrographique` | Étendues et cours d'eau |
 | OpenStreetMap, `building:part` | API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
+| Parcellaire Express | WFS `CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle` | Les parcelles des ventes DVF, au clic |
 
 three.js est chargé depuis jsDelivr. Le lien Street View ouvre Google Maps.
+
+Au clic seulement, hors IGN aussi : les DPE de l'API de l'ADEME
+(`data.ademe.fr`, jeux `dpe03existant` et `dpe02neuf`) et les fichiers DVF
+géolocalisées d'Etalab (`files.data.gouv.fr/geo-dvf`), sous Licence Ouverte
+2.0, sans clé.
 
 La couche optionnelle des panneaux solaires lit le registre
 [OpenPVMapper](https://doi.org/10.5281/zenodo.19188878) (G. Kasmi, CC-BY 4.0),
@@ -563,11 +606,14 @@ principales :
 | `GET /api/vehicules?lat=…&lon=…&detecteur=…` | Les véhicules vus d'un détecteur du service (`rtmdet` ou `yolo`), en JSON gzippé ; la page les demande dans l'ordre que donne `/api/sante`, du rapide au lent, et les réunit ; 400 sans le paramètre ou avec un détecteur que le service n'a pas |
 | `GET /api/avancement?lat=…&lon=…` | L'étape de la construction en cours (18 au total), que la page affiche pendant l'attente |
 | `GET /api/panneaux?lat=…&lon=…` | Les panneaux solaires du registre, en JSON gzippé ; `{"actif": false, "panneaux": []}` si le service n'a pas de registre |
+| `GET /api/dpe?lat=…&lon=…` | Les DPE de l'ADEME réunis par bâtiment (`batiments`, par `cleabs`) et, sans bâtiment, par adresse (`adresses`), en JSON gzippé, datés (`lu_le`) ; demandés au clic seulement |
+| `GET /api/dvf?lat=…&lon=…` | Les ventes DVF des parcelles de l'emprise (`parcelles`, `ventes`, `resume`), en JSON gzippé, datées ; `absent` nomme les départements sans DVF (Alsace-Moselle) ; au clic seulement |
 | `GET /api/sante` | `{"ok": true, "vehicules": {"mode": …, "detecteurs": […]}, "panneaux": {"actif": …}}` : le contrôle de vie, et ce que le service sait détecter ou lire |
 | `POST /api/reconstruire?lat=…&lon=…` | Met de côté la scène et ses couches (202) : la demande suivante les reconstruit d'après les données de l'IGN du moment, l'ancienne revenant si l'IGN ne répond pas. 429 moins de 10 min après sa construction, 409 pendant qu'elle ou une de ses couches se calcule |
 
 Codes d'erreur : 400 sans coordonnées valides, 422 hors de France métropolitaine,
-503 si un service de l'IGN n'a pas répondu (rien n'est mis en cache, réessayer).
+503 si un service de l'IGN, l'ADEME ou les fichiers DVF n'ont pas répondu
+(rien n'est mis en cache, réessayer).
 Tout ce qui vient du dossier d'une scène est revalidé à chaque visite (304
 tant que le fichier n'a pas été réécrit) : une scène reconstruite apparaît
 aussitôt.
