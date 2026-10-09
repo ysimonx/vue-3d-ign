@@ -7,6 +7,13 @@
 //   node outils/demo-video.mjs youtube     # 1920×1080, panneau visible, légendes incrustées
 //   node outils/demo-video.mjs linkedin    # 1080×1350, vue seule, texte court
 //   node outils/demo-video.mjs readme      # GIF muet de quelques secondes, pour le README
+//   node outils/demo-video.mjs foncier     # 1080×1080, DPE et ventes DVF à Honfleur (zone de 1 000 m), pour LinkedIn
+//
+// Le film `foncier` ne montre des DPE et des ventes que des couleurs et des
+// chiffres réunis (médianes, répartition des étiquettes d'un immeuble) :
+// jamais l'infobulle d'une vente ni d'une adresse. Les conditions de DVF
+// interdisent de permettre la réidentification des personnes, et une vidéo
+// publiée se voit de partout.
 //
 // Sans voix par défaut : les légendes incrustées portent le texte, et les
 // voix de synthèse de macOS, jugées à l'écoute, n'ont pas leur place dans la
@@ -51,6 +58,10 @@ const FORMATS = {
     linkedin: { largeur: 1080, hauteur: 1350, panneau: false, voix: AVEC_VOIX, texte: 'court', police: 40 },
     // Un GIF de quelques secondes dans le README, sans son.
     readme: { largeur: 1280, hauteur: 720, panneau: false, voix: false, texte: 'court', police: 34, gif: true },
+    // DPE et ventes, au carré pour LinkedIn : un film à lui, muet, son texte
+    // incrusté (choix de l'utilisateur : ni voix off, ni sous-titres).
+    foncier: { largeur: 1080, hauteur: 1080, panneau: false, voix: false, texte: 'court', police: 38,
+               sansVoixOff: true },
 };
 const fmt = FORMATS[FORMAT];
 if (!fmt) { console.error(`format inconnu : ${FORMAT} (youtube | linkedin | readme)`); process.exit(2); }
@@ -64,6 +75,12 @@ fs.mkdirSync(SORTIE, { recursive: true });
 const GORDES = { lat: 43.9116, lon: 5.2003 };
 const EIFFEL = { lat: 48.8583, lon: 2.2942, zone: 1000, tour: { lat: 48.85837, lon: 2.29448 } };
 const MONT = { lat: 48.6360, lon: -1.5113, abbaye: { lat: 48.6361, lon: -1.5115 } };
+// Le Vieux Bassin de Honfleur : 403 DPE et 137 ventes dans l'emprise par
+// défaut, maisons et appartements, contre 185 DPE et 39 parcelles vendues
+// autour du palais de l'Isle à Annecy (compté le 9 octobre 2026). Filmé en
+// zone de 1 000 m : dans l'emprise par défaut, le relief flou des environs
+// mangeait le cadre (avis de l'utilisateur sur le premier montage).
+const HONFLEUR = { lat: 49.4192, lon: 0.2333, zone: 1000 };
 const urlDe = l => `${BASE}/?lat=${l.lat}&lon=${l.lon}${l.zone ? `&zone=${l.zone}` : ''}`;
 
 // --- Scénario ---------------------------------------------------------------
@@ -201,6 +218,73 @@ const SEQUENCES = [
         carte: { titre: 'Vue 3D IGN', sous: `Logiciel libre (MIT) · ${DEPOT}\nDonnées © IGN, Licence Ouverte 2.0` },
         async jouer(s) { await s.orbiter(s.duree, { vitesse: 4 }); },
     },
+    // --- Film « foncier » : DPE et ventes DVF, au clic ---------------------
+    // Des zooms, pas d'orbite : l'orbite de chaque séquence faisait un film
+    // répétitif (avis de l'utilisateur). Le plus large recul reste sous
+    // 800 m, pour que la scène de 1 000 m sur 650 remplisse le carré.
+    {
+        id: 'f-titre', lieu: HONFLEUR, duree: 7, formats: ['foncier'],
+        court: 'Honfleur, le Vieux Bassin, en 3D depuis les données ouvertes',
+        carte: { titre: 'DPE et ventes', sous: 'Vue 3D IGN · deux clics, des données ouvertes' }, carteDifferee: true,
+        async jouer(s) {
+            await s.glisser(s.duree, { ...HONFLEUR, distance: 800, azimut: 195, elevation: 50 },
+                                     { ...HONFLEUR, distance: 640, azimut: 205, elevation: 46 },
+                            t => s.carte(Math.min(1, Math.max(0, (t * s.duree - 2.5) / FONDU_S))));
+        },
+    },
+    {
+        id: 'f-dpe', lieu: HONFLEUR, duree: 10, formats: ['foncier'],
+        court: 'Un clic : chaque bâtiment à la couleur de son DPE (ADEME)',
+        async jouer(s) {
+            await s.allumer('t-dpe');
+            await s.cartouche(await s.legendeDpe());
+            await s.glisser(s.duree, null, { ...HONFLEUR, distance: 330, azimut: 218, elevation: 38 });
+        },
+    },
+    {
+        id: 'f-immeuble', lieu: HONFLEUR, duree: 8, formats: ['foncier'],
+        court: 'D’un immeuble : la répartition de ses DPE, pas la liste',
+        async jouer(s) {
+            const b = await s.immeuble();
+            await s.glisser(s.duree * 0.45, null, { ...b, distance: 110, azimut: 225, elevation: 32 });
+            await s.survoler(b, s.duree * 0.55);
+        },
+    },
+    {
+        id: 'f-dvf', lieu: HONFLEUR, duree: 11, formats: ['foncier'],
+        court: 'Un autre clic : les ventes depuis 2021 (DVF), au prix du m²',
+        async jouer(s) {
+            // Les ventes d'abord, puis le DPE éteint : dans l'autre ordre, un
+            // instant tout gris entre les deux couches.
+            await s.allumer('t-dvf');
+            await s.eteindre('t-dpe');
+            await s.cartouche(await s.legendeDvf());
+            const v = await s.amasVentes();
+            // Recul sur la ville, puis zoom sur le quartier le plus vendu.
+            await s.glisser(s.duree * 0.4, null, { ...HONFLEUR, distance: 620, azimut: 200, elevation: 44 });
+            await s.glisser(s.duree * 0.6, null, { ...v, distance: 230, azimut: 185, elevation: 36 });
+        },
+    },
+    {
+        id: 'f-deux', lieu: HONFLEUR, duree: 8, formats: ['foncier'],
+        court: 'Ensemble : la couleur du DPE, les bâtiments vendus cernés de cyan',
+        async jouer(s) {
+            await s.allumer('t-dpe');
+            await s.cartouche(await s.legendeDpe(true));
+            const v = await s.amasVentes();
+            await s.glisser(s.duree, null, { ...v, distance: 120, azimut: 168, elevation: 33 });
+        },
+    },
+    {
+        id: 'f-fin', lieu: HONFLEUR, duree: 6, formats: ['foncier'],
+        // La carte dit tout : pas de légende en dessous, qui la répéterait.
+        court: '',
+        carte: { titre: 'Vue 3D IGN', sous: `Logiciel libre (MIT)\n${DEPOT}\n\nDPE © ADEME · ventes © DGFiP (DVF) · © IGN\nLicence Ouverte 2.0` },
+        async jouer(s) {
+            await s.cartouche('');
+            await s.glisser(s.duree, null, { ...HONFLEUR, distance: 760, azimut: 200, elevation: 48 });
+        },
+    },
 ];
 
 // --- Voix -------------------------------------------------------------------
@@ -225,7 +309,7 @@ for (const q of sequences) {
         q.duree = Math.max(q.duree, dureeAudio(q.audio) + RESPIRATION_S);
     }
 }
-if (!fmt.gif) {
+if (!fmt.gif && !fmt.sansVoixOff) {
     fs.writeFileSync(path.join(SORTIE, 'demo-voix-off.txt'),
         'Voix off de la démo, une phrase par séquence : à enregistrer sous le nom de la séquence\n'
         + '(titre.m4a, orbite.m4a, …) dans un dossier donné par VOIX_DOSSIER à outils/demo-video.mjs.\n\n'
@@ -263,19 +347,28 @@ await page.evaluateOnNewDocument(() => {
 // scène exposés au script (window.__demo), et le style des légendes.
 const STYLE_DEMO = `
     ${fmt.panneau ? '' : '#panel, #hint { display:none !important; }'}
+    /* Les indicateurs de lecture des couches (nuage LiDAR, monuments…) : du
+       bruit à l'image, apparu à l'ouverture du film foncier. */
+    .etat-couche { display:none !important; }
     #decalage { display:none !important; }
     #tip { font-size:${Math.round(fmt.police * 0.55)}px !important; line-height:1.35 !important; max-width:${fmt.police * 12}px; }
     #demo-legende { position:absolute; left:50%; bottom:7%; transform:translateX(-50%); z-index:5;
         max-width:84%; padding:${fmt.police * 0.45}px ${fmt.police * 0.8}px; border-radius:${fmt.police * 0.35}px;
         background:rgba(18,20,24,.82); color:#fff; font:500 ${fmt.police}px/1.3 system-ui, -apple-system, "Helvetica Neue", sans-serif;
         text-align:center; text-wrap:balance; opacity:0; pointer-events:none; }
+    #demo-cartouche { position:absolute; left:4%; top:4%; z-index:5; padding:${fmt.police * 0.4}px ${fmt.police * 0.5}px;
+        border-radius:${fmt.police * 0.3}px; background:rgba(18,20,24,.82); color:#fff; min-width:${fmt.police * 8}px;
+        font:500 ${Math.round(fmt.police * 0.55)}px/1.35 system-ui, -apple-system, "Helvetica Neue", sans-serif; }
+    #demo-cartouche:empty { display:none; }
+    #demo-cartouche .barre { height:${Math.round(fmt.police * 0.6)}px; margin:${fmt.police * 0.2}px 0; }
+    #demo-cartouche .barre span { font-size:${Math.round(fmt.police * 0.42)}px; }
     #demo-carte { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column; align-items:center;
         justify-content:center; gap:${fmt.police * 0.6}px; background:rgba(18,20,24,.62); color:#fff; opacity:0; pointer-events:none;
         font-family:system-ui, -apple-system, "Helvetica Neue", sans-serif; text-align:center; padding:0 8%; }
     #demo-carte h1 { margin:0; font-size:${fmt.police * 2.6}px; font-weight:700; letter-spacing:-.02em; }
     #demo-carte p { margin:0; font-size:${fmt.police * 1.1}px; opacity:.9; white-space:pre-line; line-height:1.4; }
 `;
-const HTML_DEMO = '<div id="demo-carte"><h1></h1><p></p></div><div id="demo-legende"></div>';
+const HTML_DEMO = '<div id="demo-carte"><h1></h1><p></p></div><div id="demo-legende"></div><div id="demo-cartouche"></div>';
 await page.setRequestInterception(true);
 page.on('request', async r => {
     if (r.resourceType() !== 'document') return r.continue();
@@ -316,6 +409,11 @@ async function charger(lieu) {
     if (lieuCourant === lieu) return;
     lieuCourant = lieu;
     console.log(`  ${urlDe(lieu)}`);
+    if (FORMAT === 'foncier') {
+        // Le serveur construit la scène, puis lit DPE et ventes : le clic
+        // filmé les trouve en cache, sans attente à l'image.
+        for (const nom of ['scene', 'dpe', 'dvf']) await couche(nom);
+    }
     await page.goto(urlDe(lieu), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.getElementById('attente').hidden, { timeout: 15 * 60 * 1000 });
     await page.waitForFunction(() => window.__demo && window.__demo.vegChargee()
@@ -328,6 +426,14 @@ async function charger(lieu) {
     // Scruté à intervalle : par défaut, puppeteer scrute par requestAnimationFrame, désormais figé.
     await page.waitForFunction(() => window.__pret(), { timeout: 5000, polling: 100 });
     await page.evaluate(() => { document.getElementById('tip').style.display = 'none'; });
+}
+
+/** Une couche du lieu courant, lue par le script (déjà en cache côté serveur). */
+async function couche(nom) {
+    const l = lieuCourant;
+    const r = await fetch(`${BASE}/api/${nom}?lat=${l.lat}&lon=${l.lon}${l.zone ? `&zone=${l.zone}` : ''}`);
+    if (!r.ok) throw new Error(`/api/${nom} : HTTP ${r.status}`);
+    return r.json();
 }
 
 /** Caméra posée sur un cadre : point visé (lon, lat, hauteur au-dessus du sol), distance, azimut, élévation. */
@@ -387,11 +493,15 @@ async function filmer(secondes, fn) {
 const outils = {
     /** Pose la caméra sans mouvement. */
     async poser(c) { dernierCadre = c; await poserCadre(c); },
-    /** Glissement lissé d'un cadre à l'autre ; `de` absent : depuis la caméra actuelle. */
-    async glisser(secondes, de, vers) {
+    /** Glissement lissé d'un cadre à l'autre ; `de` absent : depuis la caméra actuelle ;
+     *  `fn(t)`, s'il est donné, appelée à chaque image (fondu d'une carte). */
+    async glisser(secondes, de, vers, fn) {
         de = de || dernierCadre || await lireCadre();
         dernierCadre = vers;
-        await filmer(secondes, t => poserCadre(cadreEntre(de, vers, lisser(t))));
+        await filmer(secondes, async t => {
+            await poserCadre(cadreEntre(de, vers, lisser(t)));
+            if (fn) await fn(t);
+        });
     },
     /** L'orbite de la page, à sa vitesse (degrés par seconde), depuis un cadre ou la caméra actuelle. */
     async orbiter(secondes, { cadre, vitesse, fn }) {
@@ -436,6 +546,78 @@ const outils = {
         const lon = amas.reduce((s, o) => s + o[0], 0) / amas.length, lat = amas.reduce((s, o) => s + o[1], 0) / amas.length;
         const ex = amas.sort((a, b) => Math.hypot(a[0] - lon, a[1] - lat) - Math.hypot(b[0] - lon, b[1] - lat))[0];
         return { lon, lat, exemple: { lon: ex[0], lat: ex[1], hauteur: couche === 'vehicules' ? 1 : 0 } };
+    },
+    /** Allume un bouton du panneau et attend que sa couche soit lue (DPE, ventes : au clic). */
+    async allumer(id) {
+        if (!await allume(id)) await cliquer(id);
+        // Scruté à intervalle, l'horloge de la page étant figée ; la lecture
+        // est déjà en cache (prechauffer).
+        await page.waitForFunction(id => document.getElementById(id).classList.contains('on'),
+                                   { timeout: 120000, polling: 100 }, id);
+        await filmer(0.25);
+    },
+    async eteindre(id) { if (await allume(id)) await cliquer(id); await filmer(0.25); },
+    /** Le cartouche de légende, en haut à gauche ; '' le masque. */
+    async cartouche(html) { await page.evaluate(h => { document.getElementById('demo-cartouche').innerHTML = h; }, html); },
+    /** Légende des DPE de l'emprise : répartition des étiquettes, et le contour des ventes. */
+    async legendeDpe(avecVentes = false) {
+        const d = await couche('dpe');
+        const total = {};
+        for (const g of [...d.batiments, ...d.adresses]) {
+            for (const [e, n] of Object.entries(g.resume.energie)) total[e] = (total[e] || 0) + n;
+        }
+        const couleurs = { A: '#009c6d', B: '#52b153', C: '#a5cc74', D: '#f4e70f', E: '#f0b40f', F: '#eb8235', G: '#d7221f' };
+        return `<b>${d.nombre.toLocaleString('fr-FR')} DPE</b> · étiquette énergie<div class="barre">`
+            + Object.keys(couleurs).filter(e => total[e]).map(e =>
+                `<span style="flex:${total[e]};background:${couleurs[e]}">${e}</span>`).join('') + '</div>'
+            + (avecVentes ? '<span style="color:#22d3ee">▢</span> bâtiment vendu depuis 2021' : '');
+    },
+    /** Légende des ventes : les cinq classes de prix et les médianes par type. */
+    async legendeDvf() {
+        const v = await couche('dvf');
+        const fr = n => Math.round(n).toLocaleString('fr-FR');
+        const ligne = (t, l) => v.resume[t] ? `<br>${l} : ${fr(v.resume[t].mediane)} €/m² <i>(${v.resume[t].ventes} ventes)</i>` : '';
+        return `<b>Ventes ${v.millesimes[0]}-${v.millesimes[v.millesimes.length - 1]}</b> · prix médians`
+            + '<div class="barre">' + ['#fde68a', '#fbbf24', '#f97316', '#dc2626', '#7f1d1d'].map(c =>
+                `<span style="flex:1;background:${c}"></span>`).join('') + '</div>moins cher → plus cher'
+            + '<br><span style="color:#8aa4c8">■</span> vente sans prix au m²'
+            + ligne('Maison', 'Maisons') + ligne('Appartement', 'Appartements');
+    },
+    /** Le quartier le plus vendu : la maille de 60 m qui a le plus de parcelles vendues, son centre. */
+    async amasVentes() {
+        const v = await couche('dvf');
+        const m = 60 / 111320, cases = new Map();
+        for (const p of v.parcelles) {
+            const g = p.geometrie, anneau = g.type === 'Polygon' ? g.coordinates[0] : g.coordinates[0][0];
+            const c = [anneau.reduce((t, q) => t + q[0], 0) / anneau.length, anneau.reduce((t, q) => t + q[1], 0) / anneau.length];
+            const k = `${Math.floor(c[0] / m)},${Math.floor(c[1] / m)}`;
+            (cases.get(k) || cases.set(k, []).get(k)).push(c);
+        }
+        const amas = [...cases.values()].sort((a, b) => b.length - a.length)[0];
+        return { lon: amas.reduce((t, c) => t + c[0], 0) / amas.length, lat: amas.reduce((t, c) => t + c[1], 0) / amas.length };
+    },
+    /** Un immeuble du centre, le plus diagnostiqué : la page n'en donne que le résumé. Pris à
+     *  moins de 250 m du point, résidentiel et d'au moins 8 m : en zone de 1 000 m, le plus
+     *  diagnostiqué de toute la scène était un bâtiment des abords, sous les arbres, dessiné
+     *  à 3 m faute de hauteur connue, d'un gros plan flou. */
+    async immeuble() {
+        const d = await couche('dpe');
+        const s = await couche('scene');
+        const l = lieuCourant, kx = 111320 * Math.cos(l.lat * RAD);
+        const centre = f => {
+            const a = f.geometry.type === 'Polygon' ? f.geometry.coordinates[0] : f.geometry.coordinates[0][0];
+            return [a.reduce((t, p) => t + p[0], 0) / a.length, a.reduce((t, p) => t + p[1], 0) / a.length];
+        };
+        const parCle = new Map(s.batiments.features.map(f => [f.properties.cleabs, f]));
+        const candidats = d.batiments.filter(b => !b.dpe && b.resume.n >= 5).map(b => ({ b, f: parCle.get(b.batiment) }))
+            .filter(({ f }) => f && f.properties.usage_1 === 'Résidentiel' && (f.properties.hauteur || 0) >= 8)
+            .map(c => ({ ...c, c: centre(c.f) }))
+            .filter(({ c }) => Math.hypot((c[0] - l.lon) * kx, (c[1] - l.lat) * 111320) <= 250)
+            .sort((x, y) => y.b.resume.n - x.b.resume.n);
+        if (!candidats.length) throw new Error('aucun immeuble d\'au moins cinq DPE au centre');
+        const { b, f, c } = candidats[0];
+        console.log(`    immeuble ${b.batiment} : ${b.resume.n} DPE, médiane ${b.resume.mediane}, ${f.properties.hauteur} m`);
+        return { lon: c[0], lat: c[1], hauteur: 4 };
     },
     /** La souris va sur un objet et y reste : son infobulle s'ouvre. */
     async survoler(p, secondes) {

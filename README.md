@@ -651,7 +651,14 @@ ffmpeg assemble la vidéo, muette, légendes incrustées.
 node outils/demo-video.mjs youtube     # docs/demo/demo-youtube.mp4 (1080p, panneau visible)
 node outils/demo-video.mjs linkedin    # docs/demo/demo-linkedin.mp4 (1080×1350, vue seule)
 node outils/demo-video.mjs readme      # docs/demo/demo-readme.gif, celui ci-dessus
+node outils/demo-video.mjs foncier     # docs/demo/demo-foncier.mp4 (1080×1080, DPE et ventes à Honfleur, zone de 1 000 m, en zooms)
 ```
+
+Le film `foncier` n'a besoin d'aucun détecteur, et ne montre des DPE et des
+ventes que des couleurs et des chiffres réunis (médianes, répartition des
+étiquettes d'un immeuble), jamais une vente ni une adresse : les conditions
+de DVF interdisent de permettre la réidentification, et une vidéo publiée se
+voit de partout. Il n'a pas de texte de voix off.
 
 Pour une voix off, enregistrer les phrases de `docs/demo/demo-voix-off.txt`,
 une par séquence, et donner le dossier par `VOIX_DOSSIER=…` : chaque

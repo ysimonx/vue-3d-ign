@@ -376,6 +376,9 @@ window.DEMANDE_SCENE = (() => {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
 
 // --- Point visé ----------------------------------------------------------
 // Donné dans l'URL (?lat=…&lon=…). Sans point, on en propose un par défaut : le
@@ -4828,8 +4831,32 @@ var venteParBatiment = new Map();   // cleabs -> { parcelle, couleur }
 var contoursVente = [];             // les contours des bâtiments vendus, à retirer
 // Un bâtiment vendu se distingue aussi par son contour, même quand ce sont
 // les DPE qui le colorent : demande de l'utilisateur. Cyan, hors des deux
-// palettes et de l'orange du bâtiment visé.
-const MAT_CONTOUR_VENTE = new THREE.LineBasicMaterial({ color: 0x22d3ee });
+// palettes et de l'orange du bâtiment visé. En traits de 2,5 px : à un
+// pixel, le contour se perdait sur un téléphone, dans la vidéo de
+// démonstration (outils/demo-video.mjs foncier). La résolution du trait,
+// que three.js r160 ne règle pas (1 × 1 par défaut : un trait de 2,5 px y
+// couvrait tout l'écran de cyan), est reprise du rendu avant chaque image
+// (resolutionContour), redimensionnements compris.
+//
+// Sauf sur un rendu logiciel (SwiftShader, llvmpipe : pas de carte
+// graphique, ou pas d'accès à elle) : y compiler le shader des traits épais
+// gelait la page une quarantaine de secondes, mesuré le 9 octobre 2026 à
+// Honfleur dans Chrome sans écran (de 3 à 0,3 image par seconde, même les
+// ventes éteintes), contre 2 images par seconde stables en trait fin, dont
+// le shader est déjà celui du bâtiment visé. Sur Metal, le trait épais ne
+// coûte rien de visible.
+const RENDU_LOGICIEL = (() => {
+    try {
+        const gl = renderer.getContext();
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        return /SwiftShader|llvmpipe|Software|Basic Render/i.test(
+            gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    } catch (e) { return false; }
+})();
+const MAT_CONTOUR_VENTE = RENDU_LOGICIEL ? new THREE.LineBasicMaterial({ color: 0x22d3ee })
+                                         : new LineMaterial({ color: 0x22d3ee, linewidth: 2.5 });
+const tailleRendu = new THREE.Vector2();
+function resolutionContour(r) { MAT_CONTOUR_VENTE.resolution.copy(r.getSize(tailleRendu)); }
 var groupeDpe = new THREE.Group();  // les DPE sans bâtiment, à leur adresse
 groupeDpe.visible = false;
 scene.add(groupeDpe);
@@ -4884,7 +4911,10 @@ function appliquerCouleurs() {
         // Les murs seulement, pas les marches d'un toit mesuré : à
         // Versailles, leurs arêtes faisaient un gribouillis (habillerCible).
         if (dvfActif && DVF && venteParBatiment.has(cle) && murs.has(m.material) && m.name !== 'toit') {
-            const ligne = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 40), MAT_CONTOUR_VENTE);
+            const aretes = new THREE.EdgesGeometry(m.geometry, 40);
+            const ligne = RENDU_LOGICIEL ? new THREE.LineSegments(aretes, MAT_CONTOUR_VENTE)
+                : new LineSegments2(new LineSegmentsGeometry().fromEdgesGeometry(aretes), MAT_CONTOUR_VENTE);
+            if (!RENDU_LOGICIEL) { ligne.onBeforeRender = resolutionContour; aretes.dispose(); }
             m.add(ligne);
             contoursVente.push({ mesh: m, ligne });
         }

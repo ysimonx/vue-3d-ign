@@ -15,6 +15,14 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Une démo des DPE et des ventes, au carré.** `node outils/demo-video.mjs
+  foncier` tourne à Honfleur, en zone de 1 000 m autour du Vieux Bassin, un
+  film muet de 51 s en 1080 × 1080 pour LinkedIn, tout en zooms, sans
+  orbite : un clic sur « DPE », la répartition des étiquettes d'un immeuble
+  de la vieille ville, un clic sur « Ventes DVF », puis les deux ensemble. Un cartouche y tient la légende des couleurs, et les médianes
+  des ventes. Rien d'une vente ni d'une adresse n'y figure, seulement des
+  couleurs et des chiffres réunis.
+
 - **DPE et ventes immobilières, au clic.** Deux boutons du panneau,
   éteints à l'ouverture, et deux couches à part (`/api/dpe`, `/api/dvf`) :
   rien n'est demandé à l'ADEME ni à DVF tant qu'on ne clique pas.
@@ -30,7 +38,10 @@ messages de commit et dans les commentaires des modules.
   géolocalisées d'Etalab, parcelles du cadastre IGN) : parcelles vendues
   teintées par leur prix au m² médian, bâtiment posé dessus de la même
   couleur et cerné de cyan, ventes au survol et au clic, prix médian des
-  maisons et des appartements dans le panneau. Pas de DVF en
+  maisons et des appartements dans le panneau. Le contour est un trait de
+  2,5 px sur une carte graphique, d'un pixel sur un rendu logiciel
+  (SwiftShader, llvmpipe), où compiler son shader gelait la page une
+  quarantaine de secondes. Pas de DVF en
   Alsace-Moselle : la page le dit. Les deux couches sont datées, gardées
   avec la scène, et relues par « Reconstruire la scène ». Sans clé : API de
   l'ADEME et fichiers d'Etalab, sous Licence Ouverte 2.0, cités dans les
