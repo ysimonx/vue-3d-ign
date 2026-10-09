@@ -8,6 +8,9 @@
 //   node outils/demo-video.mjs linkedin    # 1080×1350, vue seule, texte court
 //   node outils/demo-video.mjs readme      # GIF muet de quelques secondes, pour le README
 //   node outils/demo-video.mjs foncier     # 1080×1080, DPE et ventes DVF à Honfleur (zone de 1 000 m), pour LinkedIn
+//   node outils/demo-video.mjs industrie   # 1080×1080, sites industriels : BD TOPO, puis LiDAR HD
+//   node outils/demo-video.mjs gadzarts    # 1080×1080, les huit campus Arts et Métiers, de l'aube au soir
+//   MUSIQUE=morceau.mp3 node outils/demo-video.mjs gadzarts   # avec une musique dessous
 //
 // Le film `foncier` ne montre des DPE et des ventes que des couleurs et des
 // chiffres réunis (médianes, répartition des étiquettes d'un immeuble) :
@@ -45,6 +48,9 @@ const FORMAT = process.argv[2] || 'youtube';
 const BASE = (process.env.VUE3D_URL || 'http://localhost:8080').replace(/\/$/, '');
 const VOIX = process.env.VOIX || '';
 const VOIX_DOSSIER = process.env.VOIX_DOSSIER || '';
+// Une musique (fichier audio local) posée sous un film sans voix, coupée à sa
+// longueur avec un fondu de sortie. Ses droits sont à vérifier avant de publier.
+const MUSIQUE = process.env.MUSIQUE || '';
 const AVEC_VOIX = Boolean(VOIX || VOIX_DOSSIER);
 const SORTIE = process.env.SORTIE || 'docs/demo';
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -62,6 +68,12 @@ const FORMATS = {
     // incrusté (choix de l'utilisateur : ni voix off, ni sous-titres).
     foncier: { largeur: 1080, hauteur: 1080, panneau: false, voix: false, texte: 'court', police: 38,
                sansVoixOff: true },
+    // Trois sites industriels, la BD TOPO puis le LiDAR HD : même forme.
+    industrie: { largeur: 1080, hauteur: 1080, panneau: false, voix: false, texte: 'court', police: 38,
+                 sansVoixOff: true },
+    // Les huit campus Arts et Métiers : même forme, et des intertitres.
+    gadzarts: { largeur: 1080, hauteur: 1080, panneau: false, voix: false, texte: 'court', police: 38,
+                sansVoixOff: true, musiqueApres: 'g-avertissement' },
 };
 const fmt = FORMATS[FORMAT];
 if (!fmt) { console.error(`format inconnu : ${FORMAT} (youtube | linkedin | readme)`); process.exit(2); }
@@ -81,6 +93,41 @@ const MONT = { lat: 48.6360, lon: -1.5113, abbaye: { lat: 48.6361, lon: -1.5115 
 // zone de 1 000 m : dans l'emprise par défaut, le relief flou des environs
 // mangeait le cadre (avis de l'utilisateur sur le premier montage).
 const HONFLEUR = { lat: 49.4192, lon: 0.2333, zone: 1000 };
+// Sites industriels, au centre de leur zone d'activité BD TOPO, en zone de
+// 1 000 m ; `amas` : le quartier (maille de 80 m) où le LiDAR HD voit le plus
+// de structures que la BD TOPO ne modélise pas. Orthophotos vérifiées non
+// floutées le 2026-10-09 (netteté au laplacien de 296 à 710, autant ou plus
+// que Honfleur et Gordes). `structures` : compté ce jour-là sur la couche
+// du nuage, points bâtis à plus de 2 m du sol, hors des bâtiments,
+// réservoirs et constructions ponctuelles de la BD TOPO (à 1 m près) et
+// sans les tabliers de pont (classe 17, que la BD TOPO a en ouvrages), en
+// îlots de cellules de 2 m d'au moins 10 m². La part de ces points parmi
+// les points bâtis (9 % à Gonfreville, 28 % à Pierre-Bénite, 31 % à
+// Cordemais) n'est pas à l'image : elle dépend de la place des cuves.
+const GONFREVILLE = { lat: 49.4879, lon: 0.2390, zone: 1000, amas: { lat: 49.48597, lon: 0.24069 },
+                      bdtopo: '103 bâtiments, 98 réservoirs', structures: 173 };
+const PIERRE_BENITE = { lat: 45.7086, lon: 4.8275, zone: 1000, amas: { lat: 45.70763, lon: 4.82891 },
+                        bdtopo: '192 bâtiments, 17 réservoirs', structures: 302 };
+const CORDEMAIS = { lat: 47.2783, lon: -1.8825, zone: 1000, amas: { lat: 47.27665, lon: -1.88166 },
+                    bdtopo: '68 bâtiments, 12 réservoirs', structures: 144 };
+// Les huit campus Arts et Métiers, au centre de leur emprise d'enseignement
+// supérieur dans la BD TOPO (l'abbaye pour Cluny), dans l'ordre de leur
+// fondation. Dates vérifiées le 2026-10-09 sur l'histoire publiée par
+// l'école : Châlons 1806 (l'école de Liancourt, 1780, y emménage), Angers 1815
+// (fondée à Beaupréau en 1811), Aix 1843, Cluny 1891 (1890 selon d'autres
+// chronologies), Lille 1900, Paris 1912, Bordeaux-Talence 1963, Metz 1997.
+const CAMPUS = {
+    // `cible` : le bâtiment à filmer quand ce n'est pas la plus grande emprise
+    // du campus — à Angers, un gymnase de 2009 ; on prend l'édifice religieux
+    // de 22 m, voisin de l'ancienne abbaye du Ronceray. À Paris, le bâtiment
+    // du boulevard de l'Hôpital (1914 dans la BD TOPO), et non les ateliers.
+    chalons: { lat: 48.95739, lon: 4.35777, zone: 1000 },
+    angers: { lat: 47.47590, lon: -0.55993, zone: 1000, cible: { lat: 47.47503, lon: -0.56106 } },
+    aix: { lat: 43.52986, lon: 5.45500, zone: 1000 }, cluny: { lat: 46.43467, lon: 4.65942, zone: 1000 },
+    lille: { lat: 50.62801, lon: 3.07222, zone: 1000 },
+    paris: { lat: 48.83351, lon: 2.35837, zone: 1000, cible: { lat: 48.83364, lon: 2.35797 } },
+    talence: { lat: 44.80433, lon: -0.60208, zone: 1000 }, metz: { lat: 49.09450, lon: 6.22616, zone: 1000 },
+};
 const urlDe = l => `${BASE}/?lat=${l.lat}&lon=${l.lon}${l.zone ? `&zone=${l.zone}` : ''}`;
 
 // --- Scénario ---------------------------------------------------------------
@@ -285,6 +332,214 @@ const SEQUENCES = [
             await s.glisser(s.duree, null, { ...HONFLEUR, distance: 760, azimut: 200, elevation: 48 });
         },
     },
+    // --- Film « industrie » : la BD TOPO, puis le LiDAR HD -------------------
+    // Pour chaque site : la BD TOPO seule, en plan large qui se resserre ;
+    // puis le nuage LiDAR HD allumé, en zoom sur le quartier où il voit le
+    // plus de structures absentes de la BD TOPO. De loin, les points beiges
+    // se fondent dans les volumes et la photo : le LiDAR s'allume de près.
+    {
+        id: 'i-titre', lieu: GONFREVILLE, duree: 6, formats: ['industrie'],
+        court: 'Sites industriels, en 3D depuis les données ouvertes de l’IGN',
+        carte: { titre: 'BD TOPO ou LiDAR ?', sous: 'Vue 3D IGN · trois sites industriels, deux modèles' }, carteDifferee: true,
+        async jouer(s) {
+            await s.glisser(s.duree, { ...GONFREVILLE, distance: 820, azimut: 195, elevation: 50 },
+                                     { ...GONFREVILLE, distance: 700, azimut: 200, elevation: 46 },
+                            t => s.carte(Math.min(1, Math.max(0, (t * s.duree - 2) / FONDU_S))));
+        },
+    },
+    ...[['Total', 'TotalEnergies, Gonfreville-l’Orcher', GONFREVILLE, 200], ['Arkema', 'Arkema, Pierre-Bénite', PIERRE_BENITE, 215],
+        ['EDF', 'EDF, centrale de Cordemais', CORDEMAIS, 205]].flatMap(([id, nom, site, azimut]) => [
+        {
+            id: `i-${id}-bdtopo`, lieu: site, duree: 6, formats: ['industrie'],
+            court: `${nom} : les volumes de la BD TOPO`,
+            async jouer(s) {
+                await s.cartouche(`<b>BD TOPO</b><br>${site.bdtopo}`);
+                if (await allume('t-nuage')) await cliquer('t-nuage');
+                await s.glisser(s.duree, { ...site, distance: 720, azimut: azimut - 10, elevation: 46 },
+                                         { ...site.amas, distance: 380, azimut, elevation: 40 });
+            },
+        },
+        {
+            id: `i-${id}-lidar`, lieu: site, duree: 9, formats: ['industrie'],
+            court: `Le LiDAR HD : ${site.structures} structures que la BD TOPO ne modélise pas`,
+            async jouer(s) {
+                await s.allumer('t-nuage');
+                await s.cartouche(`<b>BD TOPO</b><br>${site.bdtopo}<br><b>+ LiDAR HD</b><br>${site.structures} structures de plus`);
+                await s.glisser(s.duree, null, { ...site.amas, distance: 170, azimut: azimut + 8, elevation: 34 });
+            },
+        },
+    ]),
+    {
+        id: 'i-fin', lieu: CORDEMAIS, duree: 6, formats: ['industrie'],
+        court: '',
+        carte: { titre: 'Vue 3D IGN', sous: `Logiciel libre (MIT)\n${DEPOT}\n\nBD TOPO et LiDAR HD © IGN\nLicence Ouverte 2.0` },
+        async jouer(s) {
+            await s.cartouche('');
+            await s.glisser(s.duree, null, { ...CORDEMAIS, distance: 760, azimut: 205, elevation: 46 });
+        },
+    },
+    // --- Film « gadzarts » : huit campus, une journée -------------------------
+    // Monté sur 70 s, la durée de la musique que l'utilisateur y pose
+    // (MUSIQUE). Les photos réelles viennent de Wikimedia Commons ; Talence
+    // n'en a aucune (cherché le 2026-10-09).
+    // Les campus dans l'ordre de leur fondation, et le soleil de la page qui
+    // traverse la journée de l'un à l'autre : 8 h 30 à Châlons, 18 h 30 à
+    // Metz. Un mouvement de caméra par campus, jamais deux fois le même (avis
+    // de l'utilisateur : pas toujours l'approche du ciel qui zoome), cadré
+    // sur le bâtiment principal (batimentPrincipal) ; le nuage LiDAR HD s'y
+    // allume en cours de plan. Les plans rasants restent au-dessus de 16° :
+    // la page n'a pas de ciel, et plus bas un tiers de l'image était noir —
+    // sauf à Cluny, où le clocher en points s'y découpe.
+    {
+        // Le chant gadz'arts prévenu d'avance (demande de l'utilisateur) : la
+        // musique ne part qu'après ce carton (musiqueApres).
+        id: 'g-avertissement', lieu: CAMPUS.chalons, duree: 3, formats: ['gadzarts'],
+        court: '',
+        carte: { titre: 'Attention', sous: 'Ce film contient un chant gadz’arts :\nvous voudrez peut-être couper le son 🙂' },
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.heure(8.4);
+            await s.glisser(s.duree, { ...b, distance: 950, azimut: b.axe + 55, elevation: 32 },
+                                     { ...b, distance: 900, azimut: b.axe + 60, elevation: 30 });
+        },
+    },
+    {
+        id: 'g-titre', lieu: CAMPUS.chalons, duree: 4.5, formats: ['gadzarts'],
+        court: '',
+        carte: { titre: 'Les Tabagn’s des Gadz’Arts', sous: 'Huit campus Arts et Métiers, deux siècles,\nvus par le LiDAR HD de l’IGN' },
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.heure(8.4);
+            await s.glisser(s.duree, null, { ...b, distance: 700, azimut: b.axe + 75, elevation: 26 });
+        },
+    },
+    {
+        // La grue : du pied de la façade jusqu'au-dessus des toits.
+        id: 'g-chalons', lieu: CAMPUS.chalons, duree: 7.3, formats: ['gadzarts'],
+        court: 'Le berceau : l’école de Liancourt (1780) s’y installe en 1806',
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.chapitre('1806', 'Châlons-en-Champagne');
+            await s.photo('File:Arts et métiers Châlons 45596.jpg', 'Public domain',
+                          'L’école de Châlons, gravée par P.-M. Barbat en 1879 · domaine public', 3.0, 3.8);
+            const lidar = s.lidarA(0.5);
+            await s.glisser(s.duree, { ...b, hauteur: b.hauteur * 0.5, distance: 160, azimut: b.axe + 90, elevation: 16 },
+                                     { ...b, distance: 340, azimut: b.axe + 115, elevation: 44 },
+                            async t => { await s.heure(8.5 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // Le travelling : le long de la Maine, la rivière devant, le campus en
+        // face. De près, le long d'une façade, le mur couvert de points se
+        // lisait comme du sable.
+        id: 'g-angers', lieu: CAMPUS.angers, duree: 7.3, formats: ['gadzarts'],
+        court: 'La deuxième école, née à Beaupréau, rejoint Angers en 1815',
+        async jouer(s) {
+            await s.chapitre('1815', 'Angers');
+            await s.photo('File:ENSAM, Angers.jpg', 'CC BY-SA 2.0',
+                          'Le campus dans l’ancienne abbaye du Ronceray, photo Iman_day, 2011 · CC BY-SA 2.0', 3.0, 3.8);
+            const lidar = s.lidarA(0.5);
+            const c = CAMPUS.angers;
+            await s.glisser(s.duree, { ...s.decaler(c, 0, 170), distance: 270, azimut: 95, elevation: 28 },
+                                     { ...s.decaler(c, 180, 150), distance: 250, azimut: 85, elevation: 33 },
+                            async t => { await s.heure(9.7 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // La plongée : à la verticale, la vue tourne et s'incline.
+        id: 'g-aix', lieu: CAMPUS.aix, duree: 7.3, formats: ['gadzarts'],
+        court: 'Aix-en-Provence, la troisième école, en 1843',
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.chapitre('1843', 'Aix-en-Provence');
+            await s.photo('File:Amphithéâtre ENSAM - Aix-en-Provence.jpeg', 'Public domain',
+                          'L’amphithéâtre, carte postale de 1907 · domaine public', 3.0, 3.8);
+            const lidar = s.lidarA(0.45);
+            await s.glisser(s.duree, { ...b, distance: 300, azimut: b.axe, elevation: 86 },
+                                     { ...b, distance: 190, azimut: b.axe + 80, elevation: 44 },
+                            async t => { await s.heure(10.9 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // L'arc rasant : autour du clocher de l'abbaye, en contre-plongée.
+        id: 'g-cluny', lieu: CAMPUS.cluny, duree: 7.3, formats: ['gadzarts'],
+        court: 'Cluny : en 1891, l’école entre dans l’abbaye',
+        async jouer(s) {
+            const c = await s.sommet(150);
+            await s.chapitre('1891', 'Cluny');
+            await s.photo('File:Abbaye de Cluny, le clocher de l\'Eau Bénite et la tour de l\'Horloge - A9484.jpg', 'CC BY-SA 4.0',
+                          'Le clocher de l’Eau-Bénite en 1916, autochrome de Georges Chevalier · musée Albert-Kahn · CC BY-SA 4.0', 3.0, 3.8);
+            const lidar = s.lidarA(0.0);
+            await s.glisser(s.duree, { ...c, hauteur: c.h * 0.45, distance: 150, azimut: 150, elevation: 6 },
+                                     { ...c, hauteur: c.h * 0.4, distance: 115, azimut: 255, elevation: 14 },
+                            async t => { await s.heure(12.1 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // Le survol : on arrive du sud, au ras des toits.
+        id: 'g-lille', lieu: CAMPUS.lille, duree: 7.3, formats: ['gadzarts'],
+        court: 'Lille, 1900 : les premiers bâtiments construits pour l’école',
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.chapitre('1900', 'Lille');
+            await s.photo('File:Lille Arts et métiers.JPG', 'Public domain', 'La façade, photo Velvet, 2010 · domaine public', 3.0, 3.8);
+            const lidar = s.lidarA(0.5);
+            await s.glisser(s.duree, { ...s.decaler(b, 190, 420), distance: 170, azimut: 190, elevation: 20 },
+                                     { ...b, distance: 150, azimut: 200, elevation: 30 },
+                            async t => { await s.heure(13.3 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // Le recul : du détail de la façade à tout Paris.
+        id: 'g-paris', lieu: CAMPUS.paris, duree: 7.3, formats: ['gadzarts'],
+        court: 'Paris, boulevard de l’Hôpital, 1912',
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.chapitre('1912', 'Paris');
+            await s.photo('File:P1000874 Paris XIII Boulevard de l\'Hopital ENSAM reductwk.JPG', 'CC BY-SA 3.0',
+                          'Boulevard de l’Hôpital, photo Mbzt, 2011 · CC BY-SA 3.0', 3.0, 3.8);
+            const lidar = s.lidarA(0.25);
+            await s.glisser(s.duree, { ...b, distance: 85, azimut: b.axe + 90, elevation: 62 },
+                                     { ...b, distance: 760, azimut: b.axe + 130, elevation: 36 },
+                            async t => { await s.heure(14.5 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // La descente en diagonale : de haut, en travers du campus, jusqu'au sol.
+        id: 'g-talence', lieu: CAMPUS.talence, duree: 7.3, formats: ['gadzarts'],
+        court: 'Bordeaux-Talence, 1963, en pleines Trente Glorieuses',
+        async jouer(s) {
+            const b = await s.batimentPrincipal();
+            await s.chapitre('1963', 'Bordeaux-Talence');
+            const lidar = s.lidarA(0.4);
+            await s.glisser(s.duree, { ...s.decaler(b, 315, 220), distance: 450, azimut: 225, elevation: 58 },
+                                     { ...s.decaler(b, 135, 40), distance: 150, azimut: 255, elevation: 22 },
+                            async t => { await s.heure(15.7 + 1.2 * t); await lidar(t); });
+        },
+    },
+    {
+        // L'avancée rasante, dans la lumière du soir, le soleil dans le dos.
+        id: 'g-metz', lieu: CAMPUS.metz, duree: 8, formats: ['gadzarts'],
+        court: 'Metz, 1997 : le plus jeune campus',
+        async jouer(s) {
+            const b = await s.batimentPrincipal(180);
+            await s.chapitre('1997', 'Metz');
+            await s.photo('File:9409 P COM PHOTO 7.jpg', 'CC BY-SA 4.0',
+                          'Le hall du campus de Metz, photo Atelierremon, 2006 · CC BY-SA 4.0', 3.0, 4.2);
+            const lidar = s.lidarA(0.3);
+            await s.glisser(s.duree, { ...b, distance: 420, azimut: 255, elevation: 24 },
+                                     { ...b, distance: 150, azimut: 280, elevation: 18 },
+                            async t => { await s.heure(16.9 + 1.5 * t); await lidar(t); });
+        },
+    },
+    {
+        id: 'g-fin', lieu: CAMPUS.metz, duree: 6.5, formats: ['gadzarts'],
+        court: '',
+        carte: { titre: 'Les Tabagn’s des Gadz’Arts', sous: `1806 – 1997 · huit campus\n\nVue 3D IGN, logiciel libre (MIT) · ${DEPOT}\nLiDAR HD et BD TOPO © IGN, Licence Ouverte 2.0\nPhotos : Wikimedia Commons (auteurs et licences à l’image)` },
+        async jouer(s) {
+            await s.glisser(s.duree, null, { ...CAMPUS.metz, distance: 720, azimut: 290, elevation: 40 });
+        },
+    },
 ];
 
 // --- Voix -------------------------------------------------------------------
@@ -362,13 +617,24 @@ const STYLE_DEMO = `
     #demo-cartouche:empty { display:none; }
     #demo-cartouche .barre { height:${Math.round(fmt.police * 0.6)}px; margin:${fmt.police * 0.2}px 0; }
     #demo-cartouche .barre span { font-size:${Math.round(fmt.police * 0.42)}px; }
+    #demo-chapitre { position:absolute; left:6%; top:6%; z-index:5; color:#fff; opacity:0; pointer-events:none;
+        font-family:system-ui, -apple-system, "Helvetica Neue", sans-serif; text-shadow:0 2px 14px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.6); }
+    #demo-chapitre b { display:block; font-size:${fmt.police * 2.8}px; font-weight:800; letter-spacing:-.03em; line-height:1; }
+    #demo-chapitre span { display:block; font-size:${fmt.police * 1.05}px; font-weight:600; margin-top:${fmt.police * 0.25}px; }
+    #demo-photo { position:absolute; right:5%; top:6%; z-index:5; width:42%; padding:${fmt.police * 0.3}px ${fmt.police * 0.3}px 0;
+        background:#f4f1ea; border-radius:3px; box-shadow:0 10px 30px rgba(0,0,0,.55); transform:rotate(1.6deg);
+        opacity:0; pointer-events:none; }
+    #demo-photo img { display:block; width:100%; max-height:${Math.round(fmt.hauteur * 0.42)}px; object-fit:cover; }
+    #demo-photo span { display:block; padding:${fmt.police * 0.22}px 2px ${fmt.police * 0.28}px; color:#2b2b2b;
+        font:500 ${Math.round(fmt.police * 0.4)}px/1.3 system-ui, -apple-system, "Helvetica Neue", sans-serif; }
     #demo-carte { position:absolute; inset:0; z-index:4; display:flex; flex-direction:column; align-items:center;
         justify-content:center; gap:${fmt.police * 0.6}px; background:rgba(18,20,24,.62); color:#fff; opacity:0; pointer-events:none;
         font-family:system-ui, -apple-system, "Helvetica Neue", sans-serif; text-align:center; padding:0 8%; }
     #demo-carte h1 { margin:0; font-size:${fmt.police * 2.6}px; font-weight:700; letter-spacing:-.02em; }
     #demo-carte p { margin:0; font-size:${fmt.police * 1.1}px; opacity:.9; white-space:pre-line; line-height:1.4; }
 `;
-const HTML_DEMO = '<div id="demo-carte"><h1></h1><p></p></div><div id="demo-legende"></div><div id="demo-cartouche"></div>';
+const HTML_DEMO = '<div id="demo-carte"><h1></h1><p></p></div><div id="demo-legende"></div><div id="demo-cartouche"></div>'
+    + '<div id="demo-chapitre"><b></b><span></span></div><div id="demo-photo"><img alt=""><span></span></div>';
 await page.setRequestInterception(true);
 page.on('request', async r => {
     if (r.resourceType() !== 'document') return r.continue();
@@ -414,11 +680,21 @@ async function charger(lieu) {
         // filmé les trouve en cache, sans attente à l'image.
         for (const nom of ['scene', 'dpe', 'dvf']) await couche(nom);
     }
+    if (FORMAT === 'industrie' || FORMAT === 'gadzarts') {
+        // Le nuage d'une zone de 1 000 m se lit en 30 à 90 s : d'avance.
+        // Hors couverture LiDAR HD (Lille, en octobre 2026), il n'y en a pas.
+        await couche('scene');
+        lieu.sansNuage = !(await couche('nuage'));
+    }
     await page.goto(urlDe(lieu), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.getElementById('attente').hidden, { timeout: 15 * 60 * 1000 });
     await page.waitForFunction(() => window.__demo && window.__demo.vegChargee()
         && [...document.querySelectorAll('.etat-couche')].every(e => e.hidden || !e.classList.contains('en-cours')),
         { timeout: 15 * 60 * 1000 });
+    // Le bouton du nuage n'apparaît qu'une fois ses points construits.
+    if ((FORMAT === 'industrie' || FORMAT === 'gadzarts') && !lieu.sansNuage) {
+        await page.waitForFunction(() => !document.getElementById('t-nuage').hidden, { timeout: 15 * 60 * 1000 });
+    }
     await new Promise(r => setTimeout(r, 2500));       // textures et compilation des matériaux
     // L'orbite démarre d'elle-même avec la scène : la caméra est au script.
     if (await allume('t-orbit')) await cliquer('t-orbit');
@@ -465,11 +741,17 @@ const lireCadre = () => page.evaluate(() => {
 
 /** Légende et carte de titre : opacité réglée image par image, l'horloge étant figée. */
 let legende = { texte: '', debut: 0, fin: 0 };
+let chapitre = { debut: 0, fin: 0 };
+let photo = { debut: 0, fin: 0 };
 const FONDU_S = 0.4;
 async function habiller() {
     const t = images / FPS;
-    const o = Math.max(0, Math.min(1, (t - legende.debut) / FONDU_S, (legende.fin - t) / FONDU_S));
-    await page.evaluate(o => { document.getElementById('demo-legende').style.opacity = o; }, legende.texte ? o : 0);
+    const fondu = e => Math.max(0, Math.min(1, (t - e.debut) / FONDU_S, (e.fin - t) / FONDU_S));
+    await page.evaluate((o, oc, op) => {
+        document.getElementById('demo-legende').style.opacity = o;
+        document.getElementById('demo-chapitre').style.opacity = oc;
+        document.getElementById('demo-photo').style.opacity = op;
+    }, legende.texte ? fondu(legende) : 0, fondu(chapitre), fondu(photo));
 }
 async function carte(c, opacite) {
     await page.evaluate((c, o) => {
@@ -583,6 +865,98 @@ const outils = {
             + '<br><span style="color:#8aa4c8">■</span> vente sans prix au m²'
             + ligne('Maison', 'Maisons') + ligne('Appartement', 'Appartements');
     },
+    /** Intertitre de chapitre (l'année, la ville), en fondu, pendant `secondes`. */
+    async chapitre(annee, ville, secondes = 3.2) {
+        await page.evaluate((a, v) => {
+            const e = document.getElementById('demo-chapitre');
+            e.querySelector('b').textContent = a; e.querySelector('span').textContent = v;
+        }, annee, ville);
+        chapitre = { debut: images / FPS, fin: images / FPS + secondes };
+    },
+    /** Une photo réelle de Wikimedia Commons, posée en tirage dans le coin, de `dans` à
+     *  `dans + pendant` secondes. Lue au tournage, jamais gardée dans le dépôt ; sa licence
+     *  est vérifiée : changée sur Commons, le tournage s'arrête plutôt que de mal créditer. */
+    async photo(titre, licence, legende, dans, pendant) {
+        const ua = { 'User-Agent': 'vue-3d-ign-demo/1.0 (https://github.com/ysimonx/vue-3d-ign)' };
+        const api = 'https://commons.wikimedia.org/w/api.php?format=json&action=query&prop=imageinfo&iiprop=url|extmetadata'
+            + `&iiurlwidth=900&titles=${encodeURIComponent(titre)}`;
+        const info = Object.values((await (await fetch(api, { headers: ua })).json()).query.pages)[0].imageinfo[0];
+        const lue = (info.extmetadata.LicenseShortName || {}).value;
+        if (lue !== licence) throw new Error(`${titre} : licence « ${lue} » sur Commons, « ${licence} » attendue`);
+        const octets = Buffer.from(await (await fetch(info.thumburl, { headers: ua })).arrayBuffer());
+        await page.evaluate((src, l) => {
+            const e = document.getElementById('demo-photo');
+            e.querySelector('img').src = src; e.querySelector('span').textContent = l;
+        }, `data:image/jpeg;base64,${octets.toString('base64')}`, legende);
+        photo = { debut: images / FPS + dans, fin: images / FPS + dans + pendant };
+    },
+    /** L'heure du soleil, à l'instant (curseur de la page). */
+    async heure(h) {
+        await page.evaluate(h => { const c = document.getElementById('heure'); c.value = h; c.dispatchEvent(new Event('input')); }, h);
+    },
+    /** Le bâtiment principal autour du point : la plus grande emprise à moins de `rayon` m,
+     *  son centre, son grand axe (azimut depuis le nord, par l'analyse en composantes
+     *  principales de ses sommets), sa longueur et sa hauteur BD TOPO. */
+    async batimentPrincipal(rayon = 120) {
+        const s = await couche('scene');
+        const l = lieuCourant, kx = 111320 * Math.cos(l.lat * RAD);
+        let meilleur = null;
+        for (const f of s.batiments.features) {
+            const polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates;
+            const a = polys[0][0].map(([x, y]) => [(x - l.lon) * kx, (y - l.lat) * 111320]);
+            let aire = 0;
+            for (let i = 0, j = a.length - 1; i < a.length; j = i++) aire += a[j][0] * a[i][1] - a[i][0] * a[j][1];
+            aire = Math.abs(aire) / 2;
+            const c = [a.reduce((t, p) => t + p[0], 0) / a.length, a.reduce((t, p) => t + p[1], 0) / a.length];
+            if (Math.hypot(...c) > rayon) continue;
+            // Le lieu désigne son bâtiment (`cible`) : le plus proche ; sinon la plus grande emprise.
+            // Au moins 500 m² : à Angers, une annexe de 136 m² était plus près de la cible que l'édifice.
+            if (l.cible && aire < 500) continue;
+            const ecart = l.cible ? Math.hypot(c[0] - (l.cible.lon - l.lon) * kx, c[1] - (l.cible.lat - l.lat) * 111320) : -aire;
+            if (meilleur && ecart >= meilleur.ecart) continue;
+            meilleur = { aire, a, c, ecart, h: f.properties.hauteur || 10 };
+        }
+        const { a, c, aire, h } = meilleur;
+        let sxx = 0, syy = 0, sxy = 0;
+        for (const [x, y] of a) { sxx += (x - c[0]) ** 2; syy += (y - c[1]) ** 2; sxy += (x - c[0]) * (y - c[1]); }
+        const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);            // depuis l'est, sens trigonométrique
+        const ux = Math.cos(theta), uy = Math.sin(theta);
+        const proj = a.map(([x, y]) => (x - c[0]) * ux + (y - c[1]) * uy);
+        const b = { lon: l.lon + c[0] / kx, lat: l.lat + c[1] / 111320, axe: (90 - theta / RAD + 360) % 180,
+                    longueur: Math.max(...proj) - Math.min(...proj), hauteur: h, aire: Math.round(aire) };
+        console.log(`    bâtiment principal : ${b.aire} m², ${b.longueur.toFixed(0)} m de long, axe ${b.axe.toFixed(0)}°, ${b.hauteur} m`);
+        return b;
+    },
+    /** Une fonction d'image qui allume le nuage LiDAR HD, une fois, passé `seuil` du plan. */
+    lidarA(seuil) {
+        let fait = false;
+        return async t => {
+            if (fait || t < seuil || lieuCourant.sansNuage) return;
+            fait = true;
+            if (!await allume('t-nuage')) await cliquer('t-nuage');
+        };
+    },
+    /** Le point le plus haut du nuage à moins de `rayon` m du lieu (un clocher), et sa hauteur. */
+    async sommet(rayon) {
+        const n = await couche('nuage');
+        const l = lieuCourant, kx = 111320 * Math.cos(l.lat * RAD);
+        const lon = new Int32Array(Buffer.from(n.lon, 'base64').buffer.slice(0));
+        const lat = new Int32Array(Buffer.from(n.lat, 'base64').buffer.slice(0));
+        const h = new Uint16Array(Buffer.from(n.h, 'base64').buffer.slice(0));
+        let k = -1;
+        for (let i = 0; i < h.length; i++) {
+            const x = (n.origine[0] + lon[i] * 1e-7 - l.lon) * kx, y = (n.origine[1] + lat[i] * 1e-7 - l.lat) * 111320;
+            if (Math.hypot(x, y) <= rayon && h[i] < 15000 && (k < 0 || h[i] > h[k])) k = i;
+        }
+        const c = { lon: n.origine[0] + lon[k] * 1e-7, lat: n.origine[1] + lat[k] * 1e-7, h: h[k] / 100 };
+        console.log(`    sommet du nuage : ${c.h.toFixed(1)} m`);
+        return c;
+    },
+    /** Un point à `d` mètres de `b` le long de l'azimut `az` (degrés depuis le nord). */
+    decaler(b, az, d) {
+        const kx = 111320 * Math.cos(b.lat * RAD);
+        return { ...b, lon: b.lon + d * Math.sin(az * RAD) / kx, lat: b.lat + d * Math.cos(az * RAD) / 111320 };
+    },
     /** Le quartier le plus vendu : la maille de 60 m qui a le plus de parcelles vendues, son centre. */
     async amasVentes() {
         const v = await couche('dvf');
@@ -670,6 +1044,14 @@ if (fmt.gif) {
     const filtre = `fps=8,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`;
     spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', VIDEO_MUETTE, '-filter_complex', filtre, `${nom}.gif`], { stdio: 'inherit' });
     fs.copyFileSync(VIDEO_MUETTE, `${nom}.mp4`);
+} else if (!fmt.voix && MUSIQUE) {
+    const duree = images / FPS, fondu = 2.5;
+    // La musique part après la séquence `musiqueApres` (un avertissement), sinon d'emblée.
+    const apres = fmt.musiqueApres && sequences.find(q => q.id === fmt.musiqueApres);
+    const decalage = apres ? Math.round((apres.debut + apres.duree) * 1000) : 0;
+    spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', VIDEO_MUETTE, '-i', MUSIQUE, '-map', '0:v', '-map', '1:a',
+                         '-af', `adelay=${decalage}:all=1,apad,afade=t=out:st=${(duree - fondu).toFixed(2)}:d=${fondu}`, '-t', duree.toFixed(3),
+                         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', `${nom}.mp4`], { stdio: 'inherit' });
 } else if (!fmt.voix) {
     spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', VIDEO_MUETTE, '-c:v', 'copy', '-movflags', '+faststart', `${nom}.mp4`], { stdio: 'inherit' });
 } else {

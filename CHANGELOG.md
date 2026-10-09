@@ -15,6 +15,30 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Les Tabagn's des Gadz'Arts, en démo.** `node outils/demo-video.mjs
+  gadzarts` filme en 73 s les huit campus Arts et Métiers dans l'ordre de
+  leur fondation (Châlons 1806, Angers 1815, Aix 1843, Cluny 1891, Lille
+  1900, Paris 1912, Bordeaux-Talence 1963, Metz 1997), le soleil allant de
+  8 h 30 à 18 h 30 d'un campus à l'autre. Un mouvement de caméra par campus,
+  le nuage LiDAR HD allumé en cours de plan, l'année en intertitre, et des
+  photos de Wikimedia Commons à comparer (gravure de 1879 à Châlons, carte
+  postale de 1907 à Aix, autochrome de 1916 du clocher de Cluny…), lues au
+  tournage avec leur licence vérifiée. `MUSIQUE` pose un morceau sous un film
+  sans voix, après un carton qui prévient du chant. L'outil gagne des
+  intertitres, des tirages photo, le soleil réglé image par image, le
+  bâtiment principal d'un campus et le sommet de son nuage.
+
+- **Une démo des sites industriels, au carré.** `node outils/demo-video.mjs
+  industrie` filme en 58 s, en zone de 1 000 m et en zooms, la raffinerie
+  TotalEnergies de Gonfreville-l'Orcher, l'usine Arkema de Pierre-Bénite et
+  la centrale EDF de Cordemais : les volumes de la BD TOPO, puis le nuage
+  LiDAR HD, allumé de près. Il y voit 173, 302 et 144 structures que la BD
+  TOPO ne modélise pas (îlots d'au moins 10 m² de points bâtis à plus de 2 m
+  du sol, hors de ses bâtiments, réservoirs, constructions ponctuelles,
+  ponts et murs) : unités de procédé, racks de tuyauteries, convoyeurs. Les
+  trois orthophotos ont été vérifiées non floutées, aussi nettes que celles
+  de Honfleur ou de Gordes.
+
 - **Une démo des DPE et des ventes, au carré.** `node outils/demo-video.mjs
   foncier` tourne à Honfleur, en zone de 1 000 m autour du Vieux Bassin, un
   film muet de 51 s en 1080 × 1080 pour LinkedIn, tout en zooms, sans

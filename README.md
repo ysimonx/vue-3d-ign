@@ -652,6 +652,8 @@ node outils/demo-video.mjs youtube     # docs/demo/demo-youtube.mp4 (1080p, pann
 node outils/demo-video.mjs linkedin    # docs/demo/demo-linkedin.mp4 (1080×1350, vue seule)
 node outils/demo-video.mjs readme      # docs/demo/demo-readme.gif, celui ci-dessus
 node outils/demo-video.mjs foncier     # docs/demo/demo-foncier.mp4 (1080×1080, DPE et ventes à Honfleur, zone de 1 000 m, en zooms)
+node outils/demo-video.mjs industrie   # docs/demo/demo-industrie.mp4 (1080×1080, trois sites industriels, BD TOPO puis LiDAR HD)
+MUSIQUE=chant.mp3 node outils/demo-video.mjs gadzarts   # docs/demo/demo-gadzarts.mp4 (1080×1080, les huit campus Arts et Métiers)
 ```
 
 Le film `foncier` n'a besoin d'aucun détecteur, et ne montre des DPE et des
@@ -659,6 +661,23 @@ ventes que des couleurs et des chiffres réunis (médianes, répartition des
 étiquettes d'un immeuble), jamais une vente ni une adresse : les conditions
 de DVF interdisent de permettre la réidentification, et une vidéo publiée se
 voit de partout. Il n'a pas de texte de voix off.
+
+Le film `industrie` montre, sur trois sites dont l'orthophoto n'est pas
+floutée (la raffinerie TotalEnergies de Gonfreville-l'Orcher, l'usine Arkema
+de Pierre-Bénite, la centrale EDF de Cordemais), les volumes de la BD TOPO
+puis le nuage LiDAR HD, qui y voit de 144 à 302 structures qu'elle ne
+modélise pas : unités de procédé, racks de tuyauteries, convoyeurs.
+
+Le film `gadzarts` parcourt les huit campus Arts et Métiers dans l'ordre de
+leur fondation, de Châlons (1806) à Metz (1997), pendant que le soleil
+traverse la journée, chacun avec son mouvement de caméra (grue, travelling,
+plongée, arc, survol, recul, descente) et son nuage LiDAR HD — sauf Lille,
+hors couverture en octobre 2026. Des photos de Wikimedia Commons, anciennes
+ou récentes, s'y posent pour comparer : lues au tournage, jamais gardées
+dans le dépôt, leur auteur et leur licence vérifiés et écrits à l'image.
+`MUSIQUE` pose un morceau dessous, après le carton d'avertissement : ses
+droits sont à vérifier avant de publier, comme la licence CC BY-SA de
+certaines photos, qui s'étend à la vidéo.
 
 Pour une voix off, enregistrer les phrases de `docs/demo/demo-voix-off.txt`,
 une par séquence, et donner le dossier par `VOIX_DOSSIER=…` : chaque
