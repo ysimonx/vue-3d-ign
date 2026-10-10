@@ -15,6 +15,32 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **L'horizon : le paysage jusqu'à 60 km.** Au-delà de l'anneau,
+  l'orthophoto de l'IGN en tuiles, du zoom 9 au zoom 17, d'autant plus
+  grossières qu'elles sont loin de la caméra ou hors de son champ, drapée
+  sur le RGE ALTI, sous un ciel et une brume qui suivent l'heure. De Gordes,
+  on voit le Ventoux ; du Mont-Saint-Michel, la baie jusqu'à la mer. Le
+  bouton « Horizon », allumé à l'ouverture, rend le fond sombre d'avant.
+  - Le relief vient des tuiles natives de la pyramide RGE ALTI (WMTS), pas
+    du WMS : à ces échelles, celui-ci répète une ligne sur quatre (le relief
+    sortait en gradins) et refuse au-delà de 40 requêtes par seconde.
+  - L'ouverture de Gordes lit 4,8 Mo d'orthophoto et 2,3 Mo d'altitudes,
+    puis 0,9 Mo par tour d'orbite ; la première version en lisait 36 Mo.
+  - En mer et à l'étranger, où le RGE ALTI n'a pas d'altitude, AWS Terrain
+    Tiles comble les trous : Kehl ne tombe plus 140 m sous le Rhin. La photo
+    de l'IGN, elle, s'arrête à la frontière.
+  - Avec l'horizon, l'anneau prend sa photo au zoom 16 au lieu de 15 : plus
+    de brouillard proche pour la cacher.
+
+- **Un drone, au clavier.** Le bouton « Drone » pilote un quadricoptère vu
+  de derrière : flèches pour avancer et tourner, Q et D pour glisser, espace
+  et Maj pour monter et descendre, molette pour le recul de la caméra, Échap
+  pour rendre la main à la souris. Il quitte la scène et survole l'horizon,
+  se pose sur ce qu'il survole — terrain, anneau, horizon ou toit — sans
+  jamais passer dessous, et la caméra monte sur les toits plutôt que de les
+  traverser. Le curseur « vitesse » règle sa vitesse de pointe, 3 m/s par
+  cran, jusqu'à 216 km/h.
+
 - **Les Tabagn's des Gadz'Arts, en démo.** `node outils/demo-video.mjs
   gadzarts` filme en 73 s les huit campus Arts et Métiers dans l'ordre de
   leur fondation (Châlons 1806, Angers 1815, Aix 1843, Cluny 1891, Lille
@@ -194,6 +220,15 @@ messages de commit et dans les commentaires des modules.
   calcule ; le refus dit pourquoi. Route : `POST /api/reconstruire`.
 
 ### Modifié
+
+- **L'essai dans le navigateur fait voler le drone.**
+  `outils/essai-navigateur.mjs` le fait décoller, avancer deux secondes, lit
+  sa vitesse, puis vérifie qu'Échap rend la main à la souris.
+
+- **Une tuile refusée se redemande une fois.** La Géoplateforme oppose de
+  loin en loin un 404 à une tuile d'orthophoto qui existe (au zoom 16 à
+  Gordes, servie cinq fois de suite ensuite) : le trou restait dans la photo
+  de l'anneau. L'horizon fait de même avant de tenir une tuile pour absente.
 
 - **L'essai dans le navigateur clique « DPE » et « Ventes DVF ».**
   `outils/essai-navigateur.mjs` les allume, attend leur section du panneau

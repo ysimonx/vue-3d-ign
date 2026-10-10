@@ -1,6 +1,6 @@
 // Essai de la page dans un vrai navigateur : charge un point, attend la scène,
-// survole et clique le bâtiment visé, bascule au 21 décembre, décale la scène
-// vers le nord, cherche un lieu
+// survole et clique le bâtiment visé, bascule au 21 décembre, pilote le drone
+// quelques mètres, décale la scène vers le nord, cherche un lieu
 // (« place du chateau gordes ») et s'y rend, et relève toute erreur JavaScript
 // ou requête en échec. C'est le seul moyen de vérifier les
 // chemins d'exécution du rendu, que les tests Python ne voient pas.
@@ -95,6 +95,23 @@ await page.screenshot({ path: sortie.replace(/(\.png)?$/, '-dpe-dvf.png') });
 // Éteints, pour que la suite voie la page telle qu'elle s'ouvre.
 await page.click('#t-dpe');
 await page.click('#t-dvf');
+// Drone : il décolle, avance tant que la flèche est tenue, dit sa vitesse,
+// et Échap rend la main à la souris.
+try {
+  await page.click('#t-drone');
+  await page.keyboard.down('ArrowUp');
+  await new Promise(r => setTimeout(r, 2000));
+  const hud = await page.$eval('#hud-drone', e => e.hidden ? '' : e.textContent);
+  await page.keyboard.up('ArrowUp');
+  console.log('drone :', hud || '(pas de télémétrie)');
+  if (!(Number((hud.match(/(\d+) km\/h/) || [])[1]) > 0)) erreurs.push('drone : immobile, ' + (hud || 'pas de télémétrie'));
+  await page.keyboard.press('Escape');
+  await new Promise(r => setTimeout(r, 500));
+  if (await page.$eval('#t-drone', e => e.classList.contains('on'))) erreurs.push('drone : Échap ne le quitte pas');
+  if (!(await page.$eval('#hud-drone', e => e.hidden))) erreurs.push('drone : télémétrie restée affichée');
+} catch (e) {
+  erreurs.push('drone : ' + e.message);
+}
 // Flèche du nord : un quart de zone plus au nord, au pas de la clé du cache ;
 // la caméra garde son cap (les pointes des flèches n'ont pas tourné) et
 // l'orbite, arrêtée plus haut, ne repart pas.

@@ -366,8 +366,18 @@ Chaque premier chargement construit la scène, en quelques secondes.
   forêts : ce que le modèle de hauteur y montre n'est pas un arbre.
 - **Le relief**, drapé de la photo aérienne ou du Plan IGN, avec une
   exagération réglable. Autour de la scène, un anneau de relief plus grossier
-  s'étend sur 2 km de côté et se perd dans la brume : les coteaux voisins
-  cadrent le lieu et portent leur ombre quand le soleil rase.
+  s'étend sur 2 km de côté : les coteaux voisins cadrent le lieu et portent
+  leur ombre quand le soleil rase.
+- **L'horizon** : au-delà de l'anneau, le paysage jusqu'à 60 km, en tuiles
+  d'autant plus grossières qu'elles sont loin de la caméra, sous un ciel qui
+  suit l'heure. Le Ventoux se voit de Gordes, la baie du Mont-Saint-Michel
+  s'étend jusqu'à la mer. Le bouton « Horizon » rend le fond sombre d'avant.
+- **Un drone**, au bouton « Drone » : vu de derrière et piloté au clavier —
+  flèches pour avancer et tourner, Q et D pour glisser, espace et Maj pour
+  monter et descendre, la molette pour le recul de la caméra, Échap pour
+  rendre la main à la souris. Il quitte la scène et survole l'horizon, sans
+  jamais passer sous le sol ni dans un toit ; le curseur « vitesse » règle sa
+  vitesse de pointe, jusqu'à 216 km/h.
 - **Les véhicules**, si le service a été lancé avec un détecteur : ceux que
   l'orthophoto montre, à leur place et dans leur couleur du jour de la prise
   de vue, posés sur la pente. Longueur, largeur et orientation sont lues sur
@@ -403,13 +413,17 @@ Toutes servies sans clé par la Géoplateforme de l'IGN, sous
 | LiDAR HD, MNH | WMS, grille BIL à 0,5 m | Hauteur de tout ce qui dépasse du sol : toits et arbres |
 | LiDAR HD, nuage de points | Téléchargement, dalles COPC de 1 km² lues par plages | Le bâti en points ; les ouvrages ajourés (tour Eiffel, verrières) tels qu'ils sont mesurés |
 | MNS − MNT | WMS, repli photogrammétrique | Le même, hors couverture LiDAR HD, en moins net |
-| RGE ALTI | WMS, grille BIL | Le relief du terrain, et l'anneau alentour |
+| RGE ALTI | WMS, grille BIL ; WMTS, tuiles natives BIL | Le relief du terrain, l'anneau alentour et l'horizon |
 | Orthophoto | WMS, WMTS | La photo aérienne, et l'indice de verdure qui reconnaît le feuillage |
 | Plan IGN v2 | WMTS `GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2` | Le fond plan, au choix de la photo |
 | Géocodage | `geocodage/search`, `geocodage/reverse` | La recherche d'un lieu (Base Adresse Nationale et lieux nommés), et la commune du point affiché ; appelé par le navigateur |
 | BD TOPO, hydrographie | WFS `surface_hydrographique`, `troncon_hydrographique` | Étendues et cours d'eau |
 | OpenStreetMap, `building:part` | API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
 | Parcellaire Express | WFS `CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle` | Les parcelles des ventes DVF, au clic |
+
+Hors du territoire, en mer et à l'étranger, où le RGE ALTI n'a pas
+d'altitude, l'horizon prend celle d'[AWS Terrain Tiles](https://github.com/tilezen/joerd/blob/master/docs/attribution.md)
+(EU-DEM © Copernicus), le relief mondial que la vue emploie déjà en repli.
 
 three.js est chargé depuis jsDelivr. Le lien Street View ouvre Google Maps.
 
@@ -556,7 +570,12 @@ principales :
   bâtiment ni arbre : un bâtiment qui sort de la scène est coupé à son bord,
   et son morceau est mesuré seul — trop petit, il retombe sur les hauteurs BD
   TOPO. En bord de mer ou de frontière, ses parties hors
-  couverture RGE ALTI restent vides.
+  couverture RGE ALTI restent vides ; l'horizon les comble.
+- **L'horizon n'a que le relief et la photo** : ni bâtiment ni arbre au-delà
+  de l'anneau, un relief lissé à une vingtaine de mètres près de la caméra, et
+  la photo de l'IGN s'arrête à la frontière — au-delà, la plaine est blanche
+  ou floue. Il lit environ 7 Mo à l'ouverture d'un lieu (Gordes), que le
+  navigateur garde trois semaines.
 - **Un pont n'est que son tablier.** La BD TOPO ne décrit ni piles ni arches :
   le Pont du Gard est un ruban à 48 m de la rivière. Un pont en ligne prend la
   largeur de la chaussée qu'il porte, à défaut 3 m.
