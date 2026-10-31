@@ -600,6 +600,7 @@ def test_le_quota_glisse_sur_une_heure():
 
 
 def test_les_bornes_d_un_bloc_pour_la_voiture(tmp_path):
+    import datetime
     import requests
     from vue3d import bornes
     from vue3d.carres import lambert93
@@ -612,7 +613,9 @@ def test_les_bornes_d_un_bloc_pour_la_voiture(tmp_path):
         if s > 44:
             raise requests.RequestException("data.gouv.fr injoignable")
         lectures.append((w, s, e, n))
-        return {"lu_le": "2026-10-23", "lignes": [{
+        # Lu le jour même : une date figée vieillit, et passé BLOC_JOURS le
+        # bloc est relu à la seconde demande.
+        return {"lu_le": datetime.date.today().isoformat(), "lignes": [{
             "id_station_itinerance": "S1", "id_pdc_itinerance": "P1", "nom_station": "Station",
             "consolidated_longitude": (w + e) / 2, "consolidated_latitude": (s + n) / 2,
             "puissance_nominale": 150}]}
