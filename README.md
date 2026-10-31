@@ -392,6 +392,35 @@ lecture, en zone de 356 m. Les conditions de réutilisation de DVF
 interdisent de réidentifier les personnes et de laisser les moteurs de
 recherche indexer ces données : la page ne les publie nulle part.
 
+### L'ensoleillement des toits, à la demande
+
+Le bouton **Ensoleillement** peint chaque toit du soleil qu'il reçoit sur une
+année, en kWh/m²/an, du brun (peu) au jaune pâle (le meilleur plan du lieu).
+Le survol donne la valeur au point ; la fiche du bâtiment donne celle de son
+toit en moyenne et au mieux, ce que l'ombre lui fait perdre, sa surface en
+pente et sa surface **favorable** — au moins 70 % du meilleur plan dégagé du
+lieu, et non un seuil fixe, qui peindrait tout le Midi et presque rien du
+Nord —, et un ordre de grandeur de la puissance et de la production possibles.
+
+Le climat est l'année type de [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_fr),
+le service de la Commission européenne : le direct et le diffus de chacune
+de ses 8 760 heures, mesurés par satellite de 2005 à 2023, l'ombre du relief
+lointain déjà ôtée. Le reste de l'ombre est celle de la vue, calculée par le
+navigateur sur la carte graphique : environ 250 positions du soleil et 76
+directions du ciel, chacune une carte d'ombre de toute la scène —
+bâtiments et toits tels que dessinés, arbres, relief et anneau jusqu'à
+4 km — cumulées sur une grille des toits à 0,5 m. En zone de 1 000 m sur un
+Mac M4 : 1,3 s à la tour Eiffel, 1,7 s à Gordes, 2,5 s à Strasbourg ; 6 s en
+zone de 2 000 m. Le diffus suit le modèle de Muneer, celui de PVGIS : sur un
+plan dégagé, le calcul reste à 3 % près de PVGIS sur les plans favorables de
+quatre lieux (`outils/verifier-solaire.mjs`).
+
+La production suppose des panneaux sur 70 % de la surface favorable, à
+0,21 kWc/m², et un rendement du système de 0,79, celui que PVGIS donne pour
+des pertes de 14 % : un ordre de grandeur, pas une étude. Le climat est lu au
+premier clic, daté, et gardé avec la scène ; « Reconstruire la scène » le
+relit.
+
 ### Export BIM et SIG, en IFC 4 et CityGML 2.0
 
 Deux boutons du panneau écrivent le contexte du lieu : le relief de
@@ -591,7 +620,8 @@ Chaque premier chargement construit la scène, en quelques secondes.
 - **Le soleil**, à l'heure et au jour choisis : un curseur pour l'heure, un
   autre pour la saison, avec des crans aux solstices et à l'équinoxe. Les ombres
   portées suivent. Le panneau chiffre le **masque solaire au sud**, l'élévation
-  du plus haut obstacle vu depuis la toiture du bâtiment visé.
+  du plus haut obstacle vu depuis la toiture du bâtiment visé ; le bouton
+  **Ensoleillement** fait le compte de l'année entière, toit par toit.
 
 ## Les sources
 
@@ -637,7 +667,9 @@ personne.
 Au clic seulement, hors IGN aussi : les DPE de l'API de l'ADEME
 (`data.ademe.fr`, jeux `dpe03existant` et `dpe02neuf`), les fichiers DVF
 géolocalisées d'Etalab (`files.data.gouv.fr/geo-dvf`) et la Base nationale
-des IRVE (`tabular-api.data.gouv.fr`), sous Licence Ouverte 2.0, sans clé.
+des IRVE (`tabular-api.data.gouv.fr`), sous Licence Ouverte 2.0, sans clé ;
+l'année type de PVGIS (`re.jrc.ec.europa.eu`, © Union européenne,
+réutilisation autorisée, source citée), sans clé elle aussi.
 Le lien « Y aller » d'un bâtiment ou d'une station ouvre l'itinéraire dans
 Plans (iPhone, iPad) ou Google Maps.
 
@@ -825,6 +857,15 @@ principales :
   de 42 à 60 m à Rocamadour. Hors forêt, le plafond de 40 m efface aussi ce
   qui dépasse d'un bâtiment hors de son emprise, comme le toit du Stade de
   France.
+- **L'ensoleillement ne vaut que ce que la vue dessine.** Les arbres y sont
+  opaques toute l'année, feuillus compris ; un bâtiment sous les arbres n'a
+  pas de toit, donc pas de calcul ; un ouvrage dessiné en points (la tour
+  Eiffel) ne porte pas d'ombre. Un toit tiré de la surface du LiDAR en garde
+  le grain : sa carte est tachetée. Le relief exagéré fausserait les ombres :
+  le calcul attend l'exagération 1. Tout est à refaire dans le navigateur à
+  chaque visite (une à six secondes de carte graphique), dans des textures
+  de 220 Mo à Gordes en zone de 1 000 m, 630 Mo en zone de 2 000 m : un
+  téléphone peut n'y pas suffire.
 - **La règle « sous les arbres » est sévère** dans les tissus denses et arborés,
   où l'orthophoto, qui n'est pas une vraie orthophoto, décale les feuillages
   sur les emprises voisines.
@@ -848,13 +889,14 @@ principales :
 | `GET /api/dpe?lat=…&lon=…` | Les DPE de l'ADEME réunis par bâtiment (`batiments`, par `cleabs`) et, sans bâtiment, par adresse (`adresses`), en JSON gzippé, datés (`lu_le`) ; demandés au clic seulement |
 | `GET /api/dvf?lat=…&lon=…` | Les ventes DVF des parcelles de l'emprise (`parcelles`, `ventes`, `resume`), en JSON gzippé, datées ; `absent` nomme les départements sans DVF (Alsace-Moselle) ; au clic seulement |
 | `GET /api/bornes?lat=…&lon=…` | Les bornes de recharge de l'emprise, réunies par station (`stations` : opérateur, points de charge, puissances, prises, accès), en JSON gzippé, datées ; au clic seulement |
+| `GET /api/solaire?lat=…&lon=…` | L'année type du rayonnement au point (PVGIS) : direct normal, diffus et global horizontaux de ses 8 760 heures (`direct_normal`, `diffus_horizontal`, `global_horizontal`, W/m²), l'année de chaque mois et le décalage des mesures sur l'heure, en JSON gzippé, datée ; au clic seulement, la page en calcule l'ensoleillement des toits |
 | `GET /api/carre?i=…&j=…` | Un carré de 500 m de la grille Lambert-93 (`i = x // 500`, `j = y // 500`) pour la vue en voiture : bâtiments et routes carrossables BD TOPO, en JSON gzippé, coordonnées en décimètres depuis son coin sud-ouest. Lu à la première demande (0,1 à 0,3 s), gardé ensuite ; 422 hors de France métropolitaine |
 | `GET /api/vegetation?i=…&j=…` | Les arbres du même carré, découpés comme ceux de la scène (MNH à 0,5 m, orthophoto, BD TOPO, BD Forêt) : `[x, y, h, r, port]` en décimètres depuis son coin sud-ouest, `ports` nommant les indices ; `couvert` faux sans MNH. 1 à 5 s à la première demande |
 | `GET /api/sante` | `{"ok": true, "vehicules": {"mode": …, "detecteurs": […]}, "panneaux": {"actif": …}}` : le contrôle de vie, et ce que le service sait détecter ou lire |
 | `POST /api/reconstruire?lat=…&lon=…` | Met de côté la scène et ses couches (202) : la demande suivante les reconstruit d'après les données de l'IGN du moment, l'ancienne revenant si l'IGN ne répond pas. 429 moins de 10 min après sa construction, 409 pendant qu'elle ou une de ses couches se calcule |
 
 Codes d'erreur : 400 sans coordonnées valides, 422 hors de France métropolitaine,
-503 si un service de l'IGN, l'ADEME ou les fichiers DVF n'ont pas répondu
+503 si un service de l'IGN, l'ADEME, les fichiers DVF ou PVGIS n'ont pas répondu
 (rien n'est mis en cache, réessayer).
 Tout ce qui vient du dossier d'une scène est revalidé à chaque visite (304
 tant que le fichier n'a pas été réécrit) : une scène reconstruite apparaît
@@ -884,6 +926,7 @@ node outils/essai-voiture.mjs "http://localhost:8080/voiture?simu=1&lat=48.8706&
 node outils/film-voiture.mjs "http://localhost:8080/voiture?simu=1&lat=48.8532&lon=2.3692&vers=48.8483,2.3958&versnom=Nation&vitesse=40" docs/demo/demo-voiture-paysage.mp4   # le film d'un trajet, de la Bastille à la Nation
 node outils/verifier-recherche.mjs     # la recherche d'un lieu, sous Node, sans réseau
 node outils/verifier-export.mjs essai.ifc essai.gml   # les exports, sous Node (npm install three@0.160.0)
+node outils/verifier-solaire.mjs http://localhost:8080   # l'ensoleillement contre PVGIS, sous Node (three@0.160.0, réseau)
 pip install ifcopenshell pytest && python outils/valider_ifc.py essai.ifc   # l'IFC, comme un logiciel le lirait
 python outils/valider_citygml.py essai.gml   # la géométrie du CityGML, sans dépendance
 citygml-tools validate essai.gml             # son schéma (github.com/citygml4j/citygml-tools)

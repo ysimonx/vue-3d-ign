@@ -10,6 +10,7 @@ import { sphereEnglobante } from '../geometrie/normales.js';
 import { CIBLE } from '../batiments/etat.js';
 import {
     groupeVegetation, vegPrete, vegElements, poserVegetation, poserReconstructionVegetation,
+    marquerVegetationReglee,
 } from './etat.js';
 import { majCiblesSurvol } from '../interface/survol.js';
 import { poserSurLeRelief } from '../terrain/relief.js';
@@ -567,6 +568,7 @@ export async function activerVegetation() {
     vegDisponible = await chargerVegetation();
     btnVeg.disabled = false;
     vegChargee = true;
+    marquerVegetationReglee();
     if (!vegDisponible) return;
     groupeVegetation.visible = true;
     btnVeg.classList.add('on');

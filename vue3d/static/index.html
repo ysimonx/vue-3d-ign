@@ -102,6 +102,7 @@
                 <button class="toggle" id="t-dpe" title="Diagnostics de performance énergétique (ADEME) des bâtiments autour du point : lus au premier clic">DPE</button>
                 <button class="toggle" id="t-dvf" title="Ventes immobilières des cinq dernières années (DVF) autour du point : lues au premier clic">Ventes DVF</button>
                 <button class="toggle" id="t-bornes" title="Bornes de recharge pour véhicules électriques (base nationale IRVE, data.gouv.fr) autour du point : lues au premier clic">Bornes de recharge</button>
+                <button class="toggle" id="t-solaire" title="Le soleil reçu par chaque toit sur une année type (PVGIS), avec l'ombre des bâtiments, des arbres et du relief : calculé au premier clic">Ensoleillement</button>
             </div>
             <div class="row">
                 <label for="speed" title="Orbite : degrés par seconde. Drone : vitesse de pointe, 3 m/s par cran.">vitesse</label>
@@ -201,6 +202,12 @@
             <div class="note" id="bornes-note"></div>
         </div>
 
+        <div class="section" id="sec-solaire" hidden>
+            <h2>Ensoleillement des toits</h2>
+            <div id="solaire-resume"></div>
+            <div class="note" id="solaire-note"></div>
+        </div>
+
         <div class="section">
             <h2>Terrain</h2>
             <div class="stat"><span>source</span><b id="s-src">—</b></div>
@@ -243,6 +250,7 @@
             <div id="etat-nuage" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-vehicules" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-foncier" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
+            <div id="etat-solaire" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-moi" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="conseil-veg" class="etat-couche conseil" role="status" hidden>
                 <span></span>

@@ -18,3 +18,7 @@ let reconstruction = () => {};
 export function poserReconstructionVegetation(fn) { reconstruction = fn; }
 /** La végétation refaite, si elle est déjà là. */
 export function reconstruireVegetation() { if (vegPrete) reconstruction(); }
+// La végétation a été construite, ou a fini d'échouer (hors LiDAR HD) :
+// l'ensoleillement des toits l'attend pour compter l'ombre des arbres.
+export let vegReglee = false;
+export function marquerVegetationReglee() { vegReglee = true; }

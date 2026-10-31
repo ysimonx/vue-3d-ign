@@ -16,6 +16,7 @@ export const URL_PANNEAUX = `api/panneaux?${REQUETE}`;
 export const URL_DPE = `api/dpe?${REQUETE}`;
 export const URL_DVF = `api/dvf?${REQUETE}`;
 export const URL_BORNES = `api/bornes?${REQUETE}`;
+export const URL_SOLAIRE = `api/solaire?${REQUETE}`;
 
 /**
  * `anonyme` gouverne crossOrigin : nécessaire pour les tuiles d'un autre

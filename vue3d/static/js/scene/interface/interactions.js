@@ -8,6 +8,7 @@ import { enMetres } from '../couches/constructions.js';
 import { GABARITS_VEHICULE, GABARITS_NAVIRE } from '../couches/detections.js';
 import { ligneDpe } from '../couches/foncier.js';
 import { infobulleBorne } from '../couches/bornes.js';
+import { ligneSolaire } from '../couches/solaire.js';
 import { portDe, formeDe } from '../vegetation/formes.js';
 import { elementSousFace } from '../vegetation/couche.js';
 import {
@@ -127,7 +128,7 @@ renderer.domElement.addEventListener('pointermove', e => {
     const hit = raycaster.intersectObjects(ciblesSurvol, false)[0];
     const ud = hit ? hit.object.userData : null;
     if (!ud || !ud.anneau) { tip.style.display = 'none'; return; }
-    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + '<br><i>clic pour la fiche</i>';
+    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + ligneSolaire(hit) + '<br><i>clic pour la fiche</i>';
     placerTip(e, r);
 });
 

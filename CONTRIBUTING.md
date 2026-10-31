@@ -166,11 +166,11 @@ avant tout le reste : le tiroir, et la demande de la scène), sa feuille de styl
 | `socle/` | Le point visé, les adresses du service, la scène demandée au serveur, la projection locale, la scène three.js |
 | `terrain/` | L'état du relief, que tout lit ; le fond cartographique, le relief, l'anneau, l'horizon, leurs commandes |
 | `batiments/` | Leur état (matériaux, maillages, toitures reçues, choix d'affichage) ; les toits ; leur arrivée ; leur construction ; le bâtiment visé ; les parties OSM |
-| `couches/` | Une couche par module : eau, routes, lignes, constructions, ouvrages, nuage et écarts des toits, détections, panneaux, foncier (DPE et DVF), bornes |
+| `couches/` | Une couche par module : eau, routes, lignes, constructions, ouvrages, nuage et écarts des toits, détections, panneaux, foncier (DPE et DVF), bornes, ensoleillement des toits |
 | `vegetation/` | Son état, ses textures, la forme des houppiers, la couche elle-même |
 | `export/` | IFC, CityGML, leur modèle commun, leurs boutons |
 | `interface/` | Recherche, survol, fiche, crédits, cadrage, boutons, décalage, drone, gestes, soleil, tiroir, boucle de rendu… |
-| `geometrie/` | Normales et polygones, sans DOM ni état |
+| `geometrie/` | Normales, polygones et position du soleil, sans DOM ni état |
 
 La vue en voiture (`static/voiture.html`, `css/voiture.css`, `js/voiture/`)
 suit le même découpage, avec ses dossiers : `socle/` (paramètres, Lambert-93,
@@ -538,6 +538,8 @@ direct. Ils écrivent leurs sorties dans `cache/mesures/`, ignoré par git.
 | `verifier-geometrie.mjs` | Pas une mesure : exécute sous Node les fonctions géométriques de la page (toit découpé, murs, tabliers, véhicules, houppiers simples) et vérifie orientation, fermeture et volumes ; compare à l'octet les normales et sphères de la page à celles de three.js, et ses houppiers à ceux d'origine (`ajouterHouppierOrigine`, à mettre à jour si leur forme change exprès) ; contrôle la barre d'attente contre `ETAPES_SCENE` et `ETAPES_DE_CALCUL` ; demande `npm install three@0.160.0` |
 | `verifier-modules.mjs` | Pas une mesure : calcule l'ordre où le navigateur évalue les modules de chaque page (imports en profondeur, attente de haut niveau comprise) et le compare à celui de son `main.js` ; les modules sans effet au chargement y échappent (`SANS_EFFET`) ; sans dépendance |
 | `verifier-export.mjs` | Pas une mesure : exécute sous Node les exports IFC et CityGML de la page — Lambert-93 au millimètre de pyproj, GlobalId, chaînes STEP, maillages fermés et tournés vers l'extérieur (tronc, houppier à lisière, même en cuvette), relief, polygones plans (cours, sols retrouvés, triangles plats), parties de bâtiment, cohérence de deux petits fichiers qu'il écrit en argument ; demande `npm install three@0.160.0` |
+| `verifier-solaire.mjs` | Exécute sous Node le modèle du ciel de la page (`preparerCiel`, `planDegage`) sur l'année type que sert le service, et compare neuf plans dégagés à PVcalc de PVGIS à Gordes, à la tour Eiffel, à Strasbourg et à Chamonix ; échoue au-delà de 4 % du meilleur plan du lieu ; demande `npm install three@0.160.0`, le service et le réseau |
+| `mesure-solaire.mjs` | L'ensoleillement des toits dans Chrome, sur la carte graphique (Metal) : durée du calcul, grille, et répartition des cellules de toit — part du meilleur plan dégagé (la palette, le seuil favorable) et part de leur valeur sans ombre ; demande `npm install puppeteer-core` |
 | `valider_citygml.py` | Pas une mesure : valide la géométrie d'un fichier CityGML exporté, sans dépendance — les contrôles de val3dity (anneaux, planéité à 1 cm, cours, orientation, surfaces fermées) et le sens des toits, des sols et du relief ; le schéma se valide avec `citygml-tools validate` |
 | `valider_ifc.py` | Pas une mesure : valide un fichier IFC exporté avec ifcopenshell (schéma, règles EXPRESS, géométrie de chaque élément, géoréférencement) ; demande `pip install ifcopenshell pytest`, hors `requirements.txt` |
 | `chrono-page.mjs` | Chronologie d'un chargement dans Chrome : quand chaque demande part, est envoyée et revient (puppeteer-core) |

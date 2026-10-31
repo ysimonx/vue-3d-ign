@@ -48,6 +48,10 @@ export function majCredits() {
         html += ' · Bornes de recharge : <a href="https://www.data.gouv.fr/fr/datasets/5448d3e0c751df01f85d0572/"'
             + ' target="_blank" rel="noopener">base nationale des IRVE</a> (data.gouv.fr)';
     }
+    if (cite('solaire')) {
+        html += ' · Ensoleillement : <a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_fr"'
+            + ' target="_blank" rel="noopener">PVGIS</a> © Union européenne';
+    }
     document.getElementById('credits').innerHTML = html;
 }
 majCredits();

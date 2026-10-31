@@ -161,6 +161,12 @@ async function orienterStreetView(anneau, jeton) {
     lien.textContent = 'Voir en Street View (depuis la rue, orienté) ↗';
 }
 
+// Les parties de la fiche qu'ajoutent les couches qui la lisent sans qu'elle
+// les importe : l'ensoleillement du toit (couches/solaire), après les DPE.
+const sectionsFiche = [];
+/** `section(ud)` rend le HTML de sa partie de la fiche, ou ''. */
+export function ajouterSectionFiche(section) { sectionsFiche.push(section); }
+
 // Champs BD TOPO affichés dans la fiche, dans cet ordre. Les absents sont dits
 // « non renseigné » plutôt que masqués : une fiche qui rétrécit silencieusement
 // laisse croire à une donnée perdue en route.
@@ -224,6 +230,7 @@ export function afficherFicheBatiment(ud) {
           + ' % de son emprise est dessinée. Les attributs BD TOPO sont ceux du bâtiment entier.</div>'
         : '';
     document.getElementById('fiche-batiment').innerHTML = vise + lignes + mesure + verif + coupe + ficheDpe(ud)
+        + sectionsFiche.map(section => section(ud)).join('')
         + '<div class="note">BD TOPO <code>' + (p.cleabs || '—') + '</code></div>'
         + lienStreetView(ud.anneau) + lienRecentrer(ud.anneau)
         + (ud.anneau && ud.anneau.length >= 3 ? lienYAller(centreAnneau(ud.anneau)) : '');

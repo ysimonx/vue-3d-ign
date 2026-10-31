@@ -22,7 +22,7 @@ const JS = fileURLToPath(new URL('../vue3d/static/js/', import.meta.url));
 // écoute Échap sur window comme le drone, mais chacun pour lui (le tiroir ne
 // regarde que defaultPrevented, que le drone ne pose pas).
 const SANS_EFFET = {
-  scene: ['geometrie/normales', 'geometrie/polygones', 'interface/etat-couche', 'vegetation/textures',
+  scene: ['geometrie/normales', 'geometrie/polygones', 'geometrie/astronomie', 'interface/etat-couche', 'vegetation/textures',
           'vegetation/formes', 'interface/tiroir', 'couches/ecarts-toits', 'interface/fiche',
           'batiments/monuments', 'batiments/cible', 'batiments/construction'],
   voiture: [],

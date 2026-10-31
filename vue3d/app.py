@@ -40,6 +40,7 @@ from .routes import voiture as routes_voiture
 from .scene import Cache
 from .scene import construire as construire_scene
 from .signalements import SIGNALEMENTS_PAR_HEURE, Signalements
+from .solaire import fetch_solaire
 from .toits import autoriser_bassin
 from .tuiles import TUILES_RELECTURES_PAR_HEURE, Stock, fetch_tuile
 from .vehicules import fetch_mer
@@ -116,12 +117,12 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
               lire_nuage=fetch_nuage, lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
               lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
               lire_bornes=fetch_bornes, lire_carre=fetch_carre, quota_carres=None,
-              lire_vegetation=fetch_vegetation, lire_vitesses=None):
+              lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_solaire=fetch_solaire):
     """`construire`, `lire_monuments`, `lire_ouvrages`, `lire_vehicules`,
-    `lire_panneaux`, `lire_nuage`, `lire_dpe`, `lire_dvf`, `lire_mer` et
-    `lire_bornes` sont injectables
+    `lire_panneaux`, `lire_nuage`, `lire_dpe`, `lire_dvf`, `lire_mer`,
+    `lire_bornes` et `lire_solaire` sont injectables
     pour les tests, qui n'appellent ni l'IGN, ni Overpass, ni l'ADEME, ni
-    data.gouv, et ne chargent aucun réseau ni registre. `lire_vehicules` :
+    data.gouv, ni PVGIS, et ne chargent aucun réseau ni registre. `lire_vehicules` :
     de `vehicules.lecteur()` ; None, le service n'a ni véhicules, ni piscines,
     ni navires.
     `lire_panneaux` : de `panneaux.lecteur()` ; None, pas de panneaux.
@@ -157,7 +158,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
                   lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
                   lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
                   lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf,
-                  lire_mer=lire_mer, lire_bornes=lire_bornes)
+                  lire_mer=lire_mer, lire_bornes=lire_bornes, lire_solaire=lire_solaire)
     # Hors du dossier des versions de scène : une tuile ne dépend pas de
     # SCENE_VERSION.
     stock = Stock(os.path.join(cache.dossier, "tuiles"), lire=lire_tuile)

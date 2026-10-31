@@ -89,6 +89,7 @@ from .releves import (MARGE_NAVIRES_PX, MARGE_PISCINES_PX, MARGE_VEHICULES_PX, R
                       emprise_image)
 from .releves import rectangle as rectangle_releve
 from .relief import ANNEAU_TAILLE, RELIEF_TAILLE, fetch_relief, fetch_relief_anneau
+from .solaire import SOLAIRE_VERSION, fetch_solaire, solaire_pour_emprise
 from .toits import TOITS_RESOLUTION_M, toits_pour_emprise
 from .vehicules import (NAVIRES_VERSION, PISCINES_VERSION, VEHICULES_VERSION, fetch_mer,
                         navires_pour_emprise, piscines_pour_emprise, vehicules_pour_emprise)
@@ -186,6 +187,8 @@ NOM_NUAGE_PROCHE = f"nuage-proche-v{NUAGE_VERSION}.json.gz"
 NOM_DPE = f"dpe-v{DPE_VERSION}.json.gz"
 NOM_DVF = f"dvf-v{DVF_VERSION}.json.gz"
 NOM_BORNES = f"bornes-v{BORNES_VERSION}.json.gz"
+# Le climat solaire de PVGIS, de même : la page en calcule l'ensoleillement des toits.
+NOM_SOLAIRE = f"solaire-v{SOLAIRE_VERSION}.json.gz"
 
 
 def nom_vehicules(detecteur):
@@ -244,6 +247,10 @@ class DvfIndisponible(RuntimeError):
 
 class BornesIndisponibles(RuntimeError):
     """La base des bornes de recharge n'a pas répondu : rien n'est mis en cache."""
+
+
+class SolaireIndisponible(RuntimeError):
+    """PVGIS n'a pas répondu, ou pas une année entière : rien n'est mis en cache."""
 
 
 class HorsEmprise(ValueError):
@@ -758,7 +765,7 @@ class Cache:
     def __init__(self, dossier, lire_monuments=fetch_monuments, lire_ouvrages=fetch_ouvrages,
                  lire_vehicules=None, lire_panneaux=None, lire_nuage=fetch_nuage,
                  lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
-                 lire_bornes=fetch_bornes):
+                 lire_bornes=fetch_bornes, lire_solaire=fetch_solaire):
         """`lire_vehicules` : de `vehicules.lecteur()`, ou une doublure qui a
         la même forme — `mode`, `detecteurs`, `orthophoto(emprise)` -> tableau
         RGB, `piscines(emprise, rgb=None)`, `navires(emprise, rgb=None)` et
@@ -797,6 +804,7 @@ class Cache:
         self.lire_dvf = lire_dvf
         self.lire_mer = lire_mer
         self.lire_bornes = lire_bornes
+        self.lire_solaire = lire_solaire
         self._lectures = {}
         self._taches = {
             NOM_MONUMENTS: concurrent.futures.ThreadPoolExecutor(
@@ -1247,6 +1255,27 @@ class Cache:
             NOM_BORNES, lat, lon, construire, self.lire_bornes,
             lambda message: BornesIndisponibles(f"bornes de recharge illisibles : {message}"),
             lambda bbox, brut, scene: bornes_pour_emprise(*bbox, brut), zone=zone)
+
+    def obtenir_solaire(self, lat, lon, construire=construire, zone=None):
+        """Chemin du dossier où le climat solaire du point est écrit.
+
+        Jamais lu d'avance, daté, relu par « Reconstruire la scène », comme
+        les DPE ; il ne lit rien de la scène (vue3d/solaire.py). Une réponse
+        de PVGIS qui n'est pas une année entière est un échec comme un autre.
+
+        Raises:
+            SolaireIndisponible si PVGIS n'a pas répondu ou pas une année
+            entière : rien n'est écrit, la demande suivante réessaie.
+        """
+        def assembler_solaire(bbox, brut, scene):
+            try:
+                return solaire_pour_emprise(*bbox, brut)
+            except (KeyError, TypeError, ValueError) as exc:
+                raise SolaireIndisponible(f"année type de PVGIS illisible : {exc}") from exc
+        return self._obtenir_couche(
+            NOM_SOLAIRE, lat, lon, construire, self.lire_solaire,
+            lambda message: SolaireIndisponible(f"PVGIS illisible : {message}"),
+            assembler_solaire, zone=zone)
 
     def _detections(self):
         """Les couches de l'orthophoto du service, dans l'ordre où elles se

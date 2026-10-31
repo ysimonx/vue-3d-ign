@@ -15,6 +15,7 @@
     GET /api/dpe?lat=…&lon=…         les DPE de l'ADEME, à la demande de la page seulement
     GET /api/dvf?lat=…&lon=…         les ventes DVF des parcelles, de même
     GET /api/bornes?lat=…&lon=…      les bornes de recharge (IRVE, data.gouv.fr), de même
+    GET /api/solaire?lat=…&lon=…     l'année type du rayonnement (PVGIS), de même
     GET /api/avancement?lat=…&lon=…  l'étape de la construction en cours
     POST /api/reconstruire?lat=…&lon=…   la scène et ses couches mises de côté,
                                    reconstruites à la demande suivante
@@ -28,11 +29,11 @@ import math
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from ..scene import (NOM_BORNES, NOM_DPE, NOM_DVF, NOM_MONUMENTS, NOM_NUAGE, NOM_NUAGE_PROCHE, NOM_ORTHO,
-                     NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE, BornesIndisponibles, DpeIndisponibles,
-                     DvfIndisponible, HorsEmprise, MonumentsIndisponibles, NuageIndisponible,
-                     OuvragesIndisponibles, PanneauxIndisponibles, ReconstructionRefusee,
-                     SceneIncomplete, VehiculesDesactives, VehiculesIndisponibles, point_normalise,
-                     zone_normalisee)
+                     NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE, NOM_SOLAIRE, BornesIndisponibles,
+                     DpeIndisponibles, DvfIndisponible, HorsEmprise, MonumentsIndisponibles,
+                     NuageIndisponible, OuvragesIndisponibles, PanneauxIndisponibles,
+                     ReconstructionRefusee, SceneIncomplete, SolaireIndisponible, VehiculesDesactives,
+                     VehiculesIndisponibles, point_normalise, zone_normalisee)
 from ..vehicules import MODE_PAR_DEFAUT
 from .reponses import erreur, servir_gzip
 
@@ -116,6 +117,8 @@ def blueprint(cache, construire, quota):
                 return cache.obtenir_dvf(*p, construire=construire, zone=zone), None
             if couche == NOM_BORNES:
                 return cache.obtenir_bornes(*p, construire=construire, zone=zone), None
+            if couche == NOM_SOLAIRE:
+                return cache.obtenir_solaire(*p, construire=construire, zone=zone), None
             if couche == COUCHE_PISCINES:
                 return cache.obtenir_piscines(*p, construire=construire, zone=zone), None
             if couche == COUCHE_NAVIRES:
@@ -176,6 +179,11 @@ def blueprint(cache, construire, quota):
             log.warning("Bornes de recharge indisponibles pour %s : %s", p, exc)
             return None, erreur(503, "La base des bornes de recharge de data.gouv.fr n'a pas "
                                 f"répondu ({exc}). Rien n'a été mis en cache : réessayez "
+                                "dans quelques instants.")
+        except SolaireIndisponible as exc:
+            log.warning("Climat solaire indisponible pour %s : %s", p, exc)
+            return None, erreur(503, "PVGIS, le service solaire de la Commission européenne, n'a "
+                                f"pas répondu ({exc}). Rien n'a été mis en cache : réessayez "
                                 "dans quelques instants.")
         except PanneauxIndisponibles as exc:
             log.warning("Panneaux indisponibles pour %s : %s", p, exc)
@@ -304,6 +312,12 @@ def blueprint(cache, construire, quota):
         """Les bornes de recharge autour du point, réunies par station : au
         clic, comme les DPE."""
         return couche(NOM_BORNES)
+
+    @bp.get("/api/solaire")
+    def solaire():
+        """L'année type du rayonnement solaire au point (PVGIS), dont la page
+        calcule l'ensoleillement des toits : au clic, comme les DPE."""
+        return couche(NOM_SOLAIRE)
 
     @bp.get("/api/ortho")
     def ortho():

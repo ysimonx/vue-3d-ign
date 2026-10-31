@@ -48,6 +48,16 @@ html, body { margin:0; height:100%; overflow:hidden;
 .barre { display:flex; height:16px; border-radius:3px; overflow:hidden; margin:6px 0 4px; }
 .barre span { display:flex; align-items:center; justify-content:center; min-width:0;
               font-size:10px; font-weight:700; color:#111; overflow:hidden; }
+/* Ensoleillement : la rampe des toits (couches/solaire, PALETTE), le seuil
+   favorable en trait, les valeurs en kWh/m²/an sous leurs crans. */
+.legende-solaire { margin:6px 0 8px; }
+.barre-solaire { position:relative; height:12px; border-radius:3px; }
+.barre-solaire i { position:absolute; top:-3px; bottom:-3px; width:2px; margin-left:-1px;
+                   background:var(--text); }
+.crans-solaire { position:relative; height:14px; font-size:10px; color:var(--muted); }
+.crans-solaire span { position:absolute; top:2px; transform:translateX(-50%); white-space:nowrap; }
+.crans-solaire span:first-child { transform:none; }
+.crans-solaire span:last-child { transform:translateX(-100%); }
 .pastille { display:inline-block; min-width:15px; padding:0 3px; border-radius:3px; text-align:center;
             font-weight:700; color:#111; font-size:10px; line-height:15px; }
 .liste-foncier { font-size:11px; margin-top:6px; }

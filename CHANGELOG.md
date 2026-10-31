@@ -15,6 +15,21 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **L'ensoleillement des toits** (31 octobre 2026), au bouton
+  « Ensoleillement » : chaque toit peint du soleil qu'il reçoit sur une
+  année, du brun au jaune pâle, en kWh/m²/an ; au survol, la valeur au
+  point ; dans la fiche, la moyenne du toit, son meilleur endroit, ce que
+  l'ombre lui fait perdre, sa surface favorable (au moins 70 % du meilleur
+  plan dégagé du lieu) et un ordre de grandeur de la puissance et de la
+  production possibles. Le climat est l'année type de PVGIS (Commission
+  européenne), lue au premier clic par la nouvelle couche `/api/solaire`,
+  datée et gardée avec la scène ; l'ombre est celle de tout ce que la vue
+  dessine — bâtiments, toits mesurés, arbres, relief —, calculée par le
+  navigateur sur la carte graphique pour environ 330 directions du soleil et
+  du ciel : 1,7 s à Gordes, 2,5 s à Strasbourg en zone de 1 000 m sur un Mac
+  M4, 6 s en zone de 2 000 m. Sur un plan dégagé, le calcul reste à 3 % près
+  de PVGIS sur les plans favorables de quatre lieux
+  (`outils/verifier-solaire.mjs`).
 - **Viaducs ferroviaires, métro aérien et passerelles dans la vue en voiture**
   (24 octobre 2026). Seuls les ponts que la route emprunte étaient dessinés ;
   ce qui l'enjambe l'est aussi maintenant, à l'altitude de son tablier : les
