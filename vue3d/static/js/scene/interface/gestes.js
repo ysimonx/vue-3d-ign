@@ -125,5 +125,5 @@ renderer.domElement.addEventListener('pointerup', e => {
     // La végétation se survole mais ne s'ouvre pas : elle n'a pas de fiche.
     if (ud.vegetation || !ud.anneau) return;
     afficherFicheBatiment(ud);
-    epinglerTip(ud, e, r);
+    epinglerTip(ud, e, r, hit);
 });

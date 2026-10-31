@@ -31,7 +31,9 @@ function placerTip(e, r) {
 tip.addEventListener('click', e => {
     if (!e.target.closest('.voir-fiche')) return;
     detacherTip();
-    ouvrirTiroir(document.getElementById('fiche-batiment').closest('.section'));
+    const fiche = document.getElementById('fiche-batiment').closest('.section');
+    if (document.documentElement.classList.contains('tiroir')) ouvrirTiroir(fiche);
+    else fiche.scrollIntoView({ block: 'start', behavior: 'smooth' });
 });
 
 /**
@@ -128,7 +130,7 @@ renderer.domElement.addEventListener('pointermove', e => {
     const hit = raycaster.intersectObjects(ciblesSurvol, false)[0];
     const ud = hit ? hit.object.userData : null;
     if (!ud || !ud.anneau) { tip.style.display = 'none'; return; }
-    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + ligneSolaire(hit) + '<br><i>clic pour la fiche</i>';
+    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + ligneSolaire(hit) + '<br><i>clic sur le bâtiment pour sa fiche</i>';
     placerTip(e, r);
 });
 
@@ -168,14 +170,16 @@ function resumeBatiment(ud) {
 
 // L'infobulle épinglée par un clic : elle reste où elle est, ses liens se
 // cliquent, jusqu'au prochain clic sur la scène. Sans cela, elle fuit sous la
-// souris qui va vers le lien.
+// souris qui va vers le lien. Son bouton mène à la fiche : en tiroir, il
+// ouvre le panneau caché ; sinon, il y fait défiler la fiche, loin sous les
+// boutons. Au survol, « clic pour la fiche » se lisait comme un lien de
+// l'infobulle, qui fuyait sous la souris (signalé le 31 octobre 2026) : c'est
+// le bâtiment qu'on clique. `touche` : le point visé, pour le soleil qu'il
+// reçoit.
 let tipEpingle = false;
-export function epinglerTip(ud, e, r) {
-    // En tiroir, le panneau est caché : un bouton l'ouvre sur la fiche.
-    const fiche = document.documentElement.classList.contains('tiroir')
-        ? '<button type="button" class="voir-fiche">Voir la fiche</button>'
-        : '<i>fiche dans le panneau</i>';
-    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + '<br>' + fiche
+export function epinglerTip(ud, e, r, touche = null) {
+    const fiche = '<button type="button" class="voir-fiche">Voir la fiche</button>';
+    tip.innerHTML = resumeBatiment(ud) + ligneDpe(ud) + ligneSolaire(touche) + '<br>' + fiche
         + '<br>' + lienRecentrer(ud.anneau).trim() + '<br>' + lienStreetView(ud.anneau)
         + (ud.anneau && ud.anneau.length >= 3 ? '<br>' + lienYAller(centreAnneau(ud.anneau)).trim() : '');
     placerTip(e, r);
