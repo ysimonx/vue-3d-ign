@@ -974,7 +974,8 @@ node outils/demo-video.mjs lidar carre        # docs/demo/demo-lidar-carre.mp4 �
 node outils/demo-video.mjs recherche paysage  # docs/demo/demo-recherche-paysage.mp4 — recherche et recentrage, Versailles et Paris
 #   dpe-dvf (La Rochelle), drone (lac d’Annecy), bornes (Arc de Triomphe),
 #   vehicules (Saint-Tropez, détecteur requis), soleil (Chamonix),
-#   export (Notre-Dame de Paris : IFC et CityGML, l'IFC rouvert dans outils/visionneuse-ifc.html)
+#   export (Notre-Dame de Paris : IFC et CityGML, l'IFC rouvert dans outils/visionneuse-ifc.html),
+#   ensoleillement (Strasbourg : le soleil des toits, la fiche d'un toit, le partage de la vue)
 ```
 
 Le film `foncier` n'a besoin d'aucun détecteur, et ne montre des DPE et des

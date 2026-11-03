@@ -88,7 +88,8 @@ const FORMATS = {
 //
 //   node outils/demo-video.mjs bornes carre      # docs/demo/demo-bornes-carre.mp4
 //   node outils/demo-video.mjs bornes paysage    # docs/demo/demo-bornes-paysage.mp4
-const SERIE = ['lidar', 'recherche', 'dpe-dvf', 'drone', 'bornes', 'vehicules', 'soleil', 'export'];
+//   node outils/demo-video.mjs ensoleillement carre   # Strasbourg : le soleil des toits, puis le partage de la vue
+const SERIE = ['lidar', 'recherche', 'dpe-dvf', 'drone', 'bornes', 'vehicules', 'soleil', 'export', 'ensoleillement'];
 const DANS_SERIE = SERIE.includes(FORMAT);
 const ASPECT = DANS_SERIE ? (process.argv[3] || 'carre') : null;
 const ASPECTS = {
@@ -180,7 +181,11 @@ const SAINT_TROPEZ = { lat: 43.2722, lon: 6.6403, zone: 1000 };
 const CHAMONIX = { lat: 45.9237, lon: 6.8694, zone: 1000 };
 // Le point est sur la nef : la cathédrale est le bâtiment le plus proche de l'origine du fichier IFC.
 const NOTRE_DAME = { lat: 48.85296, lon: 2.34991, zone: 1000 };
+// La Grande Île de Strasbourg : 1 148 toits calculés en zone de 1 000 m,
+// cours étroites et pans à l'ombre de leurs voisins (mesuré le 3 novembre 2026).
+const STRASBOURG = { lat: 48.5819, lon: 7.751, zone: 1000 };
 const SITE = 'vue-3d-ign.kysoe.com';
+const SITE_DEMO = `https://${SITE}`;
 const LINKEDIN = 'linkedin.com/in/ysimon';
 const urlDe = l => `${BASE}/?lat=${l.lat}&lon=${l.lon}${l.zone ? `&zone=${l.zone}` : ''}`;
 
@@ -976,6 +981,62 @@ const SEQUENCES_SERIE = [
     finSerie('soleil', CHAMONIX, { ...CHAMONIX, hauteur: 300, distance: 1700, azimut: 0, elevation: 18 },
              'RGE ALTI, LiDAR HD et BD TOPO © IGN'),
 
+    // --- L'ensoleillement des toits : Strasbourg -------------------------------------
+    // Le calcul se fait pendant le tournage, quatre cartes d'ombre par image du
+    // film : les toits passent de la photo à la carte en trois secondes.
+    {
+        id: 'en-titre', lieu: STRASBOURG, duree: 7, formats: ['ensoleillement'],
+        court: 'Strasbourg, la cathédrale et la Grande Île',
+        carte: { titre: 'Ensoleillement', sous: 'Vue 3D IGN · le soleil d’une année, toit par toit' }, carteDifferee: true,
+        async jouer(s) {
+            await s.chauffer({ ...STRASBOURG, hauteur: 30, distance: 780, azimut: 200, elevation: 38 }, 20);
+            await s.glisser(s.duree, { ...STRASBOURG, hauteur: 30, distance: 780, azimut: 200, elevation: 38 },
+                                     { ...STRASBOURG, hauteur: 30, distance: 560, azimut: 190, elevation: 42 }, t => apparaitre(s, t));
+        },
+    },
+    {
+        id: 'en-allumer', lieu: STRASBOURG, duree: 10, formats: ['ensoleillement'],
+        court: 'Un clic : chaque toit, du soleil reçu sur une année type de PVGIS',
+        async jouer(s) {
+            await s.bouton('t-solaire', true);
+            await s.cartouche(await s.legendeSolaire());
+            await s.glisser(s.duree, null, { ...STRASBOURG, hauteur: 20, distance: 420, azimut: 170, elevation: 55 });
+        },
+    },
+    {
+        id: 'en-ombres', lieu: STRASBOURG, duree: 9, formats: ['ensoleillement'],
+        court: 'L’ombre des voisins, des arbres et du relief, toute l’année',
+        async jouer(s) {
+            const t = await s.toitAMontrer();
+            await s.glisser(s.duree, null, { ...t, hauteur: 10, distance: 230, azimut: 160, elevation: 60 });
+        },
+    },
+    {
+        id: 'en-toit', lieu: STRASBOURG, duree: 11, formats: ['ensoleillement'],
+        court: 'Un toit : son soleil, sa surface favorable, ce qu’il pourrait produire',
+        async jouer(s) {
+            const t = await s.toitAMontrer();
+            await s.glisser(3, null, { ...t, hauteur: 10, distance: 150, azimut: 170, elevation: 52 });
+            await s.cliquerSur(t, 1.3);
+            await s.cartouche(await s.ficheSolaire());
+            await filmer(s.duree - 4.75);
+        },
+    },
+    {
+        id: 'en-partage', lieu: STRASBOURG, duree: 7, formats: ['ensoleillement'],
+        court: 'Partager la vue : un lien qui la rouvre telle quelle',
+        async jouer(s) {
+            await s.fermerInfobulle();
+            await s.cartouche('');
+            await s.bouton('btn-partager');
+            const lien = await page.evaluate(async () => (await import('/static/js/scene/interface/partage.js')).lienDeLaVue());
+            await s.cartouche(`<b>Lien copié</b><br>${lien.replace(/^https?:\/\/[^/]+/, SITE_DEMO).replace(/&/g, '&amp;').replace(/,/g, ',<wbr>')}`);
+            await filmer(s.duree - 1.6);
+        },
+    },
+    finSerie('ensoleillement', STRASBOURG, { ...STRASBOURG, hauteur: 30, distance: 760, azimut: 200, elevation: 44 },
+             'Climat : PVGIS © Union européenne · LiDAR HD et BD TOPO © IGN'),
+
     // --- Export BIM : Notre-Dame de Paris ---------------------------------------------
     // La page écrit la maquette (IFC 4, puis CityGML 2.0) ; le fichier IFC est
     // ensuite rouvert dans outils/visionneuse-ifc.html, où web-ifc le relit sans
@@ -1064,7 +1125,7 @@ function cartoucheExport(format, note, repere) {
 }
 // Ce que chaque film lit d'avance, sur le serveur, avant de filmer : le clic
 // filmé trouve alors sa couche en cache, sans attente à l'image.
-const PRELECTURES = { lidar: ['nuage'], 'dpe-dvf': ['dpe', 'dvf'], bornes: ['bornes'] };
+const PRELECTURES = { lidar: ['nuage'], 'dpe-dvf': ['dpe', 'dvf'], bornes: ['bornes'], ensoleillement: ['solaire'] };
 
 // --- Voix -------------------------------------------------------------------
 // Avec une voix, les phrases sont dites avant le tournage : la durée de chaque
@@ -1105,6 +1166,10 @@ const navigateur = await puppeteer.launch({
 });
 const page = await navigateur.newPage();
 await page.setViewport({ width: fmt.largeur, height: fmt.hauteur, deviceScaleFactor: 1 });
+// Le bouton de partage copie son lien : le presse-papiers est permis, et le
+// prompt de repli, s'il vient, refermé plutôt que de bloquer la page.
+await navigateur.defaultBrowserContext().overridePermissions(BASE, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write']);
+page.on('dialog', d => d.dismiss());
 const erreurs = [];
 page.on('pageerror', e => erreurs.push('pageerror: ' + e.message));
 page.on('console', m => { if (m.type() === 'error') erreurs.push('console: ' + m.text()); });
@@ -1771,6 +1836,61 @@ const outils = {
         for (const t of touches) await page.keyboard.up(t);
     },
 
+    /** La légende de l'ensoleillement : la rampe des toits, en kWh/m²/an du lieu. */
+    async legendeSolaire() {
+        return page.evaluate(async () => {
+            const { etatSolaire } = await import('/static/js/scene/couches/solaire.js');
+            const o = etatSolaire().ciel.optimum.e, fr = v => (Math.round(v / 10) * 10).toLocaleString('fr-FR');
+            const rampe = ['#4f1c01', '#723607', '#975104', '#bb710c', '#de9215', '#fdb72e', '#fee5b3'];
+            return `<b>Soleil reçu</b> · kWh/m²/an<div class="barre" style="background:linear-gradient(to right, ${rampe.join(', ')})"></div>`
+                + `${fr(0.5 * o)} → ${fr(o)}, le meilleur plan du lieu<br>favorable : au moins ${fr(0.7 * o)}`;
+        });
+    },
+    /** Un toit à montrer, au calcul fini : le plus grand toit en pente mesuré au LiDAR,
+     *  favorable sur 40 à 75 % de sa surface — un pan au soleil, un pan à l'ombre —, à
+     *  moins de 300 m du point, et un point de son toit sous le centre de son emprise.
+     *  Favorable à plus de 80 %, c'était un toit plat de la BD TOPO, d'une seule couleur. */
+    async toitAMontrer() {
+        await page.waitForFunction(async () => (await import('/static/js/scene/couches/solaire.js')).etatSolaire().resultat,
+                                   { timeout: 120000, polling: 200 });
+        const t = await page.evaluate(async () => {
+            const d = window.__demo;
+            const { etatSolaire } = await import('/static/js/scene/couches/solaire.js');
+            const { meshesToits } = await import('/static/js/scene/batiments/etat.js');
+            const r = etatSolaire().resultat;
+            const mesure = new Set(meshesToits.filter(m => m.userData.surface).map(m => m.userData.anneau));
+            const bas = new d.THREE.Raycaster(), haut = new d.THREE.Vector3(), vers = new d.THREE.Vector3(0, -1, 0);
+            let meilleur = null;
+            for (const [anneau, s] of r.parBatiment) {
+                if (!mesure.has(anneau) || s.favorable < 0.4 * s.aire || s.favorable > 0.75 * s.aire || s.aire < 250) continue;
+                const pts = anneau.slice(0, -1);
+                const lon = pts.reduce((a, p) => a + p[0], 0) / pts.length, lat = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+                const x = (lon - d.LON0) * d.M_PAR_DEGRE_LON, z = -(lat - d.LAT0) * d.M_PAR_DEGRE_LAT;
+                if (Math.hypot(x, z) > 300 || (meilleur && s.aire <= meilleur.aire)) continue;
+                bas.set(haut.set(x, 1000, z), vers);
+                const touche = bas.intersectObjects(meshesToits, false)[0];
+                if (!touche || touche.object.userData.anneau !== anneau) continue;
+                meilleur = { lon, lat, hauteur: touche.point.y - d.ySol(lon, lat), aire: s.aire };
+            }
+            return meilleur;
+        });
+        if (!t) throw new Error('aucun toit favorable à montrer');
+        console.log(`    toit montré : ${Math.round(t.aire)} m², à ${t.hauteur.toFixed(1)} m`);
+        return t;
+    },
+    /** Les chiffres du soleil de la fiche du bâtiment cliqué, tels que la page les donne. */
+    async ficheSolaire() {
+        return page.evaluate(() => {
+            const titres = [...document.querySelectorAll('#fiche-batiment .sous-titre')];
+            const t = titres.find(e => /Ensoleillement du toit/.test(e.textContent));
+            const lignes = [];
+            for (let e = t && t.nextElementSibling; e && e.classList.contains('stat'); e = e.nextElementSibling) {
+                const [l, v] = e.children;
+                if (/reçu en moyenne|favorable|puissance|production/.test(l.textContent)) lignes.push(`${l.textContent} : <b>${v.textContent}</b>`);
+            }
+            return `<b>Ce toit</b><br>${lignes.join('<br>')}`;
+        });
+    },
     /** Les tuiles de l'horizon chargées pour un cadre, avant de le filmer : la page
      *  tourne à vide, sans capture, pendant `secondes` réelles. */
     async chauffer(cadre, secondes = 20) {
