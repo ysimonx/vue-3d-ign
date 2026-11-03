@@ -50,7 +50,8 @@ function extraireConst(nom) {
   }
 }
 const NOMS = ['positionSoleil', 'direction', 'normalePlan', 'preparerCiel', 'planDegage', 'diffusTable'];
-const CONSTS = ['RAD', 'PAS_SOLEIL_DEG', 'CIEL', 'BORDS_CIEL', 'ALBEDO', 'JOURS_DES_MOIS', 'TABLE_PENTES'];
+const CONSTS = ['RAD', 'PAS_SOLEIL_DEG', 'CIEL', 'BORDS_CIEL', 'ALBEDO', 'TRANSMISSION_FEUILLES', 'TRANSMISSION_SANS_FEUILLES',
+                'JOUR_FEUILLES', 'JOURS_DES_MOIS', 'TABLE_PENTES'];
 const { preparerCiel, planDegage, positionSoleil } = new Function(
   'THREE', CONSTS.map(extraireConst).join('\n') + '\n' + NOMS.map(extraire).join('\n')
            + `\nreturn { ${NOMS.join(', ')} };`)(THREE);

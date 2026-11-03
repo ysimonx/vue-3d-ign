@@ -9,6 +9,7 @@ import { apresLaPhotoDesToits, appliquerTextureToits } from '../terrain/fond.js'
 import { meshesToits, DECALAGE_DESSUS } from '../batiments/etat.js';
 import { groupeVegetation, vegReglee } from '../vegetation/etat.js';
 import { positionSoleil } from '../geometrie/astronomie.js';
+import { portDe } from '../vegetation/formes.js';
 import { etatCouche } from '../interface/etat-couche.js';
 import { citerSource, majCredits } from '../interface/credits.js';
 import { lireALaDemande, dateLongue } from './foncier.js';
@@ -60,6 +61,27 @@ const PAS_SOLEIL_DEG = 5;
 const CIEL = [[6, 16], [18, 15], [30, 14], [42, 12], [54, 9], [66, 6], [78, 3], [87, 1]];
 const BORDS_CIEL = [0, 12, 24, 36, 48, 60, 72, 84, 90];
 const ALBEDO = 0.2;
+// Les arbres ne sont pas des murs. Un houppier laisse passer 1,3 à 5,3 % du
+// soleil direct en feuilles, 40,2 à 51,9 % sans feuilles (Konarska et al.,
+// 2014, arbres de rue de Göteborg ; SOLWEIG en garde 3 % en feuilles). Un
+// pin, un résineux ou un chêne vert (portDe) garde les siennes ; un feuillu
+// les porte du JOUR_FEUILLES au JOUR_CHUTE : débourrement du chêne pédonculé
+// le 8 avril, jaunissement le 25 octobre (RENECOFOR, INRAE, 1997-2003). Hors
+// massif de la BD Forêt, l'essence est inconnue et le port vient du profil
+// mesuré : un chêne vert en dôme y passe pour un feuillu.
+//
+// Mesuré contre des arbres opaques toute l'année (node
+// outils/mesure-solaire.mjs, zones de 1 000 m, 3 novembre 2026) : la part
+// perdue à l'ombre ne baisse que de 0,1 à 0,2 point (8,7 à 8,5 % à Gordes,
+// 17,3 à 17,2 % à Strasbourg, 13,1 à 13,0 % à la tour Eiffel) — l'hiver
+// pèse peu dans l'année, et le bâti cache déjà le soleil bas. Le gain va aux
+// toits sous des feuillus : 46 sur 1 390 gagnent 1 % ou plus, jusqu'à 14 %
+// pour un petit bâtiment du Champ-de-Mars, 5,6 % pour un toit de 46 m² à
+// Strasbourg. Le prix : les houppiers dans une seconde carte d'ombre, et 13
+// à 14 % de directions du soleil en plus.
+const TRANSMISSION_FEUILLES = 0.03;
+const TRANSMISSION_SANS_FEUILLES = 0.46;
+const JOUR_FEUILLES = 98, JOUR_CHUTE = 298;
 // La maille de la grille des toits : celle du MNH, plus grossière seulement
 // au-delà de TAILLE_MAX cellules de côté (zone de 2 000 m).
 const PAS_M = 0.5;
@@ -77,7 +99,8 @@ const RECUL_SOLEIL_M = 4000;
 // grand biais, qui effacerait les petits obstacles.
 const BIAIS_M = 0.05;
 // Cartes d'ombre par image : la vue reste fluide, et le calcul n'en dure
-// guère plus — 1,7 s à Gordes en zone de 1 000 m, 1,4 s tout d'un bloc.
+// guère plus — 1,7 s à Gordes en zone de 1 000 m, 1,4 s tout d'un bloc
+// (mesuré avant la carte des houppiers, qui porte le calcul à 2,4 s).
 const PASSES_PAR_IMAGE = 4;
 
 // Favorable : au moins PART_FAVORABLE du meilleur plan dégagé du lieu, et non
@@ -150,14 +173,16 @@ export function preparerCiel(c) {
         plis.push(Math.sin(b) - b * Math.cos(b) - Math.PI * Math.sin(b / 2) ** 2);
         for (let i = 0; i < TABLE_ORIENTATIONS; i++) normales.push(normalePlan(5 * j, 10 * i));
     }
-    let k = 0, jourAn = 0, global = 0, direct = 0, diffus = 0;
+    let k = 0, jourAn = 0, global = 0, direct = 0, diffus = 0, diffusFeuilles = 0;
     for (let mois = 1; mois <= 12; mois++) {
         for (let jour = 1; jour <= JOURS_DES_MOIS[mois - 1]; jour++) {
             jourAn++;
             const I0 = 1361 * (1 + 0.033 * Math.cos(2 * Math.PI * jourAn / 365));
+            const feuilles = jourAn >= JOUR_FEUILLES && jourAn <= JOUR_CHUTE;
             for (let heure = 0; heure < 24; heure++, k++) {
                 const B = c.direct_normal[k], Dh = c.diffus_horizontal[k];
                 global += c.global_horizontal[k]; direct += B; diffus += Dh;
+                if (feuilles) diffusFeuilles += Dh;
                 if (B <= 0 && Dh <= 0) continue;
                 const instant = new Date(Date.UTC(c.annees[mois - 1], mois - 1, jour, heure)
                                          + c.decalage_h * 3600e3);
@@ -169,7 +194,10 @@ export function preparerCiel(c) {
                 if (hauteur > 0) {
                     const w = B + Dh * Kb / (hauteur >= 5.7 ? Math.sin(hauteur * RAD) : 0.1 - 0.008 * hauteur);
                     if (w > 0) {
-                        const cle = Math.floor(azimut / PAS_SOLEIL_DEG) * 100 + Math.floor(hauteur / PAS_SOLEIL_DEG);
+                        // Une même position du soleil revient au printemps,
+                        // feuillus nus, et à l'automne, en feuilles : deux cases.
+                        const cle = (Math.floor(azimut / PAS_SOLEIL_DEG) * 100 + Math.floor(hauteur / PAS_SOLEIL_DEG)) * 2
+                                  + (feuilles ? 1 : 0);
                         const v = cases.get(cle) || cases.set(cle, new THREE.Vector3()).get(cle);
                         v.addScaledVector(s, w);
                     }
@@ -187,14 +215,18 @@ export function preparerCiel(c) {
             }
         }
     }
-    const faisceaux = [...cases.values()].map(v => ({ d: v.clone().normalize(), w: v.length() }));
+    const faisceaux = [...cases].map(([cle, v]) => ({ d: v.clone().normalize(), w: v.length(), feuilles: cle % 2 === 1 }));
     const ciel = [];
     CIEL.forEach(([h, n], r) => {
         const angle = 2 * Math.PI * (Math.sin(BORDS_CIEL[r + 1] * RAD) - Math.sin(BORDS_CIEL[r] * RAD)) / n;
         // Couronnes décalées d'une demi-case l'une sur l'autre.
         for (let i = 0; i < n; i++) ciel.push({ d: direction((i + (r % 2) / 2) * 360 / n, h), w: angle });
     });
-    const lieu = { faisceaux, ciel, table, global, direct, diffus };
+    // Le ciel vient de toutes les saisons : un feuillu y laisse passer la
+    // moyenne de ses deux états, pondérée par le diffus de chacune.
+    const transmissionCiel = (diffusFeuilles * TRANSMISSION_FEUILLES
+                              + (diffus - diffusFeuilles) * TRANSMISSION_SANS_FEUILLES) / (diffus || 1);
+    const lieu = { faisceaux, ciel, table, global, direct, diffus, transmissionCiel };
     // Le meilleur plan dégagé : la référence du « favorable » et de la palette.
     let optimum = { e: 0 };
     for (let pente = 0; pente <= 60; pente += 5) {
@@ -263,8 +295,25 @@ const MAT_GRILLE = new THREE.ShaderMaterial({
     side: THREE.DoubleSide,
 });
 
-// Les obstacles, par leurs faces arrière (BIAIS_M).
+// Les obstacles, par leurs faces arrière (BIAIS_M) : le bâti, le relief, les
+// masses et les troncs dans une carte, opaques ; les houppiers dans une autre,
+// chacun avec son feuillage (1 persistant, 0 caduc), qui dit ce qu'il laisse
+// passer. Deux cartes : un arbre devant un mur ne doit pas éclairer ce qu'il
+// cache.
 const MAT_OBSTACLE = new THREE.MeshBasicMaterial({ side: THREE.BackSide, colorWrite: false });
+const MAT_HOUPPIER = new THREE.ShaderMaterial({
+    vertexShader: `
+        attribute float persistant;
+        varying float vPersistant;
+        void main() {
+            vPersistant = persistant;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+    fragmentShader: `
+        varying float vPersistant;
+        void main() { gl_FragColor = vec4(vPersistant, 0.0, 0.0, 1.0); }`,
+    side: THREE.BackSide,
+});
 
 // Une direction de plus dans le cumul : R le soleil, G le ciel vu, B le ciel
 // d'un toit dégagé, A le soleil d'un toit dégagé, chacun pondéré par
@@ -272,6 +321,8 @@ const MAT_OBSTACLE = new THREE.MeshBasicMaterial({ side: THREE.BackSide, colorWr
 const MAT_CUMUL = new THREE.ShaderMaterial({
     uniforms: {
         grille: { value: null }, precedent: { value: null }, ombre: { value: null },
+        ombreArbres: { value: null }, feuillage: { value: null },
+        transmissionCaduc: { value: 1 }, transmissionPersistant: { value: 1 },
         matriceOmbre: { value: new THREE.Matrix4() }, dir: { value: new THREE.Vector3() },
         poidsSoleil: { value: 0 }, poidsCiel: { value: 0 }, biais: { value: 0 },
         emprise: { value: new THREE.Vector4() }, tailleOmbre: { value: 1 }, premiere: { value: 0 },
@@ -279,11 +330,21 @@ const MAT_CUMUL = new THREE.ShaderMaterial({
     vertexShader: SOMMET_QUAD,
     fragmentShader: `
         precision highp float;
-        uniform sampler2D grille, precedent, ombre;
+        uniform sampler2D grille, precedent, ombre, ombreArbres, feuillage;
         uniform mat4 matriceOmbre;
         uniform vec3 dir;
         uniform float poidsSoleil, poidsCiel, biais, tailleOmbre, premiere;
+        uniform float transmissionCaduc, transmissionPersistant;
         uniform vec4 emprise;
+        // La part du rayon qui passe à un texel : rien derrière le bâti,
+        // ce que laisse un houppier derrière un arbre, tout sinon.
+        float passe(ivec2 t, float z) {
+            t = clamp(t, ivec2(0), ivec2(int(tailleOmbre) - 1));
+            float bati = step(z, texelFetch(ombre, t, 0).r);
+            float libre = step(z, texelFetch(ombreArbres, t, 0).r);
+            float transmis = mix(transmissionCaduc, transmissionPersistant, texelFetch(feuillage, t, 0).r);
+            return bati * mix(transmis, 1.0, libre);
+        }
         void main() {
             ivec2 px = ivec2(gl_FragCoord.xy);
             vec4 g = texelFetch(grille, px, 0);
@@ -300,13 +361,9 @@ const MAT_CUMUL = new THREE.ShaderMaterial({
             vec2 t = s.xy * tailleOmbre - 0.5;
             vec2 f = fract(t);
             ivec2 b = ivec2(floor(t));
-            ivec2 m = ivec2(int(tailleOmbre) - 1);
             float z = s.z - biais;
-            float v00 = step(z, texelFetch(ombre, clamp(b, ivec2(0), m), 0).r);
-            float v10 = step(z, texelFetch(ombre, clamp(b + ivec2(1, 0), ivec2(0), m), 0).r);
-            float v01 = step(z, texelFetch(ombre, clamp(b + ivec2(0, 1), ivec2(0), m), 0).r);
-            float v11 = step(z, texelFetch(ombre, clamp(b + ivec2(1, 1), ivec2(0), m), 0).r);
-            float vu = mix(mix(v00, v10, f.x), mix(v01, v11, f.x), f.y);
+            float vu = mix(mix(passe(b, z), passe(b + ivec2(1, 0), z), f.x),
+                           mix(passe(b + ivec2(0, 1), z), passe(b + ivec2(1, 1), z), f.x), f.y);
             gl_FragColor = avant + vec4(poidsSoleil * ci * vu, poidsCiel * ci * vu, poidsCiel * ci, poidsSoleil * ci);
         }`,
     depthTest: false, depthWrite: false,
@@ -348,20 +405,48 @@ const MAT_FIN = new THREE.ShaderMaterial({
     depthTest: false, depthWrite: false,
 });
 
-/** Les maillages qui portent une ombre : ceux de la vue, et toujours les arbres. */
+/**
+ * Les maillages qui portent une ombre : ceux de la vue, et toujours les
+ * arbres. { bati, houppiers } : les houppiers à part, les masses et les
+ * troncs avec le bâti.
+ */
 function obstacles() {
-    const liste = [];
+    const bati = [], houppiers = [];
     const parcourir = (o, vu, arbres) => {
         // Les repères des bornes, et les formes simples des arbres en
         // mouvement, qui doublent les détaillées.
         if (o.userData.bornes || o.userData.source) return;
         arbres = arbres || o === groupeVegetation;
         vu = arbres || (vu && o.visible);
-        if (o.isMesh && o.castShadow && vu) liste.push(o);
+        if (o.isMesh && o.castShadow && vu) (o.userData.genre === 'houppier' ? houppiers : bati).push(o);
         for (const c of o.children) parcourir(c, vu, arbres);
     };
     parcourir(scene, true, false);
-    return liste;
+    return { bati, houppiers };
+}
+
+/** Feuillage persistant : pin, résineux, chêne vert ; le mélèze perd ses aiguilles. */
+const persistant = el => !/mélèze|meleze/i.test(el.essence || '') && ['pin', 'conifère', 'chêne vert'].includes(portDe(el).nom);
+
+// La géométrie d'un maillage de houppiers, sommets et faces partagés, avec le
+// feuillage de chaque sommet : celui de son arbre (vegetation/formes,
+// nouveauTampon : `elements`, l'arbre de chaque sommet). Gardée tant que le
+// maillage ne change pas.
+const geometriesFeuillage = new WeakMap();
+function geometrieFeuillage(mesh) {
+    const source = mesh.geometry;
+    let g = geometriesFeuillage.get(source);
+    if (g) return g;
+    const quel = source.userData.elements, arbres = mesh.userData.elements;
+    const feuillage = new Float32Array(source.attributes.position.count);
+    for (let i = 0; i < feuillage.length; i++) feuillage[i] = persistant(arbres[quel[i]]) ? 1 : 0;
+    g = new THREE.BufferGeometry();
+    g.setIndex(source.index);
+    g.setAttribute('position', source.attributes.position);
+    g.setAttribute('persistant', new THREE.BufferAttribute(feuillage, 1));
+    g.boundingSphere = source.boundingSphere;
+    geometriesFeuillage.set(source, g);
+    return g;
 }
 
 /** Une copie qui partage la géométrie de `o` (et ses instances), posée comme lui. */
@@ -398,6 +483,10 @@ async function calculer(lieu, jeton, avancer) {
     const rtOmbre = new THREE.WebGLRenderTarget(tailleOmbre, tailleOmbre, {
         format: THREE.RedFormat, type: THREE.UnsignedByteType, depthBuffer: true, generateMipmaps: false });
     rtOmbre.depthTexture = new THREE.DepthTexture(tailleOmbre, tailleOmbre, THREE.UnsignedIntType);
+    const rtArbres = new THREE.WebGLRenderTarget(tailleOmbre, tailleOmbre, {
+        format: THREE.RedFormat, type: THREE.UnsignedByteType, minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter, depthBuffer: true, generateMipmaps: false });
+    rtArbres.depthTexture = new THREE.DepthTexture(tailleOmbre, tailleOmbre, THREE.UnsignedIntType);
     const camQuad = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const scQuad = new THREE.Scene();
     const quad = new THREE.Mesh(QUAD, MAT_CUMUL);
@@ -427,8 +516,9 @@ async function calculer(lieu, jeton, avancer) {
     // ciel « vu » plus grand que le ciel dégagé.
     const attendreImage = () => { restaurer(); return new Promise(r => requestAnimationFrame(r)); };
     const liberer = () => {
-        for (const rt of [rtGrille, ...rtCumul, rtOmbre]) rt.dispose();
+        for (const rt of [rtGrille, ...rtCumul, rtOmbre, rtArbres]) rt.dispose();
         rtOmbre.depthTexture.dispose();
+        rtArbres.depthTexture.dispose();
         tableTexture.dispose();
     };
 
@@ -447,9 +537,17 @@ async function calculer(lieu, jeton, avancer) {
         rendre(scGrille, camQuad, rtGrille);
 
         // Les obstacles, et la caméra du soleil.
-        const scObstacles = new THREE.Scene();
-        for (const o of obstacles()) scObstacles.add(doublure(o, MAT_OBSTACLE));
+        const { bati, houppiers } = obstacles();
+        const scObstacles = new THREE.Scene(), scArbres = new THREE.Scene();
+        for (const o of bati) scObstacles.add(doublure(o, MAT_OBSTACLE));
+        for (const o of houppiers) {
+            const d = new THREE.Mesh(geometrieFeuillage(o), MAT_HOUPPIER);
+            d.matrixAutoUpdate = false;
+            d.matrix.copy(o.matrixWorld);
+            scArbres.add(d);
+        }
         scObstacles.updateMatrixWorld();
+        scArbres.updateMatrixWorld();
         const camSoleil = new THREE.OrthographicCamera();
         const centre = boite.getCenter(new THREE.Vector3());
         const coins = [];
@@ -457,14 +555,16 @@ async function calculer(lieu, jeton, avancer) {
             for (const z of [boite.min.z, boite.max.z]) coins.push(new THREE.Vector3(x, y, z));
         const v = new THREE.Vector3();
 
-        const directions = [...lieu.faisceaux.map(f => ({ d: f.d, soleil: f.w, ciel: 0 })),
-                            ...lieu.ciel.map(c => ({ d: c.d, soleil: 0, ciel: c.w }))];
+        const directions = [
+            ...lieu.faisceaux.map(f => ({ d: f.d, soleil: f.w, ciel: 0,
+                                          caduc: f.feuilles ? TRANSMISSION_FEUILLES : TRANSMISSION_SANS_FEUILLES })),
+            ...lieu.ciel.map(c => ({ d: c.d, soleil: 0, ciel: c.w, caduc: lieu.transmissionCiel }))];
         let courant = 0;
         for (let k = 0; k < directions.length;) {
             await attendreImage();
             if (jeton !== jetonCalcul) return null;
             for (let n = 0; n < PASSES_PAR_IMAGE && k < directions.length; n++, k++) {
-                const { d, soleil, ciel } = directions[k];
+                const { d, soleil, ciel, caduc } = directions[k];
                 camSoleil.position.copy(centre).addScaledVector(d, RECUL_SOLEIL_M);
                 camSoleil.up.set(0, 1, 0);
                 if (Math.abs(d.y) > 0.99) camSoleil.up.set(0, 0, -1);
@@ -479,11 +579,16 @@ async function calculer(lieu, jeton, avancer) {
                 Object.assign(camSoleil, { left: l - 2, right: r + 2, bottom: b - 2, top: h + 2, near: 1, far: loin + 10 });
                 camSoleil.updateProjectionMatrix();
                 rendre(scObstacles, camSoleil, rtOmbre);
+                rendre(scArbres, camSoleil, rtArbres);
 
                 const u = MAT_CUMUL.uniforms;
                 u.grille.value = rtGrille.texture;
                 u.precedent.value = rtCumul[courant].texture;
                 u.ombre.value = rtOmbre.depthTexture;
+                u.ombreArbres.value = rtArbres.depthTexture;
+                u.feuillage.value = rtArbres.texture;
+                u.transmissionCaduc.value = caduc;
+                u.transmissionPersistant.value = TRANSMISSION_FEUILLES;
                 u.matriceOmbre.value.multiplyMatrices(camSoleil.projectionMatrix, camSoleil.matrixWorldInverse);
                 u.dir.value.copy(d);
                 u.poidsSoleil.value = soleil;
@@ -669,7 +774,8 @@ function resumer() {
         `Année type ${echapperTexte(c.source.rayonnement || 'PVGIS')} ${c.source.debut}-${c.source.fin}, lue le `
         + `${dateLongue(c.lu_le)} ; « Reconstruire la scène » la relit. Le direct et le diffus de chaque heure, `
         + 'ciel de Muneer comme PVGIS, dont un toit dégagé reste à 3 % près. L\'ombre est celle de la vue : '
-        + 'bâtiments et toits tels que dessinés, arbres opaques toute l\'année, relief jusqu\'à 4 km ; au-delà, '
+        + 'bâtiments et toits tels que dessinés, relief jusqu\'à 4 km, et les arbres, qui laissent passer 3 % '
+        + 'du soleil en feuilles, 46 % sans (les feuillus, du 26 octobre au 7 avril) ; au-delà, '
         + 'l\'horizon de PVGIS. Production : panneaux sur 70 % de la surface favorable, 0,21 kWc/m², '
         + 'rendement du système 0,79 — un ordre de grandeur, pas une étude. Clic sur un toit : sa fiche. '
         + '<a href="https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis_fr" '

@@ -15,6 +15,16 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Les feuillus sans feuilles dans l'ensoleillement des toits** (3 novembre
+  2026). Les arbres faisaient une ombre opaque toute l'année. Ils laissent
+  maintenant passer 3 % du soleil en feuilles et 46 % sans, mesurés sur des
+  arbres de rue (Konarska et al., 2014) : un pin, un résineux ou un chêne
+  vert au premier taux toute l'année, un feuillu au second du 26 octobre au
+  7 avril, d'après le chêne pédonculé du réseau RENECOFOR. Sur une zone de
+  1 000 m, la part du soleil perdue à l'ombre ne baisse que de 0,1 à
+  0,2 point ; le gain va aux toits sous des feuillus, jusqu'à 14 % au
+  Champ-de-Mars. Le calcul prend 1,5 à 3,6 s en zone de 1 000 m, 8 s en
+  zone de 2 000 m.
 - **L'ensoleillement des toits** (31 octobre 2026), au bouton
   « Ensoleillement » : chaque toit peint du soleil qu'il reçoit sur une
   année, du brun au jaune pâle, en kWh/m²/an ; au survol, la valeur au

@@ -41,11 +41,14 @@ for (const url of urls) {
       const u = Float64Array.from(t).sort();
       return [5, 10, 25, 50, 75, 90, 95, 99].map(c => `p${c} ${u[Math.floor(c / 100 * (u.length - 1))].toFixed(3)}`).join(', ');
     };
+    const t = r.total;
     return `- ${parts.length} cellules de toit, ${r.total.toits} bâtiments ; meilleur plan dégagé `
       + `${o.toFixed(0)} kWh/m²/an (${ciel.optimum.pente}° vers ${ciel.optimum.orientation}°)\n`
       + `- part de l'optimum : ${centiles(parts)}\n`
       + `- part de la valeur sans ombre : ${centiles(ombres)} ; `
-      + `sans aucune perte : ${(100 * ombres.filter(x => x > 0.99).length / ombres.length).toFixed(1)} %`;
+      + `sans aucune perte : ${(100 * ombres.filter(x => x > 0.99).length / ombres.length).toFixed(1)} %\n`
+      + `- toits : ${(t.somme / t.aire).toFixed(0)} kWh/m²/an en moyenne, ${(100 * (1 - t.somme / t.sansOmbre)).toFixed(1)} % `
+      + `perdus à l'ombre, ${t.favorable.toFixed(0)} m² favorables sur ${t.aire.toFixed(0)}`;
   }));
   if (erreurs.length) { tout = false; console.log('- ERREURS : ' + erreurs.join(' | ')); }
   await page.close();

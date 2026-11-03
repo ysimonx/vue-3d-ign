@@ -409,8 +409,11 @@ lointain déjà ôtée. Le reste de l'ombre est celle de la vue, calculée par l
 navigateur sur la carte graphique : environ 250 positions du soleil et 76
 directions du ciel, chacune une carte d'ombre de toute la scène —
 bâtiments et toits tels que dessinés, arbres, relief et anneau jusqu'à
-4 km — cumulées sur une grille des toits à 0,5 m. En zone de 1 000 m sur un
-Mac M4 : 1,3 s à la tour Eiffel, 1,7 s à Gordes, 2,5 s à Strasbourg ; 6 s en
+4 km — cumulées sur une grille des toits à 0,5 m. Un arbre laisse passer
+3 % du soleil en feuilles et 46 % sans (Konarska et al., 2014) : un pin, un
+résineux ou un chêne vert toute l'année au premier taux, un feuillu au second
+du 26 octobre au 7 avril (chêne pédonculé, réseau RENECOFOR de l'INRAE).
+En zone de 1 000 m sur un Mac M4 : 1,5 s à la tour Eiffel, 2,4 s à Gordes, 3,6 s à Strasbourg ; 8 s en
 zone de 2 000 m. Le diffus suit le modèle de Muneer, celui de PVGIS : sur un
 plan dégagé, le calcul reste à 3 % près de PVGIS sur les plans favorables de
 quatre lieux (`outils/verifier-solaire.mjs`).
@@ -857,14 +860,16 @@ principales :
   de 42 à 60 m à Rocamadour. Hors forêt, le plafond de 40 m efface aussi ce
   qui dépasse d'un bâtiment hors de son emprise, comme le toit du Stade de
   France.
-- **L'ensoleillement ne vaut que ce que la vue dessine.** Les arbres y sont
-  opaques toute l'année, feuillus compris ; un bâtiment sous les arbres n'a
-  pas de toit, donc pas de calcul ; un ouvrage dessiné en points (la tour
+- **L'ensoleillement ne vaut que ce que la vue dessine.** Un arbre hors des
+  massifs de la BD Forêt n'a pas d'essence connue : sa forme mesurée décide
+  s'il perd ses feuilles, et un chêne vert en dôme passe pour un feuillu ;
+  un bâtiment sous les arbres n'a pas de toit, donc pas de calcul ; un
+  ouvrage dessiné en points (la tour
   Eiffel) ne porte pas d'ombre. Un toit tiré de la surface du LiDAR en garde
   le grain : sa carte est tachetée. Le relief exagéré fausserait les ombres :
   le calcul attend l'exagération 1. Tout est à refaire dans le navigateur à
-  chaque visite (une à six secondes de carte graphique), dans des textures
-  de 220 Mo à Gordes en zone de 1 000 m, 630 Mo en zone de 2 000 m : un
+  chaque visite (deux à huit secondes de carte graphique), dans des textures
+  de 300 Mo à Gordes en zone de 1 000 m, 720 Mo en zone de 2 000 m : un
   téléphone peut n'y pas suffire.
 - **La règle « sous les arbres » est sévère** dans les tissus denses et arborés,
   où l'orthophoto, qui n'est pas une vraie orthophoto, décale les feuillages
