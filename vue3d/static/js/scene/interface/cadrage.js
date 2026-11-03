@@ -1,8 +1,8 @@
-// Le cadrage de la caméra à l'ouverture : la pose héritée, l'accueil, ou toute
-// l'emprise à l'écran.
+// Le cadrage de la caméra à l'ouverture : la pose héritée, une vue partagée,
+// l'accueil, ou toute l'emprise à l'écran.
 
 import * as THREE from 'three';
-import { POINT_DEFAUT, ACCUEIL, CENTER, POSE_HERITEE } from '../socle/point.js';
+import { POINT_DEFAUT, ACCUEIL, CENTER, POSE_HERITEE, PARTAGE } from '../socle/point.js';
 import { toLocal, toLonLat, emprise } from '../socle/projection.js';
 import { ySol } from '../terrain/etat.js';
 import { camera, controls } from '../socle/rendu.js';
@@ -17,10 +17,12 @@ export function cadrer() {
         controls.update();
         return;
     }
-    // L'accueil : la tour entière, vue d'un azimut (0 = du nord) et d'une
-    // élévation, comme poserCadre de outils/demo-video.mjs.
-    if (ACCUEIL) {
-        const v = POINT_DEFAUT.vue, r = Math.PI / 180, cosE = Math.cos(v.elevation * r);
+    // Une vue partagée, ou l'accueil — la tour entière : une cible à une
+    // hauteur au-dessus du sol, vue d'un azimut (0 = du nord), d'une élévation
+    // et d'une distance, comme poserCadre de outils/demo-video.mjs.
+    const v = PARTAGE.vue || (ACCUEIL ? POINT_DEFAUT.vue : null);
+    if (v) {
+        const r = Math.PI / 180, cosE = Math.cos(v.elevation * r);
         const [x, y] = toLocal(v.lon, v.lat);
         controls.target.set(x, ySol(v.lon, v.lat) + v.hauteur, -y);
         camera.position.set(x + v.distance * Math.sin(v.azimut * r) * cosE,

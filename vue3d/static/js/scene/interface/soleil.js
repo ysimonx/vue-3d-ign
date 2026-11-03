@@ -1,7 +1,7 @@
 // Le soleil du lieu, à l'heure et au jour choisis, et les ombres portées.
 
 import * as THREE from 'three';
-import { CENTER } from '../socle/point.js';
+import { CENTER, PARTAGE } from '../socle/point.js';
 import { POINTS_CARDINAUX } from '../socle/projection.js';
 import { ambiance, DISTANCE_SOLEIL, soleil } from '../socle/rendu.js';
 import { majCiel } from '../terrain/horizon.js';
@@ -45,7 +45,7 @@ function instantLocal(annee, mois, jour, heures) {
 }
 
 // Date de la scène : aujourd'hui, à midi. Le curseur de saison la déplace.
-const DATE_SCENE = (() => {
+export const DATE_SCENE = (() => {
     const n = new Date();
     return { annee: n.getFullYear(), mois: n.getMonth() + 1, jour: n.getDate(),
              heure: 12 };
@@ -114,11 +114,14 @@ export function majSoleil(heures) {
 }
 
 const curseurHeure = document.getElementById('heure');
-curseurHeure.value = DATE_SCENE.heure.toFixed(2);
+// Une vue partagée apporte son heure et son jour (socle/point, PARTAGE).
+curseurHeure.value = (PARTAGE.heure ?? DATE_SCENE.heure).toFixed(2);
 curseurHeure.addEventListener('input', () => majSoleil(Number(curseurHeure.value)));
 
 const curseurSaison = document.getElementById('saison');
-curseurSaison.value = jourDeLAnnee(DATE_SCENE.annee, DATE_SCENE.mois, DATE_SCENE.jour);
+curseurSaison.value = PARTAGE.jour ? jourDeLAnnee(DATE_SCENE.annee, PARTAGE.jour.mois, PARTAGE.jour.jour)
+                                    : jourDeLAnnee(DATE_SCENE.annee, DATE_SCENE.mois, DATE_SCENE.jour);
+if (PARTAGE.jour) poserJourSimule(Number(curseurSaison.value));
 curseurSaison.addEventListener('input', () => {
     poserJourSimule(Number(curseurSaison.value));
     majSoleil(Number(curseurHeure.value));
@@ -138,4 +141,4 @@ document.getElementById('saison-aujourdhui').addEventListener('click', e => {
     poserJourSimule(Number(curseurSaison.value));
     majSoleil(Number(curseurHeure.value));
 });
-majSoleil(DATE_SCENE.heure);
+majSoleil(Number(curseurHeure.value));

@@ -53,6 +53,32 @@ if (RELANCE_MOI) {
     u.searchParams.delete('moi');
     history.replaceState(null, '', u.pathname + u.search + u.hash);
 }
+// Une vue partagée (interface/partage) : la caméra (`vue=lat,lon,hauteur,
+// distance,azimut,elevation`, comme celle de l'accueil), le jour (`jour=MM-JJ`)
+// et l'heure (`heure=13.25`) du soleil, les couches allumées ou, précédées
+// d'un tiret, éteintes (`couches=solaire,dpe,-vegetation`). Lus une fois puis
+// retirés de l'adresse, comme `moi` : la flèche de décalage, la recherche ou
+// « Reconstruire » repartent de l'adresse, et n'ont pas à les emporter.
+export const PARTAGE = (() => {
+    const vue = (PARAMS.get('vue') || '').split(',').map(Number);
+    const jour = /^(\d{1,2})-(\d{1,2})$/.exec(PARAMS.get('jour') || '');
+    const heure = Number(PARAMS.get('heure'));
+    const couches = (PARAMS.get('couches') || '').split(',').filter(c => /^-?[a-z]+$/.test(c));
+    const p = {
+        vue: vue.length === 6 && vue.every(Number.isFinite)
+            ? { lat: vue[0], lon: vue[1], hauteur: vue[2], distance: vue[3], azimut: vue[4], elevation: vue[5] } : null,
+        jour: jour && +jour[1] >= 1 && +jour[1] <= 12 && +jour[2] >= 1 && +jour[2] <= 31
+            ? { mois: +jour[1], jour: +jour[2] } : null,
+        heure: PARAMS.get('heure') !== null && heure >= 0 && heure <= 24 ? heure : null,
+        couches: Object.fromEntries(couches.map(c => c.startsWith('-') ? [c.slice(1), false] : [c, true])),
+    };
+    if (['vue', 'jour', 'heure', 'couches'].some(n => PARAMS.has(n))) {
+        const u = new URL(location.href);
+        for (const n of ['vue', 'jour', 'heure', 'couches']) u.searchParams.delete(n);
+        history.replaceState(null, '', u.pathname + u.search + u.hash);
+    }
+    return p;
+})();
 // Page rechargée par une flèche de décalage : la caméra y laisse sa pose
 // (cadrer) et l'état de l'orbite, pour ce point seulement et une fois. Dans
 // l'onglet, jamais dans l'URL : un lien partagé s'ouvre cadré d'office.

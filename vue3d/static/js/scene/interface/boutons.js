@@ -1,6 +1,6 @@
 // Les boutons des toits et des monuments, et l'orbite.
 
-import { POSE_HERITEE } from '../socle/point.js';
+import { POSE_HERITEE, PARTAGE } from '../socle/point.js';
 import { controls } from '../socle/rendu.js';
 import {
     monumentsActifs, toitsEnPente, toitsMesures, basculerMonuments, basculerToitsEnPente,
@@ -56,8 +56,9 @@ export function arreterOrbite() {
 }
 
 export function demarrerOrbite() {
-    // Arrêtée avant un décalage, elle le reste.
-    if (orbiteChoisie || (POSE_HERITEE && !POSE_HERITEE.orbite)) return;
+    // Arrêtée avant un décalage, elle le reste ; une vue partagée reste où on
+    // l'a cadrée, sauf si le lien la demande (interface/partage).
+    if (orbiteChoisie || (POSE_HERITEE && !POSE_HERITEE.orbite) || PARTAGE.vue) return;
     orbite = true;
     btnOrbit.classList.add('on');
 }

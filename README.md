@@ -424,6 +424,16 @@ des pertes de 14 % : un ordre de grandeur, pas une étude. Le climat est lu au
 premier clic, daté, et gardé avec la scène ; « Reconstruire la scène » le
 relit.
 
+### Partager une vue
+
+Le bouton de partage, sur la vue, donne un lien qui la rouvre telle quelle :
+la caméra à sa place, le soleil au jour et à l'heure choisis, et les couches
+allumées ou éteintes comme elles l'étaient — l'ensoleillement des toits ou
+les DPE se recalculent ou se relisent à l'ouverture. Au doigt, il ouvre la
+feuille de partage de l'appareil ; ailleurs, il copie le lien. Le lien ne
+garde que ce qui diffère d'une ouverture ordinaire : une vue laissée au jour
+du jour et à midi s'ouvre au jour de qui la reçoit.
+
 ### Export BIM et SIG, en IFC 4 et CityGML 2.0
 
 Deux boutons du panneau écrivent le contexte du lieu : le relief de
@@ -879,7 +889,7 @@ principales :
 
 | Route | Réponse |
 |---|---|
-| `GET /?lat=…&lon=…` | La page |
+| `GET /?lat=…&lon=…` | La page ; `&vue=lat,lon,hauteur,distance,azimut,elevation` pose la caméra (cible, sa hauteur au-dessus du sol, recul en mètres, azimut depuis le nord et élévation en degrés), `&jour=MM-JJ` et `&heure=13.25` le soleil, `&couches=solaire,dpe,-vegetation` les couches allumées ou éteintes (le lien du bouton de partage) |
 | `GET /voiture` | La vue en voiture ; `?lat=…&lon=…` pour son départ en attendant le GPS, `&simu=1&vitesse=…` pour une conduite simulée, `&vue=2d`, `&fond=plan`, `&heure=…` |
 | `GET /api/scene?lat=…&lon=…` | La scène, en JSON gzippé |
 | `GET /api/ortho?lat=…&lon=…` | L'orthophoto de la scène, en JPEG |

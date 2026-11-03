@@ -251,6 +251,7 @@
             <div id="etat-vehicules" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-foncier" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-solaire" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
+            <div id="etat-partage" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="etat-moi" class="etat-couche" role="status" hidden><i class="roue"></i><span></span></div>
             <div id="conseil-veg" class="etat-couche conseil" role="status" hidden>
                 <span></span>
@@ -298,6 +299,13 @@
                     <circle cx="5.5" cy="18.5" r="3"/><circle cx="18.5" cy="18.5" r="3"/>
                     <path d="M7.6 7.6l2.4 2.4M16.4 7.6L14 10M7.6 16.4l2.4-2.4M16.4 16.4L14 14"/>
                     <rect x="10" y="10" width="4" height="4" rx="1"/>
+                </svg>
+            </button>
+            <button type="button" id="btn-partager" class="bouton-vue" aria-label="Partager cette vue"
+                    title="Partager cette vue : un lien qui la rouvre telle quelle — caméra, jour et heure du soleil, couches allumées">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3.5v11M8 7.5l4-4 4 4"/>
+                    <path d="M8.5 10.5H6.5v9.5h11v-9.5h-2"/>
                 </svg>
             </button>
             <button type="button" id="btn-aide" class="bouton-vue" aria-label="Prise en main"

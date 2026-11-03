@@ -15,6 +15,13 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Partager une vue** (3 novembre 2026) : un bouton sur la vue donne un
+  lien qui la rouvre telle quelle — la caméra, le jour et l'heure du soleil,
+  les couches allumées ou éteintes (`vue=`, `jour=`, `heure=`, `couches=`).
+  Au doigt, la feuille de partage de l'appareil ; ailleurs, le lien copié.
+  À l'ouverture, chaque couche est remise dans son état dès qu'elle arrive,
+  et l'orbite ne démarre pas d'elle-même ; les paramètres du lien quittent
+  ensuite l'adresse, que la flèche de décalage ou la recherche reprennent.
 - **Les feuillus sans feuilles dans l'ensoleillement des toits** (3 novembre
   2026). Les arbres faisaient une ombre opaque toute l'année. Ils laissent
   maintenant passer 3 % du soleil en feuilles et 46 % sans, mesurés sur des

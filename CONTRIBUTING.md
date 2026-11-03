@@ -169,7 +169,7 @@ avant tout le reste : le tiroir, et la demande de la scène), sa feuille de styl
 | `couches/` | Une couche par module : eau, routes, lignes, constructions, ouvrages, nuage et écarts des toits, détections, panneaux, foncier (DPE et DVF), bornes, ensoleillement des toits |
 | `vegetation/` | Son état, ses textures, la forme des houppiers, la couche elle-même |
 | `export/` | IFC, CityGML, leur modèle commun, leurs boutons |
-| `interface/` | Recherche, survol, fiche, crédits, cadrage, boutons, décalage, drone, gestes, soleil, tiroir, boucle de rendu… |
+| `interface/` | Recherche, survol, fiche, crédits, cadrage, boutons, décalage, drone, gestes, soleil, partage de la vue, tiroir, boucle de rendu… |
 | `geometrie/` | Normales, polygones et position du soleil, sans DOM ni état |
 
 La vue en voiture (`static/voiture.html`, `css/voiture.css`, `js/voiture/`)
