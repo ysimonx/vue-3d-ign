@@ -4,7 +4,8 @@ Les routes sont rangées par page, chacune dans son blueprint :
 
     vue3d/routes/scene.py     /, /api/scene et les couches d'un point (ortho,
                               monuments, ouvrages, nuage, détections, panneaux,
-                              DPE, DVF, bornes), /api/avancement, /api/reconstruire
+                              DPE, DVF, bornes), /api/avancement, /api/reconstruire,
+                              /api/avis
     vue3d/routes/voiture.py   /voiture, ses carrés (/api/carre, /api/vegetation,
                               /api/vitesses, /api/signalisation), /api/bornes-bloc,
                               /api/signalement
@@ -40,6 +41,7 @@ from .routes import service as routes_service
 from .routes import voiture as routes_voiture
 from .scene import Cache
 from .scene import construire as construire_scene
+from .avis import AVIS_PAR_HEURE, Avis
 from .signalements import SIGNALEMENTS_PAR_HEURE, Signalements
 from .signalisation import SIGNALISATION_VERSION, BlocsSignaux, fetch_signalisation
 from .solaire import fetch_solaire
@@ -192,8 +194,10 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
     quota_blocs = Quota(BLOCS_PAR_HEURE) if quota else None
     signalements = Signalements(os.path.join(cache.dossier, "signalements"))
     quota_signalements = Quota(SIGNALEMENTS_PAR_HEURE) if quota else None
+    avis = Avis(os.path.join(cache.dossier, "avis"))
+    quota_avis = Quota(AVIS_PAR_HEURE) if quota else None
 
-    app.register_blueprint(routes_scene.blueprint(cache, construire, quota))
+    app.register_blueprint(routes_scene.blueprint(cache, construire, quota, avis, quota_avis))
     app.register_blueprint(routes_voiture.blueprint(
         carres, vegetations, vitesses, signalisation, quota_carres, blocs_bornes, quota_blocs,
         signalements, quota_signalements))

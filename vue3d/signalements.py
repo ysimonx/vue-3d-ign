@@ -42,7 +42,7 @@ class SignalementsComplets(Exception):
     """SIGNALEMENTS_MAX sont déjà gardés : plus rien n'est écrit."""
 
 
-def _capture(texte):
+def lire_capture(texte):
     """Les octets du JPEG d'une URL `data:image/jpeg;base64,…` ; None sans capture."""
     if texte is None:
         return None
@@ -58,7 +58,7 @@ def _capture(texte):
     return octets
 
 
-def _ecrire(chemin, octets):
+def ecrire_entier(chemin, octets):
     """Écrit d'un coup : un fichier à moitié écrit ne porte jamais son nom."""
     provisoire = f"{chemin}.{secrets.token_hex(4)}.tmp"
     with open(provisoire, "wb") as f:
@@ -94,7 +94,7 @@ class Signalements:
             raise SignalementInvalide(f"JSON illisible : {exc}") from exc
         if not isinstance(donnees, dict) or not isinstance(donnees.get("etat"), dict):
             raise SignalementInvalide("objet {\"etat\": {…}} attendu")
-        capture = _capture(donnees.get("capture"))
+        capture = lire_capture(donnees.get("capture"))
         with self._verrou:
             if self.nombre() >= SIGNALEMENTS_MAX:
                 raise SignalementsComplets(f"{SIGNALEMENTS_MAX} signalements déjà gardés")
@@ -103,9 +103,9 @@ class Signalements:
             ident = f"{recu:%Y%m%d-%H%M%S}-{secrets.token_hex(2)}"
             base = os.path.join(self.dossier, ident)
             if capture is not None:
-                _ecrire(base + ".jpg", capture)
+                ecrire_entier(base + ".jpg", capture)
             # Le JSON en dernier : il dit qu'un signalement est complet.
-            _ecrire(base + ".json", json.dumps({
+            ecrire_entier(base + ".json", json.dumps({
                 "id": ident, "recu": recu.isoformat(timespec="seconds"), "adresse": adresse,
                 "agent": agent, "capture": capture is not None, "etat": donnees["etat"],
             }, ensure_ascii=False, indent=1).encode())

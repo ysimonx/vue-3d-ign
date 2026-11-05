@@ -167,6 +167,41 @@ button.lien-ext:disabled { color:var(--muted); cursor:wait; }
            background:rgba(31,35,40,.78); color:var(--muted); font-size:10px;
            line-height:1.4; padding:4px 8px; border-radius:5px; text-align:right; }
 #credits a { color:var(--text); text-decoration:none; }
+/* L'avis sur le rendu, en bas à gauche de la vue, face aux crédits ; le mot
+   d'un 👎 s'ouvre au-dessus. */
+#avis { position:absolute; left:12px; bottom:12px; z-index:3; display:flex; flex-direction:column;
+        align-items:flex-start; gap:8px; max-width:calc(100% - 24px); }
+#avis[hidden], #avis-mot[hidden] { display:none; }
+/* En vol, le pad du drone occupe le bas de la vue. */
+#scene:has(#pad-drone:not([hidden])) #avis { display:none; }
+#avis .pouces { display:flex; background:rgba(31,35,40,.85); border:1px solid var(--line);
+                border-radius:18px; overflow:hidden; }
+#avis .pouces button { display:flex; align-items:center; gap:6px; height:34px; padding:0 12px;
+                       background:none; border:0; color:var(--text); cursor:pointer;
+                       font:600 12px/1 system-ui, sans-serif; font-variant-numeric:tabular-nums;
+                       -webkit-tap-highlight-color:transparent; }
+#avis .pouces .question { display:flex; align-items:center; padding:0 4px 0 12px; color:var(--muted);
+                         font-size:11px; white-space:nowrap; }
+#avis .pouces button + button { border-left:1px solid var(--line); }
+@media (hover: hover) { #avis .pouces button:hover { color:var(--accent); } }
+#avis .pouces button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+#avis .pouces button.on { background:var(--accent); color:#fff; }
+#avis .pouces button:disabled { cursor:wait; }
+#avis .pouces svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8;
+                    stroke-linecap:round; stroke-linejoin:round; }
+#avis-mot { width:min(300px, calc(100vw - 24px)); padding:10px 12px; border-radius:8px;
+            background:rgba(31,35,40,.95); border:1px solid var(--line); font-size:12px; }
+#avis-mot label { display:block; color:var(--text); font-weight:600; margin-bottom:6px; }
+#avis-mot label small { color:var(--muted); font-weight:400; }
+#avis-mot textarea { width:100%; box-sizing:border-box; resize:vertical; font:13px/1.4 system-ui, sans-serif;
+                     background:#161a1e; color:var(--text); border:1px solid var(--line); border-radius:5px;
+                     padding:6px 8px; }
+#avis-mot textarea:focus { outline:none; border-color:var(--accent); }
+#avis-mot p { margin:6px 0 0; color:var(--muted); font-size:11px; }
+#avis-mot .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:8px; }
+#avis-mot .actions button { padding:5px 12px; border-radius:5px; cursor:pointer; font-size:12px;
+                            border:1px solid var(--line); background:none; color:var(--text); }
+#avis-mot .actions [type=submit] { background:var(--accent); border-color:var(--accent); color:#fff; }
 #credits a:hover { text-decoration:underline; }
 #tip { position:absolute; z-index:3; background:rgba(31,35,40,.95); color:#e8eaed;
        font-size:11px; padding:6px 9px; border-radius:5px; pointer-events:none;
@@ -264,6 +299,9 @@ html.tiroir.tiroir-ouvert #panel { transform:none; visibility:visible;
                                    transition:transform .25s ease-out; }
 html.tiroir.tiroir-ouvert #voile { display:block; }
 html.tiroir #credits { left:12px; max-width:none; }
+/* Les crédits y prennent tout le bas : l'avis se pose au-dessus
+   (--credits-h, suivie par interface/avis.js). */
+html.tiroir #avis { bottom:calc(20px + var(--credits-h, 0px)); }
 @media (prefers-reduced-motion: reduce) { html.tiroir #panel { transition:none; } }
 /* Au doigt : des cibles d'au moins 36 px ; 16 px dans les champs, sous
    lesquels Safari iOS zoome sur celui qui prend le focus. */
@@ -275,4 +313,6 @@ html.tiroir #credits { left:12px; max-width:none; }
     .form-point button { padding:9px 14px; font-size:15px; }
     #suggestions li { padding:10px 8px; font-size:14px; }
     #panel header .reconstruire, #panel header a { font-size:13px; padding:4px 0; }
+    #avis .pouces button { height:40px; padding:0 14px; }
+    #avis-mot textarea { font-size:16px; }
 }

@@ -19,21 +19,26 @@
     GET /api/avancement?lat=…&lon=…  l'étape de la construction en cours
     POST /api/reconstruire?lat=…&lon=…   la scène et ses couches mises de côté,
                                    reconstruites à la demande suivante
+    GET /api/avis?lat=…&lon=…        les 👍 et 👎 sur le rendu de la scène, et
+                                   celui du visiteur
+    POST /api/avis?lat=…&lon=…       l'avis du visiteur, ou le mot de son 👎
 
 Chaque route d'API accepte `zone=` (150 à 2 000 m, arrondie à 50 m) : sans
 elle, l'emprise par défaut d'environ 356 m.
 """
 
 import math
+import secrets
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
+from ..avis import AVIS_OCTETS_MAX, AvisComplets, AvisInvalide
 from ..scene import (NOM_BORNES, NOM_DPE, NOM_DVF, NOM_MONUMENTS, NOM_NUAGE, NOM_NUAGE_PROCHE, NOM_ORTHO,
                      NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE, NOM_SOLAIRE, BornesIndisponibles,
                      DpeIndisponibles, DvfIndisponible, HorsEmprise, MonumentsIndisponibles,
                      NuageIndisponible, OuvragesIndisponibles, PanneauxIndisponibles,
                      ReconstructionRefusee, SceneIncomplete, SolaireIndisponible, VehiculesDesactives,
-                     VehiculesIndisponibles, point_normalise, zone_normalisee)
+                     VehiculesIndisponibles, nom_scene, point_normalise, zone_normalisee)
 from ..vehicules import MODE_PAR_DEFAUT
 from .reponses import erreur, servir_gzip
 
@@ -56,10 +61,11 @@ def point():
         return None
 
 
-def blueprint(cache, construire, quota):
+def blueprint(cache, construire, quota, avis, quota_avis):
     """Les routes de la scène. `cache` : le Cache des scènes (vue3d/scene.py) ;
     `construire` : la construction d'une scène, injectable ; `quota` : le
-    Quota des scènes neuves, ou None sans limite."""
+    Quota des scènes neuves, ou None sans limite ; `avis` et `quota_avis` :
+    les avis sur le rendu (vue3d/avis.py) et leur Quota, ou None."""
     bp = Blueprint("scene", __name__)
 
     def refus_quota(lat, lon, zone, reconstruction=False):
@@ -367,5 +373,61 @@ def blueprint(cache, construire, quota):
             return erreur(422, str(exc))
         reponse.headers["Cache-Control"] = "no-store"
         return reponse
+
+    def scene_jugee():
+        """Le nom de la scène du point de la requête (scene.nom_scene) et
+        None ; sinon None et la réponse d'erreur."""
+        p = point()
+        if p is None:
+            return None, erreur(400, MESSAGE_POINT)
+        *p, zone = p
+        try:
+            return nom_scene(*point_normalise(*p), zone), None
+        except HorsEmprise as exc:
+            return None, erreur(422, str(exc))
+
+    @bp.get("/api/avis")
+    def avis_scene():
+        """Les 👍 et 👎 de la scène, que la page montre à tous, et l'avis du
+        visiteur : jamais mis en cache, ils changent à chaque vote."""
+        nom, refus = scene_jugee()
+        if refus:
+            return refus
+        reponse = jsonify(avis.compter(nom, request.remote_addr))
+        reponse.headers["Cache-Control"] = "no-store"
+        return reponse
+
+    @bp.post("/api/avis")
+    def donner_avis():
+        """L'avis du visiteur sur le rendu de la scène, ou le mot de son 👎
+        (vue3d/avis.py) ; une scène qui n'est pas construite n'en reçoit pas."""
+        # Lu borné : un corps sans Content-Length serait lu jusqu'au bout.
+        corps = request.stream.read(AVIS_OCTETS_MAX + 1)
+        if len(corps) > AVIS_OCTETS_MAX:
+            return erreur(413, f"Avis de plus de {AVIS_OCTETS_MAX // 1_000_000} Mo.")
+        nom, refus = scene_jugee()
+        if refus:
+            return refus
+        lat, lon, zone = point()
+        if not cache.present(*point_normalise(lat, lon), zone):
+            return erreur(404, "Aucune scène construite ici : il n'y a pas de rendu à juger.")
+        if quota_avis and quota_avis.attente(request.remote_addr, secrets.token_hex(8)):
+            current_app.logger.warning("Quota de %d avis par heure atteint pour %s",
+                                       quota_avis.par_heure, request.remote_addr)
+            reponse, code = erreur(429, "Trop d'avis envoyés en une heure.")
+            reponse.headers["Retry-After"] = "600"
+            return reponse, code
+        try:
+            ident, comptes = avis.recevoir(nom, corps, request.remote_addr,
+                                           request.headers.get("User-Agent"))
+        except AvisInvalide as exc:
+            return erreur(400, f"Avis illisible : {exc}.")
+        except AvisComplets:
+            current_app.logger.warning("Avis : %s plein, rien d'écrit", avis.journal)
+            return erreur(507, "Le serveur garde déjà assez d'avis à lire.")
+        current_app.logger.info("Avis %s reçu de %s sur %s", ident, request.remote_addr, nom)
+        reponse = jsonify({"id": ident, **comptes})
+        reponse.headers["Cache-Control"] = "no-store"
+        return reponse, 201
 
     return bp

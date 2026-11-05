@@ -15,6 +15,14 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Votre avis sur le rendu** (5 novembre 2026) : 👍 et 👎 en bas à gauche
+  de la vue, comptés pour tous, un avis par adresse IP et par scène, qu'un
+  nouveau clic change ou retire. Un 👎 garde le lien de la vue jugée, sa
+  capture (~190 Ko) et, si le visiteur l'écrit, ce qui ne va pas. Les avis
+  vont dans un journal du serveur (`cache/avis/`), bornés : 60 par heure et
+  par adresse avec un quota, 500 captures, 20 Mo de journal ; une scène
+  doit être construite pour en recevoir. Une nouvelle `SCENE_VERSION`
+  repart sans avis : c'est un autre rendu.
 - **Les stops, cédez-le-passage et feux dans la vue en voiture** (4 novembre
   2026), d'OpenStreetMap : chacun se dresse au bord droit de la route, face à
   qui arrive, et le prochain de la route prévue s'annonce à côté de la

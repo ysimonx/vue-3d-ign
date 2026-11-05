@@ -57,6 +57,7 @@ import './interface/gestes.js';
 import './terrain/commandes.js';
 import './interface/soleil.js';
 import './interface/partage.js';
+import './interface/avis.js';
 import './interface/boucle.js';
 
 // Les bâtiments arrivés : ils sont construits, la caméra cadrée, puis viennent

@@ -308,6 +308,16 @@ def zone_normalisee(zone):
     return min(max(cote, ZONE_MIN_M), ZONE_MAX_M)
 
 
+def nom_scene(lat, lon, zone=None):
+    """Le dossier d'une scène dans le cache, relatif (`v15/43.9116_5.2003_z1000`),
+    pour un point déjà normalisé : il nomme aussi la scène hors du cache
+    (les avis, vue3d/avis.py)."""
+    # L'emprise par défaut garde le nom de dossier d'avant les zones : son
+    # cache reste valable.
+    suffixe = f"_z{zone}" if zone else ""
+    return f"v{SCENE_VERSION}/{lat:.{SCENE_ARRONDI}f}_{lon:.{SCENE_ARRONDI}f}{suffixe}"
+
+
 def facteur_zone(zone):
     """Rapport du côté de la zone à celui de l'emprise par défaut."""
     return 1.0 if zone is None else zone / SCENE_COTE_M
@@ -887,11 +897,7 @@ class Cache:
         os.replace(tmp, os.path.join(dossier, nom))
 
     def _dossier_point(self, lat, lon, zone=None):
-        # L'emprise par défaut garde le nom de dossier d'avant les zones : son
-        # cache reste valable.
-        suffixe = f"_z{zone}" if zone else ""
-        return os.path.join(self.dossier, f"v{SCENE_VERSION}",
-                            f"{lat:.{SCENE_ARRONDI}f}_{lon:.{SCENE_ARRONDI}f}{suffixe}")
+        return os.path.join(self.dossier, nom_scene(lat, lon, zone))
 
     def _verrou(self, cle):
         with self._verrou_global:

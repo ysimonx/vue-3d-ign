@@ -434,6 +434,15 @@ feuille de partage de l'appareil ; ailleurs, il copie le lien. Le lien ne
 garde que ce qui diffère d'une ouverture ordinaire : une vue laissée au jour
 du jour et à midi s'ouvre au jour de qui la reçoit.
 
+### Votre avis sur le rendu
+
+En bas à gauche de la vue, 👍 et 👎 disent si le rendu du lieu vous plaît ;
+chacun voit combien de visiteurs l'ont aimé ou non. Une adresse IP compte
+pour un avis par scène, qu'un nouveau clic change ou retire. Un 👎 emporte la
+vue telle que vous la regardez (le lien du partage) et sa capture, puis
+demande, sans l'exiger, ce qui ne va pas : de quoi rouvrir la vue et voir le
+défaut. Les avis sont gardés par le serveur, dans `avis/` de son cache.
+
 ### Export BIM et SIG, en IFC 4 et CityGML 2.0
 
 Deux boutons du panneau écrivent le contexte du lieu : le relief de
@@ -913,6 +922,8 @@ principales :
 | `GET /api/carre?i=…&j=…` | Un carré de 500 m de la grille Lambert-93 (`i = x // 500`, `j = y // 500`) pour la vue en voiture : bâtiments et routes carrossables BD TOPO, en JSON gzippé, coordonnées en décimètres depuis son coin sud-ouest. Lu à la première demande (0,1 à 0,3 s), gardé ensuite ; 422 hors de France métropolitaine |
 | `GET /api/vegetation?i=…&j=…` | Les arbres du même carré, découpés comme ceux de la scène (MNH à 0,5 m, orthophoto, BD TOPO, BD Forêt) : `[x, y, h, r, port]` en décimètres depuis son coin sud-ouest, `ports` nommant les indices ; `couvert` faux sans MNH. 1 à 5 s à la première demande |
 | `GET /api/sante` | `{"ok": true, "vehicules": {"mode": …, "detecteurs": […]}, "panneaux": {"actif": …}}` : le contrôle de vie, et ce que le service sait détecter ou lire |
+| `GET /api/avis?lat=…&lon=…` | Les avis sur le rendu de la scène : `{"pour": …, "contre": …, "mien": 1, -1 ou 0}`, ce dernier pour l'adresse IP qui demande ; jamais mis en cache |
+| `POST /api/avis?lat=…&lon=…` | L'avis du visiteur, en JSON : `{"avis": 1, -1 ou 0, "vue": lien de la vue, "capture": "data:image/jpeg;base64,…"}` (capture d'un 👎 seulement), ou le mot de son 👎 en cours, `{"sur": id, "mot": "…"}` (1 000 caractères au plus) ; rend son `id` et les comptes (201). 404 si la scène n'est pas construite, 413 au-delà de 3 Mo, 429 au-delà de 60 avis par heure et par adresse (avec `VUE3D_QUOTA`), 507 journal plein |
 | `POST /api/reconstruire?lat=…&lon=…` | Met de côté la scène et ses couches (202) : la demande suivante les reconstruit d'après les données de l'IGN du moment, l'ancienne revenant si l'IGN ne répond pas. 429 moins de 10 min après sa construction, 409 pendant qu'elle ou une de ses couches se calcule |
 
 Codes d'erreur : 400 sans coordonnées valides, 422 hors de France métropolitaine,
