@@ -6,7 +6,8 @@ Les routes sont rangées par page, chacune dans son blueprint :
                               monuments, ouvrages, nuage, détections, panneaux,
                               DPE, DVF, bornes), /api/avancement, /api/reconstruire
     vue3d/routes/voiture.py   /voiture, ses carrés (/api/carre, /api/vegetation,
-                              /api/vitesses), /api/bornes-bloc, /api/signalement
+                              /api/vitesses, /api/signalisation), /api/bornes-bloc,
+                              /api/signalement
     vue3d/routes/service.py   ce que les deux pages partagent : /api/tuile,
                               /api/sante
 
@@ -40,6 +41,7 @@ from .routes import voiture as routes_voiture
 from .scene import Cache
 from .scene import construire as construire_scene
 from .signalements import SIGNALEMENTS_PAR_HEURE, Signalements
+from .signalisation import SIGNALISATION_VERSION, BlocsSignaux, fetch_signalisation
 from .solaire import fetch_solaire
 from .toits import autoriser_bassin
 from .tuiles import TUILES_RELECTURES_PAR_HEURE, Stock, fetch_tuile
@@ -117,7 +119,8 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
               lire_nuage=fetch_nuage, lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
               lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
               lire_bornes=fetch_bornes, lire_carre=fetch_carre, quota_carres=None,
-              lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_solaire=fetch_solaire):
+              lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_signalisation=None,
+              lire_solaire=fetch_solaire):
     """`construire`, `lire_monuments`, `lire_ouvrages`, `lire_vehicules`,
     `lire_panneaux`, `lire_nuage`, `lire_dpe`, `lire_dvf`, `lire_mer`,
     `lire_bornes` et `lire_solaire` sont injectables
@@ -132,10 +135,11 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
     None : de VUE3D_QUOTA et VUE3D_PROXY, 0 en leur absence.
     `relectures` : tuiles relues par heure et par adresse IP, 0 sans limite ;
     None : TUILES_RELECTURES_PAR_HEURE si le service a un quota de scènes.
-    `lire_carre`, `lire_vegetation`, `lire_vitesses` : (i, j) -> dict d'un
-    carré de la voiture, bâtiments et routes, arbres (vue3d/carres.py) ou
-    limitations de vitesse (vue3d/vitesses.py ; None : lues à Overpass, par
-    bloc gardé dans le cache) ;
+    `lire_carre`, `lire_vegetation`, `lire_vitesses`, `lire_signalisation` :
+    (i, j) -> dict d'un carré de la voiture, bâtiments et routes, arbres
+    (vue3d/carres.py), limitations de vitesse (vue3d/vitesses.py) ou stops,
+    cédez-le-passage et feux (vue3d/signalisation.py) ; None pour ces deux
+    derniers : lus à Overpass, par bloc gardé dans le cache ;
     `quota_carres` : carrés neufs par heure et par adresse IP, 0 sans limite ;
     None : CARRES_PAR_HEURE si le service a un quota de scènes."""
     app = Flask(__name__, static_folder=os.path.join(ICI, "static"), static_url_path="/static")
@@ -174,6 +178,13 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
         def lire_vitesses(i, j):
             return fetch_vitesses(i, j, blocs)
     vitesses = Carres(cache.dossier, lire=lire_vitesses, couche="vitesses-", version=VITESSES_VERSION)
+    if lire_signalisation is None:
+        blocs_signaux = BlocsSignaux(cache.dossier)
+
+        def lire_signalisation(i, j):
+            return fetch_signalisation(i, j, blocs_signaux)
+    signalisation = Carres(cache.dossier, lire=lire_signalisation, couche="signalisation-",
+                           version=SIGNALISATION_VERSION)
     if quota_carres is None:
         quota_carres = CARRES_PAR_HEURE if quota else 0
     quota_carres = Quota(quota_carres) if quota_carres else None
@@ -184,7 +195,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
 
     app.register_blueprint(routes_scene.blueprint(cache, construire, quota))
     app.register_blueprint(routes_voiture.blueprint(
-        carres, vegetations, vitesses, quota_carres, blocs_bornes, quota_blocs,
+        carres, vegetations, vitesses, signalisation, quota_carres, blocs_bornes, quota_blocs,
         signalements, quota_signalements))
     app.register_blueprint(routes_service.blueprint(cache, stock, quota_tuiles))
     return app

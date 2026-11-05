@@ -602,7 +602,11 @@ Chaque premier chargement construit la scène, en quelques secondes.
   agglomération, 80 sur une route, 110 à chaussées séparées, 130 sur
   autoroute — faute de donnée (panneau gris, « estimée ») ; aucune base
   nationale des limitations n'est publiée. Au-delà, la vitesse passe au
-  rouge. Pour l'essayer sans rouler : `/voiture?simu=1&lat=…&lon=…&vitesse=90`, une
+  rouge. Les stops, cédez-le-passage et feux saisis dans OpenStreetMap se
+  dressent au bord de la route, face à qui arrive, et le prochain de la
+  route prévue s'annonce à côté de la limitation, avec sa distance, 8 s
+  avant d'y être (150 m au moins) ; un panneau qui n'y est pas saisi n'est
+  pas annoncé. Pour l'essayer sans rouler : `/voiture?simu=1&lat=…&lon=…&vitesse=90`, une
   conduite simulée (`vitesse=limite` : aux limitations) ; avec `&vers=lat,lon`, elle va quelque part, par le plus
   court chemin, l'itinéraire tracé en bleu et la distance qui reste affichée.
 - **Sur téléphone, sur l'écran d'une voiture, ou en plein écran** (le bouton
@@ -661,6 +665,7 @@ Toutes servies sans clé par la Géoplateforme de l'IGN, sous
 | BD TOPO, hydrographie | WFS `surface_hydrographique`, `troncon_hydrographique` | Étendues et cours d'eau |
 | OpenStreetMap, `building:part` | API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
 | OpenStreetMap, `maxspeed` | API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les limitations de vitesse de la vue en voiture, rapprochées des tronçons BD TOPO |
+| OpenStreetMap, `highway=stop`, `give_way`, `traffic_signals` | API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les stops, cédez-le-passage et feux de la vue en voiture, rattachés aux tronçons BD TOPO |
 | Parcellaire Express | WFS `CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle` | Les parcelles des ventes DVF, au clic |
 
 Hors du territoire, en mer et à l'étranger, où le RGE ALTI n'a pas
@@ -1019,8 +1024,8 @@ en tire son favicon et son icône d'écran d'accueil (`vue3d/static/`).
 ## Licence
 
 Code sous licence [MIT](LICENSE). Les données affichées appartiennent à l'IGN et
-sont diffusées sous Licence Ouverte Etalab 2.0 ; les parties de monuments et
-les limitations de vitesse viennent d'OpenStreetMap (© contributeurs OSM, ODbL). Le dépôt embarque un
+sont diffusées sous Licence Ouverte Etalab 2.0 ; les parties de monuments, les
+limitations de vitesse et la signalisation de la voiture viennent d'OpenStreetMap (© contributeurs OSM, ODbL). Le dépôt embarque un
 extrait OpenStreetMap pour les lieux d'exemple ci-dessus, sous ODbL et non sous
 MIT : voir [vue3d/donnees/LICENCE.md](vue3d/donnees/LICENCE.md).
 

@@ -15,6 +15,20 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Les stops, cédez-le-passage et feux dans la vue en voiture** (4 novembre
+  2026), d'OpenStreetMap : chacun se dresse au bord droit de la route, face à
+  qui arrive, et le prochain de la route prévue s'annonce à côté de la
+  limitation, avec sa distance, 8 s avant d'y être et 150 m au moins. Chaque
+  panneau est rattaché au tronçon BD TOPO le plus proche (0,8 m d'écart en
+  médiane sur Rousset, Aix, Montélimar et Gordes) et au sens où il
+  s'applique ; sans sens saisi (20 sur 65 à Rousset), vers le carrefour le
+  plus proche, règle qui retrouve 97 % des sens saisis ; un feu posé au
+  carrefour même vaut pour chaque tronçon qui y arrive, à 14 m du nœud.
+  Ce qui n'est pas saisi dans OpenStreetMap n'est pas annoncé. Couche à part
+  (`/api/signalisation`), lue à Overpass par bloc de 2 km gardé pour
+  toujours, avec les places des limitations : un bloc neuf prend de 30 s à
+  1 min 30. Le quota des carrés neufs par heure passe de 3 000 à 6 500,
+  quatre couches par carré.
 - **Partager une vue** (3 novembre 2026) : un bouton sur la vue donne un
   lien qui la rouvre telle quelle — la caméra, le jour et l'heure du soleil,
   les couches allumées ou éteintes (`vue=`, `jour=`, `heure=`, `couches=`).

@@ -61,8 +61,9 @@ VITESSES_VERSION = 1
 # admis : une voie au bord d'un bloc sert aux tronçons du bloc voisin.
 BLOC_M = 2000
 BLOC_VERSION = 1
-# Deux requêtes Overpass à la fois au plus, pour tout le service : la
-# politique des instances publiques, deux places par adresse.
+# Deux requêtes Overpass à la fois au plus, pour tout le service, la
+# signalisation comprise (vue3d/signalisation.py) : la politique des
+# instances publiques, deux places par adresse.
 _PLACES_OVERPASS = threading.BoundedSemaphore(2)
 
 # Le rapprochement d'un tronçon BD TOPO et d'une voie OSM : un point tous les
@@ -127,7 +128,7 @@ def _requete_bloc(bi, bj):
             'out tags geom;')
 
 
-def _overpass(requete):
+def overpass(requete):
     """Réponse JSON d'Overpass, en essayant chaque instance.
 
     Raises:
@@ -185,7 +186,7 @@ class BlocsOsm:
 
     def __init__(self, dossier, lire=None):
         self.dossier = os.path.join(dossier, "carres", f"osm-vitesses-v{BLOC_VERSION}")
-        self.lire = lire or (lambda bi, bj: _overpass(_requete_bloc(bi, bj)))
+        self.lire = lire or (lambda bi, bj: overpass(_requete_bloc(bi, bj)))
         self._memoire = collections.OrderedDict()
         self._verrous = {}
         self._verrou = threading.Lock()

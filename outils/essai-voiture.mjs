@@ -30,9 +30,10 @@ const carres = { lus: 0, caches: 0, refus: 0 };
 // carré plus tard. Il n'est une erreur que s'il n'a jamais été rattrapé.
 const passagers = new Map();          // URL → rattrapée
 const tuiles = { absentes: 0 };
-// Les limitations (/api/vitesses) viennent d'Overpass, en panne par
-// épisodes : un refus du serveur y est compté, pas tenu pour une erreur.
-const vitesses = { lus: 0, refus: 0 };
+// Les limitations (/api/vitesses) et la signalisation (/api/signalisation)
+// viennent d'Overpass, en panne par épisodes : un refus du serveur y est
+// compté, pas tenu pour une erreur.
+const vitesses = { lus: 0, refus: 0 }, signalisation = { lus: 0, refus: 0 };
 page.on('pageerror', e => erreurs.push('pageerror: ' + e.message));
 page.on('console', m => {
     if (m.type() !== 'error') return;
@@ -49,6 +50,10 @@ page.on('response', r => {
     const u = r.url();
     if (/\/api\/vitesses\?/.test(u)) {
         if (r.status() === 200) vitesses.lus++; else if (r.status() !== 304) vitesses.refus++;
+        return;
+    }
+    if (/\/api\/signalisation\?/.test(u)) {
+        if (r.status() === 200) signalisation.lus++; else if (r.status() !== 304) signalisation.refus++;
         return;
     }
     if (/\/api\/(carre|vegetation)\?/.test(u)) {
@@ -97,6 +102,8 @@ for (let t = 5; t <= duree; t += 5) {
             pret: document.getElementById('etat-carres').textContent,
             limite: document.getElementById('limite').hidden ? '' :
                 `${document.getElementById('limite-v').textContent} (${document.getElementById('limite-source').textContent})`,
+            signal: document.getElementById('signal').hidden ? '' :
+                `${document.getElementById('signal').className} à ${document.getElementById('signal-d').textContent}`,
             images: window.__images, budget: V.budget,
         };
     });
@@ -108,6 +115,7 @@ for (let t = 5; t <= duree; t += 5) {
     console.log(`${String(t).padStart(3)} s  ${e.vue ? `${e.v.toFixed(0)} km/h` : 'sans position'}`
         + `  ${e.numero ? e.numero + ' ' : ''}${e.rue || '—'}${e.horsRoute ? ' (hors route)' : ''}`
         + `${e.limite ? `  · limite ${e.limite}` : ''}`
+        + `${e.signal ? `  · ${e.signal}` : ''}`
         + `  à ${Math.round(parcouru)} m du départ`
         + `  · chemin ${e.chemin ? Math.round(e.chemin.longueur) + ' m ' + e.chemin.fin : '—'}`
         + `  · carrés ${e.lus} lus, ${e.construits} construits, ${e.montres} montrés (${e.batiments} bât.)`
@@ -147,6 +155,13 @@ const limites = await page.evaluate(() => {
 });
 console.log(`\nLimitations : ${vitesses.lus} carrés lus, ${vitesses.refus} refusés (Overpass) ; ${limites.troncons} tronçons, `
     + `sens par sens ${limites.osm} OpenStreetMap, ${limites.estimees} estimées, ${limites.inconnues} inconnues`);
+const panneaux = await page.evaluate(() => {
+    const n = {};
+    for (const l of window.__voiture.signaux.values()) for (const e of l) n[e.type] = (n[e.type] || 0) + 1;
+    return n;
+});
+console.log(`Signalisation : ${signalisation.lus} carrés lus, ${signalisation.refus} refusés (Overpass) ; `
+    + (Object.entries(panneaux).map(([t, k]) => `${k} ${t}`).join(', ') || 'aucun panneau'));
 console.log(`\nCarrés : ${carres.lus} lus au serveur, ${carres.caches} du cache du navigateur, ${carres.refus} refusés ; `
     + `tuiles absentes : ${tuiles.absentes}. Capture : ${sortie}`);
 const rattrapes = [...passagers.values()].filter(Boolean).length;

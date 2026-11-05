@@ -30,7 +30,7 @@ const PONT_EPAISSEUR_M = 1.4, PARAPET_M = 0.9, PILE_ECART_M = 45, PILE_VIDE_M = 
 // au plus), dans un mur qui la déborde de 2 m et descend 2 m sous la route.
 const TETE_DEBORD_M = 1.25, TETE_PIEDROIT_M = 3.5, TETE_FLECHE_M = 2.5, TETE_MUR_M = 2, TETE_ENFOUIE_M = 2;
 const COULEUR_NOIR_TUNNEL = new THREE.Color(0x141618);
-const LARGEUR_PAR_NATURE = {
+export const LARGEUR_PAR_NATURE = {
     'Type autoroutier': 7, 'Route à 1 chaussée': 3, 'Route à 2 chaussées': 5.5, 'Rond-point': 4, 'Bretelle': 4,
     'Route empierrée': 3, 'Chemin': 2.5,
 };

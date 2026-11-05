@@ -8,6 +8,8 @@
     GET /api/vegetation?i=…&j=…    les arbres du même carré, découpés sur le MNH
     GET /api/vitesses?i=…&j=…      les limitations de vitesse de ses tronçons :
                                    OpenStreetMap, sinon la règle générale
+    GET /api/signalisation?i=…&j=… ses stops, cédez-le-passage et feux,
+                                   d'OpenStreetMap, rattachés à ses tronçons
     GET /api/bornes-bloc?i=…&j=…   les bornes de recharge d'un bloc de 4 km,
                                    relues chaque semaine
     POST /api/signalement          le bouton ⚠ : sa capture et l'état du sol,
@@ -26,11 +28,11 @@ from ..signalements import SIGNALEMENT_OCTETS_MAX, SignalementInvalide, Signalem
 from .reponses import erreur, servir_gzip
 
 
-def blueprint(carres, vegetations, vitesses, quota_carres, blocs_bornes, quota_blocs,
+def blueprint(carres, vegetations, vitesses, signalisation, quota_carres, blocs_bornes, quota_blocs,
               signalements, quota_signalements):
-    """Les routes de la voiture. `carres`, `vegetations`, `vitesses` : les
-    stocks de ses carrés (vue3d/carres.py), comptés ensemble par
-    `quota_carres` ; `blocs_bornes` et `quota_blocs` : les blocs de bornes
+    """Les routes de la voiture. `carres`, `vegetations`, `vitesses`,
+    `signalisation` : les stocks de ses carrés (vue3d/carres.py), comptés
+    ensemble par `quota_carres` ; `blocs_bornes` et `quota_blocs` : les blocs de bornes
     (vue3d/bornes.py) ; `signalements` et `quota_signalements` : le bouton ⚠
     (vue3d/signalements.py). Un quota None ne limite rien."""
     bp = Blueprint("voiture", __name__)
@@ -58,6 +60,12 @@ def blueprint(carres, vegetations, vitesses, quota_carres, blocs_bornes, quota_b
         """Les limitations de vitesse des tronçons d'un carré de la voiture :
         une couche à part, lue à Overpass par bloc de 2 km."""
         return servir_carre(vitesses, "vitesses")
+
+    @bp.get("/api/signalisation")
+    def panneaux():
+        """Les stops, cédez-le-passage et feux des tronçons d'un carré de la
+        voiture : une couche à part, lue à Overpass par bloc de 2 km."""
+        return servir_carre(signalisation, "signalisation")
 
     def servir_carre(stock, couche):
         try:

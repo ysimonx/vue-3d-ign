@@ -31,12 +31,13 @@ html, body { margin:0; height:100%; overflow:hidden; background:#0e1116; color:v
 #compteur b { font-size:42px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
 #compteur small { font-size:12px; color:var(--muted); margin-top:2px; }
 #compteur.exces b { color:#ff5a4e; }
-/* La limitation de la route, en panneau, à droite du compteur ; dessous,
-   d'où elle vient : OpenStreetMap, ou estimée (la règle générale). */
-#limite { position:fixed; left:calc(max(14px, env(safe-area-inset-left)) + 120px);
-          bottom:max(14px, env(safe-area-inset-bottom)); display:flex; flex-direction:column;
-          align-items:center; gap:4px; }
-#limite[hidden] { display:none; }
+/* À droite du compteur : la limitation de la route, en panneau, et dessous
+   d'où elle vient (OpenStreetMap, ou estimée : la règle générale) ; puis le
+   prochain stop, cédez-le-passage ou feu de la route prévue, et sa distance. */
+#panneaux { position:fixed; left:calc(max(14px, env(safe-area-inset-left)) + 120px);
+            bottom:max(14px, env(safe-area-inset-bottom)); display:flex; align-items:flex-end; gap:10px; }
+#limite, #signal { display:flex; flex-direction:column; align-items:center; gap:4px; }
+#limite[hidden], #signal[hidden] { display:none; }
 #limite .panneau { width:68px; height:68px; box-sizing:border-box; border-radius:50%; background:#fff;
                    border:7px solid #d0021b; display:flex; align-items:center; justify-content:center;
                    box-shadow:0 4px 14px rgba(0,0,0,.35); }
@@ -46,6 +47,12 @@ html, body { margin:0; height:100%; overflow:hidden; background:#0e1116; color:v
                 padding:1px 6px; border-radius:6px; white-space:nowrap; }
 #limite.estimee .panneau { border-color:#8e959c; border-style:dashed; }
 #limite.estimee b { color:#5b6168; }
+#signal svg { width:68px; height:68px; filter:drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+#signal svg g { display:none; }
+#signal.stop svg .stop, #signal.cedez svg .cedez, #signal.feu svg .feu { display:inline; }
+#signal small { font:700 13px/1.2 system-ui, sans-serif; color:var(--text); background:var(--panel);
+                border:1px solid var(--line); padding:1px 7px; border-radius:6px; white-space:nowrap;
+                font-variant-numeric:tabular-nums; }
 #etat { position:fixed; left:max(14px, env(safe-area-inset-left)); top:max(12px, env(safe-area-inset-top));
         font-size:11px; color:var(--muted); padding:7px 10px; line-height:1.45; max-width:230px; }
 #etat b { color:var(--text); font-weight:600; }
@@ -81,8 +88,9 @@ html, body { margin:0; height:100%; overflow:hidden; background:#0e1116; color:v
     #compteur { width:88px; height:88px; } #compteur b { font-size:32px; }
     #b-signaler { left:calc(max(14px, env(safe-area-inset-left)) + 17px);
                   bottom:calc(max(14px, env(safe-area-inset-bottom)) + 98px); }
-    #limite { left:calc(max(14px, env(safe-area-inset-left)) + 98px); }
+    #panneaux { left:calc(max(14px, env(safe-area-inset-left)) + 98px); }
     #limite .panneau { width:56px; height:56px; border-width:6px; } #limite b { font-size:22px; }
+    #signal svg { width:56px; height:56px; }
 }
 #annonce { position:fixed; top:calc(max(12px, env(safe-area-inset-top)) + 64px); left:50%;
            transform:translateX(-50%); padding:8px 14px; font-size:13px; max-width:calc(100vw - 32px);
@@ -119,7 +127,7 @@ html, body { margin:0; height:100%; overflow:hidden; background:#0e1116; color:v
 @media (max-width:560px) {
     #etat { display:none; }
     /* Au-dessus du compteur : à sa droite, les crédits. */
-    #limite { left:max(24px, calc(env(safe-area-inset-left) + 10px)); bottom:calc(max(14px, env(safe-area-inset-bottom)) + 118px); }
+    #panneaux { left:max(24px, calc(env(safe-area-inset-left) + 10px)); bottom:calc(max(14px, env(safe-area-inset-bottom)) + 118px); }
     /* Au-dessus du panneau de la limitation, lui-même au-dessus du compteur. */
     #b-signaler { left:max(31px, calc(env(safe-area-inset-left) + 17px)); bottom:calc(max(14px, env(safe-area-inset-bottom)) + 214px); }
     #credits { left:130px; right:84px; transform:none; white-space:normal; text-align:center; font-size:9px; }

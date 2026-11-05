@@ -19,6 +19,7 @@ import './carres/routes.js';
 import './carres/batiments.js';
 import './carres/arbres.js';
 import './route/limitations.js';
+import './route/signalisation.js';
 import './carres/selection.js';
 import { HAUTEUR, majBoutonVue } from './interface/camera.js';
 import './interface/maquette.js';

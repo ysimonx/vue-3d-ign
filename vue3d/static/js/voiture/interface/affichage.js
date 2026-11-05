@@ -1,4 +1,4 @@
-// Le bandeau : rue, vitesse et limitation, GPS, carrés prêts.
+// Le bandeau : rue, vitesse et limitation, prochain panneau, GPS, carrés prêts.
 
 import { SIMU, VITESSE_SIMU_KMH, SIMU_LIMITE } from '../socle/parametres.js';
 import { voiture, VERS, itineraire } from '../socle/etat.js';
@@ -10,6 +10,7 @@ import { carres, carreDe } from '../carres/grille.js';
 import { pointDuChemin } from '../route/graphe.js';
 import { PAS_COULOIR_M } from '../carres/batiments.js';
 import { limiteDe } from '../route/limitations.js';
+import { prochainSignal } from '../route/signalisation.js';
 import { simu } from '../route/simulation.js';
 import { majAlerteSol } from './signalements.js';
 
@@ -63,6 +64,17 @@ function majLimite(v) {
     elLimite.title = limiteAffichee.osm ? 'Limitation relevée dans OpenStreetMap'
         : 'Limitation estimée : la règle générale du code de la route, faute de donnée OpenStreetMap ici';
 }
+const elSignal = document.getElementById('signal'), elSignalD = document.getElementById('signal-d');
+const NOMS_SIGNAUX = { stop: 'Stop', cedez: 'Cédez-le-passage', feu: 'Feu' };
+/** Le prochain stop, cédez-le-passage ou feu de la route prévue, et à combien de mètres. */
+function majSignal(v) {
+    const s = prochainSignal(v);
+    elSignal.hidden = !s;
+    if (!s) return;
+    elSignal.className = s.type;
+    elSignalD.textContent = `${Math.round(s.d / 10) * 10} m`;
+    elSignal.title = `${NOMS_SIGNAUX[s.type]} relevé dans OpenStreetMap ; un panneau qui n'y est pas saisi n'est pas annoncé`;
+}
 const elRond = document.querySelector('#etat .rond');
 let dernierHud = -Infinity;
 export function majHud(maintenant) {
@@ -71,6 +83,7 @@ export function majHud(maintenant) {
     const v = voiture;
     elVitesse.textContent = v.vue ? Math.round(v.v * 3.6) : '–';
     majLimite(v);
+    majSignal(v);
     const a = v.arete;
     if (a && !v.horsRoute) {
         const nom = nomDeVoie(a.nom);

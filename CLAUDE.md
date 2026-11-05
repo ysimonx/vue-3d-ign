@@ -37,7 +37,7 @@ node outils/film-voiture.mjs "http://localhost:8080/voiture?simu=1&lat=48.8532&l
 ```
 vue3d/
   app.py        l'application Flask et l'état du service (cache, stocks, quotas) ; quota de scènes neuves par IP (VUE3D_QUOTA, VUE3D_PROXY derrière un proxy)
-  routes/       les routes, un blueprint par page : scene.py (/, /api/scene, /api/ortho, /api/monuments, /api/ouvrages, /api/nuage, /api/piscines, /api/navires, /api/vehicules, /api/panneaux, /api/dpe, /api/dvf, /api/bornes, /api/solaire, /api/avancement, POST /api/reconstruire), voiture.py (/voiture, /api/carre, /api/vegetation, /api/vitesses, /api/bornes-bloc, POST /api/signalement), service.py (/api/tuile, /api/sante)
+  routes/       les routes, un blueprint par page : scene.py (/, /api/scene, /api/ortho, /api/monuments, /api/ouvrages, /api/nuage, /api/piscines, /api/navires, /api/vehicules, /api/panneaux, /api/dpe, /api/dvf, /api/bornes, /api/solaire, /api/avancement, POST /api/reconstruire), voiture.py (/voiture, /api/carre, /api/vegetation, /api/vitesses, /api/signalisation, /api/bornes-bloc, POST /api/signalement), service.py (/api/tuile, /api/sante)
   scene.py      assemblage d'une scène, cache disque par point arrondi
   couches.py    lecture WFS (bâtiments, végétation, BD Forêt, routes)
   batiments.py  bâtiments découpés sur l'emprise, en retrait du bord
@@ -62,6 +62,7 @@ vue3d/
   bornes.py     bornes de recharge (Base nationale des IRVE, API tabulaire de data.gouv.fr) réunies par station : couche à part, lue au clic seulement, datée ; pour la voiture, par bloc de 4 km (cache/carres/bornes-v1/), relu après 7 jours
   carres.py     carrés de 500 m de la vue en voiture, grille Lambert-93 : bâtiments, routes, et voies ferrées et passerelles au-dessus du sol (`ponts`), BD TOPO lus en EPSG:2154 (cache/carres/), sans scène ni MNH ; leurs arbres en couche à part (/api/vegetation, houppiers.py sur le MNH à 0,5 m) ; quota à part (CARRES_PAR_HEURE)
   vitesses.py   limitations de vitesse des carrés de la voiture (/api/vitesses) : maxspeed OpenStreetMap (Overpass, par bloc de 2 km gardé dans cache/carres/), rapproché des tronçons BD TOPO sens par sens, sinon règle générale marquée estimée ; couche à part
+  signalisation.py  stops, cédez-le-passage et feux de la voiture (/api/signalisation) : nœuds OpenStreetMap et leurs voies (Overpass, par bloc de 2 km gardé dans cache/carres/, mêmes places que vitesses.py), rattachés au tronçon BD TOPO et au sens ; sans sens saisi, vers le carrefour le plus proche ; un feu de carrefour sur chaque tronçon qui y arrive ; couche à part
   geopf.py      GET avec reprise sur la Géoplateforme ; 8 places pour tout le service, lectures groupées abandonnées au premier échec
   signalements.py  le bouton ⚠ de la vue en voiture : capture de l'écran et état du sol gardés dans cache/signalements/ (<id>.json, <id>.jpg), bornés en taille, en nombre et par adresse
   tuiles.py     tuiles WMTS de la page (ortho, plan) : stock servi, sinon redirection vers l'IGN ; une tuile refusée au navigateur est relue ici et gardée 90 jours (cache/tuiles/)
@@ -69,7 +70,7 @@ vue3d/
   static/css/scene.css   sa feuille de style
   static/js/scene/    ses modules ES (three.js r160), chargés par main.js dans l'ordre de leurs effets : socle/, terrain/, batiments/, couches/ (une couche par module), vegetation/, export/, interface/, geometrie/
   static/voiture.html la vue en voiture, page à part : un monde qui défile en Lambert-93, sol en tuiles WMTS sur le RGE ALTI, carrés chargés le long de la route prévue sur le graphe BD TOPO, voiture calée sur la route
-  static/css/voiture.css, static/js/voiture/   sa feuille de style et ses modules : socle/ (paramètres, Lambert-93, monde, rendu, état partagé), sol/, carres/, route/ (graphe, tunnels : l'altitude sous terre, voiture, limitations, simulation), couches/ (bornes), interface/
+  static/css/voiture.css, static/js/voiture/   sa feuille de style et ses modules : socle/ (paramètres, Lambert-93, monde, rendu, état partagé), sol/, carres/, route/ (graphe, tunnels : l'altitude sous terre, voiture, limitations, signalisation : panneaux au bord de la route et prochain annoncé, simulation), couches/ (bornes), interface/
   static/js/commun/   ce que les deux pages partagent : tuiles (fonds, RGE ALTI), règles des bâtiments et des arbres
   static/favicon.svg, favicon-32.png, apple-touch-icon.png   le logo de la page, tiré de docs/logo/
 docs/logo/      le logo « Tuile » : SVG avec et sans le nom (vectorisé), icône, aperçu GitHub

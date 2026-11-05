@@ -10,6 +10,7 @@ import { carres } from '../carres/grille.js';
 import { aretes } from '../route/graphe.js';
 import { statsPrecharge, majPrecharge, majSol, majManquees } from '../sol/sol.js';
 import { limites } from '../route/limitations.js';
+import { signaux, majSignalisation } from '../route/signalisation.js';
 import { budgetConstruction, durees, dureesArbres, majCarres } from '../carres/selection.js';
 import { majCamera } from './camera.js';
 import { rendre } from './maquette.js';
@@ -59,6 +60,7 @@ export function boucle(maintenant) {
     majVoiture(dt, maintenant);
     majCamera(dt, maintenant);
     majCarres(maintenant);
+    majSignalisation();
     majSol(maintenant);
     majPrecharge(maintenant);
     majManquees(maintenant);
@@ -74,6 +76,6 @@ export function boucle(maintenant) {
 
 // Pour les essais (outils/essai-voiture.mjs) : l'état, en lecture.
 window.__voiture = { voiture, carres, tuilesSol, aretes, camVue, camera, renderer, durees, dureesArbres, statsCache, simu,
-                     get itineraire() { return itineraire; }, partir: partirSimu, limites,
+                     get itineraire() { return itineraire; }, partir: partirSimu, limites, signaux,
                      manquees, statsPrecharge, diagnostic: etatDiagnostic, signaler, blocsBornes,
                      get budget() { return budgetConstruction; } };

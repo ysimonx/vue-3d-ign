@@ -25,7 +25,16 @@
     </g></svg>
 </button>
 <div id="compteur" class="cartouche" aria-live="off"><b id="vitesse">–</b><small>km/h</small></div>
-<div id="limite" hidden><div class="panneau"><b id="limite-v"></b></div><small id="limite-source"></small></div>
+<div id="panneaux">
+    <div id="limite" hidden><div class="panneau"><b id="limite-v"></b></div><small id="limite-source"></small></div>
+    <div id="signal" hidden><svg viewBox="0 0 68 68" aria-hidden="true">
+        <g class="stop"><polygon points="23.4,6 44.6,6 62,23.4 62,44.6 44.6,62 23.4,62 6,44.6 6,23.4" fill="#c8102e" stroke="#fff" stroke-width="3"/>
+            <text x="34" y="35" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-size="16" font-weight="800" font-family="system-ui, sans-serif">STOP</text></g>
+        <g class="cedez"><polygon points="5,10 63,10 34,61" fill="#fff" stroke="#c8102e" stroke-width="7" stroke-linejoin="round"/></g>
+        <g class="feu"><rect x="21" y="3" width="26" height="62" rx="6" fill="#1b1d20" stroke="#5b6168" stroke-width="2"/>
+            <circle cx="34" cy="16" r="7" fill="#ff3b30"/><circle cx="34" cy="34" r="7" fill="#ffb000"/><circle cx="34" cy="52" r="7" fill="#2fd158"/></g>
+    </svg><small id="signal-d"></small></div>
+</div>
 <button type="button" id="b-signaler" class="bouton" aria-label="Signaler un défaut de l'affichage"
         title="Signaler un défaut de l'affichage : une capture de l'écran, la position et l'état du sol partent au serveur, pour l'analyse">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5L2.5 20h19z"/><path d="M12 9.5v5M12 17.4v.1"/></svg></button>
@@ -50,7 +59,7 @@
     <div id="accueil-texte"></div>
     <div class="actions" id="accueil-actions"></div>
 </div></div>
-<div id="credits">© IGN : BD TOPO, BD ORTHO, Plan IGN, RGE ALTI, LiDAR HD, BD Forêt · limitations © OpenStreetMap (ODbL)</div>
+<div id="credits">© IGN : BD TOPO, BD ORTHO, Plan IGN, RGE ALTI, LiDAR HD, BD Forêt · limitations et panneaux © OpenStreetMap (ODbL)</div>
 
 <script type="importmap">
 {

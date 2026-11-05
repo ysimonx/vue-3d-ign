@@ -90,13 +90,14 @@ CARRE_M = 500
 # (y ≈ 6 040 km) à Dunkerque (y ≈ 7 110 km), avec une marge.
 CARRES_I = (0, 1_300_000 // CARRE_M)
 CARRES_J = (6_000_000 // CARRE_M, 7_200_000 // CARRE_M)
-# Carrés neufs par heure et par adresse IP, bâtiments et arbres comptés
-# chacun, quand le service a un quota de scènes (VUE3D_QUOTA). Mesuré en
-# conduite simulée sur l'A7 à 130 km/h (outils/essai-voiture.mjs) : 6,3
-# carrés de bâtiments et ~6 d'arbres par kilomètre, soit ~1 600 par heure ;
-# le double, pour une heure d'autoroute sans refus. Un carré déjà lu ne
-# compte pas.
-CARRES_PAR_HEURE = 3000
+# Carrés neufs par heure et par adresse IP, chaque couche comptée à part
+# (bâtiments, arbres, limitations, signalisation), quand le service a un
+# quota de scènes (VUE3D_QUOTA). Mesuré en conduite simulée sur l'A7 à
+# 130 km/h (outils/essai-voiture.mjs) : 6,3 carrés de bâtiments et ~6
+# d'arbres par kilomètre ; les limitations et la signalisation suivent les
+# bâtiments, soit ~3 200 carrés par heure ; le double, pour une heure
+# d'autoroute sans refus. Un carré déjà lu ne compte pas.
+CARRES_PAR_HEURE = 6500
 # Ce qu'une voiture ne prend pas : le graphe de la page n'y passerait pas.
 # Les galeries marchandes sont des « Route à 1 chaussée » dont l'accès est
 # « Physiquement impossible » (Galerie de la Madeleine, Galerie des Champs) :

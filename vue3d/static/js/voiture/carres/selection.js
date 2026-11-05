@@ -14,6 +14,7 @@ import {
     arbresActifs, chargerVegetation, construireVegetation, defaireVegetation,
 } from './arbres.js';
 import { VIT_PARALLELE, vitEnVol, chargerVitesses } from '../route/limitations.js';
+import { SIG_PARALLELE, sigEnVol, chargerSignalisation } from '../route/signalisation.js';
 
 let derniereSelectionCarres = -Infinity;
 
@@ -108,6 +109,12 @@ export function majCarres(maintenant) {
             if (vitEnVol >= VIT_PARALLELE) break;
             const c = carre(i, j);
             if (c.vit.etat === 'neuf' || (c.vit.etat === 'erreur' && maintenant >= c.vit.reessai)) chargerVitesses(c);
+        }
+        // Les stops, cédez-le-passage et feux, de même (vue3d/signalisation.py).
+        for (const { i, j } of voulus) {
+            if (sigEnVol >= SIG_PARALLELE) break;
+            const c = carre(i, j);
+            if (c.sig.etat === 'neuf' || (c.sig.etat === 'erreur' && maintenant >= c.sig.reessai)) chargerSignalisation(c);
         }
         const px = voiture.vue ? voiture.x : voiture.attendu.x, py = voiture.vue ? voiture.y : voiture.attendu.y;
         for (const c of [...carres.values()]) {
