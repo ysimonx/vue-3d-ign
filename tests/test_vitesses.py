@@ -7,7 +7,7 @@ import pytest
 import requests
 
 from vue3d import app as module_app
-from vue3d import carres, vitesses
+from vue3d import carres, monuments, vitesses
 from vue3d.vitesses import BlocsOsm, Rapprocheur, regle_generale, valeur_maxspeed, vitesses_du_carre
 
 # Le carré de Gordes, comme tests/test_carres.py.
@@ -150,6 +150,33 @@ def test_un_carre_de_vitesses_se_lit_ou_echoue_entier(monkeypatch):
         vitesses.fetch_vitesses(I, J, EnPanne())
     with pytest.raises(carres.CarreHorsEmprise):
         vitesses.fetch_vitesses(-5, J, Blocs())
+
+
+def test_overpass_sature_les_carres_de_trop_n_attendent_pas(tmp_path):
+    """Limites et signalisation partagent les places des monuments : sans
+    place, un carré neuf est refusé aussitôt, un carré écrit reste servi."""
+    lus = []
+
+    def lire(i, j):
+        lus.append((i, j))
+        return {"carre": [i, j], "vitesses": [], "signaux": []}
+
+    client = module_app.creer_app(str(tmp_path), lire_carre=lambda i, j: {"carre": [i, j]},
+                                  lire_vitesses=lire, lire_signalisation=lire).test_client()
+    assert client.get(f"/api/vitesses?i={I}&j={J}").status_code == 200
+    places = [monuments.attente_overpass(RuntimeError) for _ in range(monuments.OVERPASS_ATTENTES)]
+    for place in places:
+        place.__enter__()
+    try:
+        for route in ("vitesses", "signalisation"):
+            r = client.get(f"/api/{route}?i={I + 1}&j={J}")
+            assert r.status_code == 503 and r.headers["Retry-After"] == "10"
+        assert client.get(f"/api/vitesses?i={I}&j={J}").status_code == 200
+        assert lus == [(I, J)]
+    finally:
+        for place in places:
+            place.__exit__(None, None, None)
+    assert client.get(f"/api/vitesses?i={I + 1}&j={J}").status_code == 200
 
 
 def test_les_vitesses_ont_leur_route_et_leur_dossier(tmp_path):

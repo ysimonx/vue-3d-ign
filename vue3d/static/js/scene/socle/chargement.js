@@ -197,7 +197,12 @@ function partConstruite(etape, total) {
     if (etape <= lectures) return PART_LECTURES * Math.max(etape - 1, 0) / lectures;
     return etape === lectures + 1 ? PART_LECTURES : PART_LECTURES + PART_TOITURES;
 }
+// Une question à la fois : posées sans attendre la réponse, elles s'empilaient
+// quand le service était saturé (240 en attente le 6 novembre 2026).
+let suiviEnVol = false;
 const suiviConstruction = setInterval(async () => {
+    if (suiviEnVol) return;
+    suiviEnVol = true;
     try {
         const r = await fetch(`api/avancement?${REQUETE}`, { cache: 'no-store' });
         const a = r.ok ? await r.json() : null;
@@ -205,6 +210,10 @@ const suiviConstruction = setInterval(async () => {
         attente.innerHTML = '<div>Construction de la scène…<br><small>'
             + `étape ${a.etape} sur ${a.total} : ${a.libelle} · ${a.secondes} s</small>`
             + `<div class="avancement"><i style="width:${Math.round(100 * partConstruite(a.etape, a.total))}%"></i></div></div>`;
-    } catch (e) { /* réseau coupé : le message d'attente d'origine reste */ }
+    } catch (e) {
+        /* réseau coupé : le message d'attente d'origine reste */
+    } finally {
+        suiviEnVol = false;
+    }
 }, 500);
 chargementArtefact.finally(() => clearInterval(suiviConstruction));

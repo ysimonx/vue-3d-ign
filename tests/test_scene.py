@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from vue3d import scene
+from vue3d import monuments, scene
 from vue3d.releves import (MARGE_NAVIRES_PX, MARGE_PISCINES_PX, MARGE_VEHICULES_PX, emprise_image,
                            rectangle)
 from vue3d.scene import Cache, HorsEmprise, SceneIncomplete, emprise, point_normalise
@@ -322,6 +322,40 @@ def test_une_panne_osm_ne_met_rien_en_cache_et_epargne_la_scene(tmp_path):
     en_panne[0] = False
     cache.obtenir_monuments(48.8049, 2.1204, construire=_scene_avec_un_batiment)
     assert os.path.exists(cache.chemin(48.8049, 2.1204, scene.NOM_MONUMENTS))
+
+
+def test_trois_fils_au_plus_attendent_overpass(tmp_path):
+    """Overpass saturé : la demande de trop est refusée aussitôt au lieu de
+    prendre un fil de plus au service, et une couche écrite reste servie."""
+    entrees = threading.Semaphore(0)
+    reponse = threading.Event()
+
+    def lire(*bbox):
+        entrees.release()
+        assert reponse.wait(10)
+        return {"elements": []}
+
+    cache = Cache(str(tmp_path), lire_monuments=lambda *bbox: {"elements": []})
+    ecrite = cache.obtenir_monuments(48.8, 2.1, construire=_scene_avec_un_batiment)
+    cache.lire_monuments = lire
+    fils = [threading.Thread(target=cache.obtenir_monuments, args=(48.81 + k / 100, 2.1),
+                             kwargs={"construire": _scene_avec_un_batiment})
+            for k in range(monuments.OVERPASS_ATTENTES)]
+    for fil in fils:
+        fil.start()
+    try:
+        for _ in fils:
+            assert entrees.acquire(timeout=10)
+        with pytest.raises(scene.MonumentsIndisponibles, match="Overpass tarde"):
+            cache.obtenir_monuments(48.9, 2.1, construire=_scene_avec_un_batiment)
+        assert not os.path.exists(cache.chemin(48.9, 2.1, scene.NOM_MONUMENTS))
+        assert cache.obtenir_monuments(48.8, 2.1, construire=_scene_avec_un_batiment) == ecrite
+    finally:
+        reponse.set()
+        for fil in fils:
+            fil.join(10)
+    cache.obtenir_monuments(48.9, 2.1, construire=_scene_avec_un_batiment)
+    assert os.path.exists(cache.chemin(48.9, 2.1, scene.NOM_MONUMENTS))
 
 
 def test_overpass_repond_pendant_que_la_scene_se_construit(tmp_path):

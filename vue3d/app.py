@@ -19,6 +19,7 @@ heure (429 au-delà), et pas plus de CARRES_PAR_HEURE carrés neufs ; derrière
 un proxy, `VUE3D_PROXY` dit combien croire de `X-Forwarded-For`.
 """
 
+import functools
 import logging
 import math
 import os
@@ -29,10 +30,11 @@ from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .bornes import BLOCS_PAR_HEURE, BlocsBornes, fetch_bornes
-from .carres import CARRES_PAR_HEURE, VEGETATION_VERSION, Carres, fetch_carre, fetch_vegetation
+from .carres import (CARRES_PAR_HEURE, VEGETATION_VERSION, CarreIndisponible, Carres, fetch_carre,
+                     fetch_vegetation)
 from .dpe import fetch_dpe
 from .dvf import fetch_dvf
-from .monuments import fetch_monuments
+from .monuments import attente_overpass, fetch_monuments
 from .nuage import fetch_nuage
 from .ouvrages import fetch_ouvrages
 from .panneaux import lecteur as lecteur_panneaux
@@ -174,19 +176,21 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
     carres = Carres(cache.dossier, lire=lire_carre)
     vegetations = Carres(cache.dossier, lire=lire_vegetation, couche="vegetation-",
                          version=VEGETATION_VERSION)
+    attente = functools.partial(attente_overpass, CarreIndisponible)
     if lire_vitesses is None:
         blocs = BlocsOsm(cache.dossier)
 
         def lire_vitesses(i, j):
             return fetch_vitesses(i, j, blocs)
-    vitesses = Carres(cache.dossier, lire=lire_vitesses, couche="vitesses-", version=VITESSES_VERSION)
+    vitesses = Carres(cache.dossier, lire=lire_vitesses, couche="vitesses-", version=VITESSES_VERSION,
+                      attente=attente)
     if lire_signalisation is None:
         blocs_signaux = BlocsSignaux(cache.dossier)
 
         def lire_signalisation(i, j):
             return fetch_signalisation(i, j, blocs_signaux)
     signalisation = Carres(cache.dossier, lire=lire_signalisation, couche="signalisation-",
-                           version=SIGNALISATION_VERSION)
+                           version=SIGNALISATION_VERSION, attente=attente)
     if quota_carres is None:
         quota_carres = CARRES_PAR_HEURE if quota else 0
     quota_carres = Quota(quota_carres) if quota_carres else None

@@ -42,12 +42,14 @@ trou entre l'îlot abbatial (94 % et plus) et le village (moins de 30 %) s'est
   flèche, qui ne recouvrent rien.
 """
 
+import contextlib
 import functools
 import gzip
 import json
 import logging
 import math
 import os
+import threading
 import time
 
 import numpy as np
@@ -68,6 +70,16 @@ OVERPASS_URLS = [
 OVERPASS_TOURS = 2
 OVERPASS_ATTENTE_S = 3
 OVERPASS_TIMEOUT_S = 90
+# Fils du service qui peuvent attendre Overpass à la fois, monuments, limites
+# de vitesse et signalisation réunis. Le service n'en a que huit : le 6
+# novembre 2026, Overpass saturé, huit /api/monuments d'un seul visiteur, qui
+# déplaçait le point, les ont tous tenus, jusqu'à 16 min, et les tuiles, la
+# page et /api/sante ont attendu derrière eux jusqu'à 224 s. Sur douze jours
+# de journal, 2 156 s à huit fils pleins, dont 1 865 avec quatre fils ou plus
+# chez Overpass ; il en tient trois au plus 91,5 % du temps où une requête
+# dure, et cette borne n'aurait laissé que 331 s pleines.
+OVERPASS_ATTENTES = 3
+_attentes_overpass = threading.BoundedSemaphore(OVERPASS_ATTENTES)
 # Réponses Overpass des lieux d'exemple du README, embarquées dans le dépôt
 # (outils/extraire_monuments_exemples.py, licence ODbL). Mesuré le 2026-09-28
 # sur les trois instances : de 0,6 s à plus de 100 s pour la même requête,
@@ -98,6 +110,24 @@ REMPLACEMENT_PART = 2 / 3
 ENVELOPPE_RECOUVREMENT = 0.8
 # Arrondi des coordonnées : 7 décimales, un centimètre.
 DECIMALES = 7
+
+
+@contextlib.contextmanager
+def attente_overpass(indisponible):
+    """Une des OVERPASS_ATTENTES places, le temps qu'un fil du service attend
+    Overpass, verrou de sa lecture compris : à prendre avant lui, ou la file
+    se reformerait derrière le verrou d'un même point.
+
+    Raises:
+        `indisponible`(message) sans attendre si toutes sont prises : rien
+        n'est écrit, les pages réessaient.
+    """
+    if not _attentes_overpass.acquire(blocking=False):
+        raise indisponible("Overpass tarde et d'autres demandes l'attendent déjà")
+    try:
+        yield
+    finally:
+        _attentes_overpass.release()
 
 
 def _requete(west, south, east, north):

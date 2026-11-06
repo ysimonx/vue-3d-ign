@@ -550,6 +550,15 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Overpass saturé ne fige plus le service** (6 novembre 2026) : trois fils
+  au plus l'attendent à la fois, monuments, limites de vitesse et signalisation
+  réunis. Une demande de plus reçoit un 503 tout de suite, et les pages
+  réessaient, au lieu de prendre un des huit fils du service. Ce jour-là, huit
+  `/api/monuments` d'un seul visiteur les tenaient tous, jusqu'à 16 min : les
+  tuiles et la page attendaient derrière eux jusqu'à 224 s. Sur douze jours,
+  cette borne aurait ramené 2 156 s à huit fils pleins à 331 s. La page ne
+  demande plus aussi l'avancement de la scène qu'une fois à la fois : 240 de
+  ces demandes attendaient en même temps.
 - **Les ponts effondrés de la vue en voiture** (24 octobre 2026), signalé
   depuis une Tesla : la BD TOPO pose parfois l'intérieur d'un tablier sur la
   route qu'il franchit. Le pont de la route de Simiane au-dessus de la D6 est

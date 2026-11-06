@@ -54,6 +54,7 @@ carré (`origine`, en mètres Lambert-93) :
   passerelles d'un kilomètre du 13e arrondissement.
 """
 
+import contextlib
 import gzip
 import json
 import math
@@ -479,12 +480,15 @@ class Carres:
     Hors du dossier des versions de scène : un carré ne dépend pas de
     SCENE_VERSION. `lire` : (i, j) -> dict, injectable pour les tests ;
     `couche` : préfixe du dossier, vide pour les bâtiments et les routes
-    (`carres/v1`), « vegetation- » pour les arbres.
+    (`carres/v1`), « vegetation- » pour les arbres ; `attente` : garde de la
+    lecture, prise avant son verrou (monuments.attente_overpass).
     """
 
-    def __init__(self, dossier, lire=fetch_carre, couche="", version=CARRES_VERSION):
+    def __init__(self, dossier, lire=fetch_carre, couche="", version=CARRES_VERSION,
+                 attente=contextlib.nullcontext):
         self.dossier = os.path.join(dossier, "carres", f"{couche}v{version}")
         self.lire = lire
+        self.attente = attente
         self._verrous = {}
         self._verrou_global = threading.Lock()
 
@@ -509,7 +513,7 @@ class Carres:
         chemin = self.chemin(i, j)
         if os.path.exists(chemin):
             return chemin
-        with self._verrou((i, j)):
+        with self.attente(), self._verrou((i, j)):
             if os.path.exists(chemin):
                 return chemin
             carre = self.lire(i, j)

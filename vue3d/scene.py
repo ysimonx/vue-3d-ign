@@ -79,7 +79,7 @@ from .geopf import Groupe
 from .lignes import COUCHE_LIGNES, COUCHE_PYLONES, lignes_pour_emprise
 from .houppiers import houppiers_pour_emprise
 from .mnh import dimensions_grille, fetch_mnh_grid, fetch_sol_grid
-from .monuments import fetch_monuments, monuments_pour_emprise
+from .monuments import attente_overpass, fetch_monuments, monuments_pour_emprise
 from .ortho import fetch_exg_grid, fetch_ortho_jpeg
 from .nuage import (NUAGE_COTE_MAX_M, NUAGE_PROCHE_COTE_M, NUAGE_PROCHE_ZONE_MIN_M, NUAGE_VERSION, fetch_nuage,
                     nuage_pour_emprise)
@@ -1044,7 +1044,7 @@ class Cache:
                     lire, *emprise(lat, lon, zone))
 
     def _obtenir_couche(self, nom, lat, lon, construire, lire, indisponible, assembler,
-                        zone=None):
+                        zone=None, attente=contextlib.nullcontext):
         """Chemin du dossier où la couche `nom` du point est écrite.
 
         La couche lit la scène, qui est donc construite d'abord au besoin. La
@@ -1056,6 +1056,8 @@ class Cache:
             indisponible: exception levée, à partir du message, si la source
                 n'a pas répondu — rien n'est alors écrit.
             assembler: (emprise, réponse de la source, scène) -> couche.
+            attente: garde de la lecture, prise avant son verrou ; une couche
+                déjà écrite ne la demande pas.
         """
         dossier = self.obtenir(lat, lon, construire=construire, zone=zone)
         lat, lon = point_normalise(lat, lon)
@@ -1064,7 +1066,7 @@ class Cache:
         chemin = os.path.join(dossier, nom)
         if os.path.exists(chemin):
             return dossier
-        with self._verrou(cle):
+        with attente(), self._verrou(cle):
             # Sous le verrou de la couche, que reconstruire respecte : la
             # scène a pu être mise de côté depuis le premier appel, et la
             # couche s'écrit alors à côté de la scène reconstruite.
@@ -1105,17 +1107,20 @@ class Cache:
         parties, les bâtiments qu'elles remplacent.
 
         Raises:
-            MonumentsIndisponibles si Overpass n'a pas répondu : rien n'est
-            écrit, la demande suivante réessaie.
+            MonumentsIndisponibles si Overpass n'a pas répondu, ou si trop de
+            fils l'attendent déjà : rien n'est écrit, la demande suivante
+            réessaie.
         """
         # Parties OSM et bâtiments BD TOPO qu'elles remplacent
         # (vue3d/monuments.py). None si l'emprise n'en a aucune — le cas de
         # presque partout, qui est un fait et se met en cache comme tel.
+        def indisponible(message):
+            return MonumentsIndisponibles(f"monuments OSM illisibles : {message}")
         return self._obtenir_couche(
-            NOM_MONUMENTS, lat, lon, construire, self.lire_monuments,
-            lambda message: MonumentsIndisponibles(f"monuments OSM illisibles : {message}"),
+            NOM_MONUMENTS, lat, lon, construire, self.lire_monuments, indisponible,
             lambda bbox, brut, scene: monuments_pour_emprise(
-                *bbox, brut, scene.get("batiments") or {"features": []}), zone=zone)
+                *bbox, brut, scene.get("batiments") or {"features": []}), zone=zone,
+            attente=lambda: attente_overpass(indisponible))
 
     def prelire_ouvrages(self, lat, lon, zone=None):
         """Lance la lecture des couches d'ouvrages en tâche de fond : quatre
