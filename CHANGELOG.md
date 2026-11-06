@@ -565,7 +565,9 @@ messages de commit et dans les commentaires des modules.
   tuiles et la page attendaient derrière eux jusqu'à 224 s. Sur douze jours,
   cette borne aurait ramené 2 156 s à huit fils pleins à 331 s. La page ne
   demande plus aussi l'avancement de la scène qu'une fois à la fois : 240 de
-  ces demandes attendaient en même temps.
+  ces demandes attendaient en même temps. `overpass.kumi.systems` quitte la
+  liste des instances : alias de `overpass.private.coffee`, il faisait attendre
+  deux fois le même serveur, et une lecture en échec durait 6 min au lieu de 3.
 - **Les ponts effondrés de la vue en voiture** (24 octobre 2026), signalé
   depuis une Tesla : la BD TOPO pose parfois l'intérieur d'un tablier sur la
   route qu'il franchit. Le pont de la route de Simiane au-dessus de la D6 est

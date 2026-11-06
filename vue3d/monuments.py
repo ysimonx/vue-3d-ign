@@ -63,11 +63,13 @@ journal = logging.getLogger(__name__)
 
 # Instances publiques d'Overpass, essayées dans l'ordre : l'instance
 # principale a rendu un 504 et une page d'erreur HTML pendant le développement,
-# les miroirs ont répondu. Chaque échec se rejoue sur la suivante.
+# les miroirs ont répondu. Chaque échec se rejoue sur la suivante. Plus que
+# deux : le 6 novembre 2026, overpass.kumi.systems s'est révélé un alias DNS de
+# overpass.private.coffee, et une lecture en échec attendait deux fois 90 s le
+# même serveur à chaque tour (362 s en médiane sur douze jours).
 OVERPASS_URLS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
 ]
 OVERPASS_TOURS = 2
 OVERPASS_ATTENTE_S = 3
