@@ -1419,6 +1419,24 @@ def test_reconstruire_met_la_scene_et_ses_couches_de_cote_puis_les_refait(tmp_pa
     assert os.listdir(os.path.dirname(cache._dossier_point(48.8049, 2.1204))) == ["48.8049_2.1204"]
 
 
+def test_reconstruire_relit_les_parties_osm_gardees_par_bloc(tmp_path):
+    """Sinon la couche se referait d'après la première lecture de ses blocs."""
+    lus = []
+
+    def lire(*rectangle):
+        lus.append(rectangle)
+        return {"elements": []}
+
+    cache = Cache(str(tmp_path), lire_monuments=monuments.BlocsMonuments(str(tmp_path), lire=lire))
+    cache.obtenir_monuments(47.0035, 2.005, construire=_scene_avec_un_batiment)
+    cache.obtenir_monuments(47.0035, 2.005, construire=_scene_avec_un_batiment)
+    assert len(lus) == 1
+    _vieillir(cache, 47.0035, 2.005)
+    cache.reconstruire(47.0035, 2.005)
+    cache.obtenir_monuments(47.0035, 2.005, construire=_scene_avec_un_batiment)
+    assert len(lus) == 2
+
+
 def test_une_reconstruction_qui_echoue_rend_la_scene_mise_de_cote(tmp_path):
     """L'IGN en panne pendant la reconstruction : la scène d'avant, complète,
     revient avec ses couches, plutôt que plus rien."""

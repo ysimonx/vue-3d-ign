@@ -34,7 +34,7 @@ from .carres import (CARRES_PAR_HEURE, VEGETATION_VERSION, CarreIndisponible, Ca
                      fetch_vegetation)
 from .dpe import fetch_dpe
 from .dvf import fetch_dvf
-from .monuments import attente_overpass, fetch_monuments
+from .monuments import BlocsMonuments, attente_overpass
 from .nuage import fetch_nuage
 from .ouvrages import fetch_ouvrages
 from .panneaux import lecteur as lecteur_panneaux
@@ -118,7 +118,7 @@ class Quota:
             return 0
 
 
-def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fetch_monuments,
+def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=None,
               lire_ouvrages=fetch_ouvrages, lire_vehicules=None, lire_panneaux=None,
               lire_nuage=fetch_nuage, lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
               lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
@@ -162,8 +162,9 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=fe
     # Absolu : send_from_directory résout un chemin relatif depuis le dossier
     # de l'application, pas depuis le répertoire courant — avec
     # VUE3D_CACHE=./cache, l'orthophoto répondait 404.
-    cache = Cache(os.path.abspath(dossier_cache or os.environ.get("VUE3D_CACHE", "/tmp/vue3d-cache")),
-                  lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
+    dossier = os.path.abspath(dossier_cache or os.environ.get("VUE3D_CACHE", "/tmp/vue3d-cache"))
+    cache = Cache(dossier, lire_monuments=lire_monuments or BlocsMonuments(dossier),
+                  lire_ouvrages=lire_ouvrages,
                   lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
                   lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf,
                   lire_mer=lire_mer, lire_bornes=lire_bornes, lire_solaire=lire_solaire)

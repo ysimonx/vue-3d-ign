@@ -50,7 +50,7 @@ vue3d/
   relief.py     RGE ALTI quantifié au décimètre, anneau de relief alentour
   eau.py        étendues et cours d'eau BD TOPO, découpés sur l'emprise
   lignes.py     lignes à haute tension et hauteur de leurs supports
-  monuments.py  parties de monuments OSM (building:part), seule source hors IGN
+  monuments.py  parties de monuments OSM (building:part), seule source hors IGN ; lues par bloc de 0,01° gardé dans cache/carres/, trois fils au plus attendent Overpass (attente_overpass)
   ouvrages.py   murs, ponts, voies ferrées, terrains de sport : couche à part, chargée après la scène
   nuage.py      bâti du nuage de points LiDAR HD (dalles COPC lues par plages, via geopf) ; ouvrages ajourés en points : couche à part, lue en deux temps (carré proche, puis zone entière)
   vehicules.py  véhicules, piscines et navires lus sur l'orthophoto par un réseau ONNX : couche à part, optionnelle (VUE3D_VEHICULES) ; les navires gardés sur l'eau, mer comprise (communes BD TOPO, RGE ALTI)

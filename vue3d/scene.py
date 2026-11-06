@@ -1026,6 +1026,11 @@ class Cache:
                 # la reconstruction échoue : les couches mises de côté
                 # reviennent avec la scène, et un relevé se refait.
                 self.releves.oublier(rectangle_releve(*emprise(lat, lon, zone)))
+                # Ses parties OSM aussi, gardées par bloc (BlocsMonuments) :
+                # sinon la couche se referait d'après leur première lecture.
+                oublier = getattr(self.lire_monuments, "oublier", None)
+                if oublier:
+                    oublier(*emprise(lat, lon, zone))
             journal.info("Scène %.4f, %.4f (zone %s) mise de côté, à reconstruire",
                          lat, lon, zone or "par défaut")
         finally:

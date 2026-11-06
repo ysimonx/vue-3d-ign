@@ -550,6 +550,13 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Moins de lectures d'Overpass pour les monuments** (6 novembre 2026) : ses
+  réponses sont gardées par bloc de 0,01° au lieu de l'être par point, et une
+  requête couvre tous les blocs qui manquent. Décaler le point ne relit plus
+  rien, et un bloc sans aucune partie sert aussi aux voisins. Rejoué sur douze
+  jours de journal : 209 requêtes au lieu de 386. « Reconstruire la scène »
+  oublie les blocs de son emprise, pour relire OpenStreetMap comme avant. Une
+  réponse tronquée par Overpass est refusée au lieu d'être gardée.
 - **Overpass saturé ne fige plus le service** (6 novembre 2026) : trois fils
   au plus l'attendent à la fois, monuments, limites de vitesse et signalisation
   réunis. Une demande de plus reçoit un 503 tout de suite, et les pages

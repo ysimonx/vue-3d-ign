@@ -1,6 +1,18 @@
 """Monuments OSM (vue3d/monuments.py) : parsing et remplacement, sans réseau."""
+import gzip
+import json
+import os
+import threading
+
+import pytest
+import requests
+from shapely.geometry import box
+
+from vue3d import app as module_app
+from vue3d import monuments as module_monuments
 from vue3d.monuments import (HAUTEUR_PAR_DEFAUT_M, METRES_PAR_NIVEAU,
-                             TOIT_PART_COTE, monuments_pour_emprise)
+                             TOIT_PART_COTE, BlocsMonuments, _lignes, _touche,
+                             monuments_pour_emprise)
 
 # Un degré de longitude vaut ~73,5 km à 48,64° : les carrés ci-dessous font
 # quelques dizaines de mètres, comme les parties réelles.
@@ -192,4 +204,190 @@ def test_ailleurs_overpass_reste_interroge(monkeypatch):
 
     monkeypatch.setattr(monuments.requests, "post", lambda *a, **k: appels.append(a) or Reponse())
     assert monuments.fetch_monuments(2.0, 47.0, 2.0032, 47.0032) == {"elements": []}
+    assert len(appels) == 1
+
+
+# --- Les blocs ---------------------------------------------------------------
+
+def _partie(identifiant, lon, lat, d=0.0002, type_="way"):
+    """Une partie carrée telle qu'Overpass la rend, avec ce que les blocs ne
+    gardent pas (`bounds`, `nodes`)."""
+    geometrie = [{"lon": x, "lat": y} for x, y in _carre(lon - d, lat - d, 2 * d)]
+    element = {"type": type_, "id": identifiant, "tags": {"building:part": "yes", "height": "12"},
+               "bounds": {"minlat": lat - d, "minlon": lon - d, "maxlat": lat + d, "maxlon": lon + d}}
+    if type_ == "way":
+        return {**element, "nodes": [1, 2, 3, 4, 1], "geometry": geometrie}
+    return {**element, "members": [{"type": "way", "ref": 9, "role": "outer", "geometry": geometrie}]}
+
+
+class Overpass:
+    """Un faux Overpass, qui rend ce qui a un nœud dans le rectangle et se
+    souvient de ce qu'on lui a demandé."""
+
+    def __init__(self, *elements):
+        self.elements = elements
+        self.lus = []
+
+    def __call__(self, west, south, east, north):
+        self.lus.append((west, south, east, north))
+        return {"elements": [e for e in self.elements if any(
+            west <= p["lon"] <= east and south <= p["lat"] <= north
+            for ligne in _lignes(e) for p in ligne)]}
+
+
+def _ids(reponse):
+    return [(e["type"], e["id"]) for e in reponse["elements"]]
+
+
+def test_un_bloc_lu_sert_aux_points_voisins_sans_deborder_de_leur_emprise(tmp_path):
+    """Monuments_pour_emprise dessine tout ce qu'il reçoit : chaque point ne
+    reçoit que ce qui touche son emprise, sans relire Overpass."""
+    overpass = Overpass(_partie(1, 2.0015, 47.0015), _partie(2, 2.0055, 47.0055), _partie(3, 2.0040, 47.0030))
+    blocs = BlocsMonuments(str(tmp_path), lire=overpass)
+    assert _ids(blocs(2.001, 47.001, 2.004, 47.004)) == [("way", 1), ("way", 3)]
+    assert _ids(blocs(2.0039, 47.003, 2.006, 47.006)) == [("way", 2), ("way", 3)]
+    assert overpass.lus == [(2.0, 47.0, 2.01, 47.01)]
+
+
+def test_une_requete_couvre_les_blocs_manquants_et_eux_seuls(tmp_path):
+    overpass = Overpass(_partie(1, 2.0095, 47.0015), _partie(2, 2.0105, 47.0015), _partie(3, 2.0205, 47.0015))
+    blocs = BlocsMonuments(str(tmp_path), lire=overpass)
+    assert _ids(blocs(2.009, 47.001, 2.011, 47.002)) == [("way", 1), ("way", 2)]
+    assert overpass.lus == [(2.0, 47.0, 2.02, 47.01)]
+    assert _ids(blocs(2.0091, 47.001, 2.021, 47.002)) == [("way", 1), ("way", 2), ("way", 3)]
+    assert overpass.lus[1:] == [(2.02, 47.0, 2.03, 47.01)]
+
+
+def test_la_reponse_a_l_ordre_d_overpass_et_chaque_element_une_fois(tmp_path):
+    """Les ways puis les relations, par identifiant, même à cheval sur deux
+    blocs : l'ordre décide des parties que les enveloppes avalent."""
+    elements = [_partie(5, 2.0100, 47.0015), _partie(3, 2.0095, 47.0015),
+                _partie(1, 2.0105, 47.0015, type_="relation")]
+    blocs = BlocsMonuments(str(tmp_path), lire=Overpass(*elements))
+    assert _ids(blocs(2.009, 47.001, 2.011, 47.002)) == [("way", 3), ("way", 5), ("relation", 1)]
+
+
+def test_la_couche_lue_par_blocs_est_celle_lue_d_overpass(tmp_path):
+    elements = [_partie(k, 2.001 + k / 2000, 47.003, d=0.0001) for k in range(1, 8)]
+    emprise = (2.0012, 47.002, 2.0028, 47.004)
+    overpass = Overpass(*elements)
+    direct = overpass(*emprise)
+    assert len(direct["elements"]) == 3
+    blocs = BlocsMonuments(str(tmp_path), lire=overpass)(*emprise)
+    assert monuments_pour_emprise(*emprise, blocs, {"features": []}) \
+        == monuments_pour_emprise(*emprise, direct, {"features": []})
+
+
+def test_touche_comme_le_filtre_d_overpass():
+    """Un segment qui traverse le rectangle suffit, sans nœud dedans ; une
+    partie qui l'englobe n'y est pas : ni nœud, ni segment."""
+    rectangle = box(2.0, 47.0, 2.001, 47.001)
+    traverse = _way({}, [(1.99, 47.0005), (2.01, 47.0005), (2.01, 47.0006), (1.99, 47.0006), (1.99, 47.0005)])
+    englobe = _way({}, _carre(1.9, 46.9, 0.3))
+    assert _touche(traverse, rectangle)
+    assert not _touche(englobe, rectangle)
+
+
+def test_un_bloc_sans_partie_est_un_fait_garde(tmp_path):
+    overpass = Overpass()
+    blocs = BlocsMonuments(str(tmp_path), lire=overpass)
+    assert blocs(2.001, 47.001, 2.002, 47.002) == {"elements": []}
+    assert blocs(2.003, 47.003, 2.004, 47.004) == {"elements": []}
+    assert len(overpass.lus) == 1
+
+
+def test_un_echec_n_ecrit_rien_et_la_lecture_suivante_reessaie(tmp_path):
+    overpass = Overpass(_partie(1, 2.0015, 47.0015))
+    en_panne = [True]
+
+    def lire(*rectangle):
+        if en_panne[0]:
+            raise requests.RequestException("Overpass injoignable")
+        return overpass(*rectangle)
+
+    blocs = BlocsMonuments(str(tmp_path), lire=lire)
+    with pytest.raises(requests.RequestException):
+        blocs(2.001, 47.001, 2.002, 47.002)
+    assert not os.path.exists(blocs.dossier)
+    en_panne[0] = False
+    assert _ids(blocs(2.001, 47.001, 2.002, 47.002)) == [("way", 1)]
+
+
+def test_une_reponse_tronquee_par_overpass_n_est_pas_gardee(tmp_path, monkeypatch):
+    """Un 200 avec une remarque : ses éléments manqueraient pour toujours."""
+    class Reponse:
+        ok, status_code = True, 200
+
+        def json(self):
+            return {"remark": "runtime error: Query timed out in \"query\"", "elements": []}
+
+    monkeypatch.setattr(module_monuments.requests, "post", lambda *a, **k: Reponse())
+    monkeypatch.setattr(module_monuments, "OVERPASS_ATTENTE_S", 0)
+    blocs = BlocsMonuments(str(tmp_path))
+    with pytest.raises(requests.RequestException, match="runtime error"):
+        blocs(2.001, 47.001, 2.002, 47.002)
+    assert not os.path.exists(blocs.dossier)
+
+
+def test_un_lieu_d_exemple_ne_lit_ni_overpass_ni_les_blocs(tmp_path):
+    from vue3d.scene import emprise, point_normalise
+
+    def interdit(*rectangle):
+        raise AssertionError("Overpass interrogé pour un lieu d'exemple")
+
+    blocs = BlocsMonuments(str(tmp_path), lire=interdit)
+    assert blocs(*emprise(*point_normalise(48.6360, -1.5114)))["elements"]
+    assert not os.path.exists(blocs.dossier)
+
+
+def test_deux_lectures_qui_se_recouvrent_n_en_font_qu_une(tmp_path):
+    overpass = Overpass(_partie(1, 2.0095, 47.0015))
+    entree, reponse = threading.Event(), threading.Event()
+
+    def lire(*rectangle):
+        entree.set()
+        assert reponse.wait(10)
+        return overpass(*rectangle)
+
+    blocs = BlocsMonuments(str(tmp_path), lire=lire)
+    rendus = []
+    premier = threading.Thread(target=lambda: rendus.append(blocs(2.001, 47.001, 2.011, 47.002)))
+    second = threading.Thread(target=lambda: rendus.append(blocs(2.002, 47.001, 2.012, 47.002)))
+    premier.start()
+    assert entree.wait(10)
+    second.start()
+    reponse.set()
+    premier.join(10)
+    second.join(10)
+    assert len(overpass.lus) == 1 and [_ids(r) for r in rendus] == [[("way", 1)]] * 2
+
+
+def test_oublier_fait_relire_les_blocs_de_l_emprise(tmp_path):
+    overpass = Overpass()
+    blocs = BlocsMonuments(str(tmp_path), lire=overpass)
+    blocs(2.001, 47.001, 2.002, 47.002)
+    blocs.oublier(2.001, 47.001, 2.002, 47.002)
+    blocs.oublier(2.001, 47.001, 2.002, 47.002)         # déjà parti : pas une erreur
+    blocs(2.001, 47.001, 2.002, 47.002)
+    assert len(overpass.lus) == 2
+
+
+def test_le_service_lit_les_monuments_par_blocs(tmp_path, monkeypatch):
+    """Sans lecteur injecté, deux points voisins ne font qu'une requête."""
+    appels = []
+
+    class Reponse:
+        ok, status_code = True, 200
+
+        def json(self):
+            return {"elements": []}
+
+    def construire(lat, lon, avancer=None, zone=None):
+        scene = {"batiments": {"type": "FeatureCollection", "features": []}}
+        return gzip.compress(json.dumps(scene).encode()), b"jpeg"
+
+    monkeypatch.setattr(module_monuments.requests, "post", lambda *a, **k: appels.append(a) or Reponse())
+    client = module_app.creer_app(str(tmp_path), construire=construire).test_client()
+    for lat in (47.0035, 47.0036):
+        assert client.get(f"/api/monuments?lat={lat}&lon=2.005&zone=500").status_code == 200
     assert len(appels) == 1
