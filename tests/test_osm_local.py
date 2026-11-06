@@ -158,3 +158,67 @@ def test_avec_une_base_les_carres_n_attendent_pas_les_places_d_overpass(tmp_path
         for place in places:
             place.__exit__(None, None, None)
     assert len(lues) == 1 and len(lues[0]) == 1 and lues[0][0][0] == [50, 50] and BLOC_M == 2000
+
+
+def _verifier():
+    """L'outil de comparaison, qui vit hors du paquet."""
+    import importlib.util
+    import os
+    chemin = os.path.join(os.path.dirname(__file__), "..", "outils", "verifier_osm.py")
+    spec = importlib.util.spec_from_file_location("verifier_osm", chemin)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_la_comparaison_ignore_les_tags_que_la_base_ne_garde_pas(tmp_path):
+    v = _verifier()
+    direct = _way(1, [(2.0, 47.0), (2.001, 47.001)], {"maxspeed": "50", "surface": "asphalt", "name": "Rue"})
+    base = _base(tmp_path, voies=[_way(1, [(2.0, 47.0), (2.001, 47.001)], {"maxspeed": "50"})])
+    assert v.ecart({"elements": [direct]}, base.voies(1.9, 46.9, 2.1, 47.1)) == (0, 1)
+
+
+def test_la_comparaison_compte_ce_qui_differe_vraiment(tmp_path):
+    v = _verifier()
+    commune = _way(1, [(2.0, 47.0), (2.001, 47.001)], {"maxspeed": "50"})
+    changee = _way(2, [(2.0, 47.0), (2.002, 47.001)], {"maxspeed": "30"})
+    deplacee = _way(3, [(2.0, 47.0), (2.003, 47.001)], {"maxspeed": "50"})
+    absente = _way(4, [(2.0, 47.0), (2.004, 47.001)], {"maxspeed": "50"})
+    direct = {"elements": [commune, {**changee, "tags": {"maxspeed": "20"}},
+                           {**deplacee, "geometry": _way(0, [(2.0, 47.0), (2.0031, 47.001)])["geometry"]},
+                           absente]}
+    local = _base(tmp_path, voies=[commune, changee, deplacee]).voies(1.9, 46.9, 2.1, 47.1)
+    assert v.ecart(direct, local) == (3, 4)
+
+
+def test_la_comparaison_voit_un_ordre_different():
+    v = _verifier()
+    a, b = _way(1, [(2.0, 47.0), (2.001, 47.001)]), _way(2, [(2.0, 47.0), (2.002, 47.001)])
+    assert v.ecart({"elements": [a, b]}, {"elements": [b, a]}) == (2, 2)
+
+
+def test_le_verdict_ne_remplace_une_base_que_si_overpass_l_a_controlee():
+    v = _verifier()
+    bonnes = [(3, 773)] + [(0, 500)] * 11
+    assert v.verdict(bonnes) == 0
+    assert v.verdict(bonnes[:5]) == 2                   # Overpass trop peu présent
+    assert v.verdict([(30, 773)] + [(0, 500)] * 11) == 1
+    assert v.verdict([(30, 773)]) == 1                  # une preuve suffit à refuser
+
+
+def test_une_base_amputee_ou_plus_ancienne_est_refusee(tmp_path, capsys):
+    v = _verifier()
+    voie = _way(1, [(2.0, 47.0), (2.001, 47.001)], {"maxspeed": "50"})
+
+    def base(nom, date, n):
+        sortie = str(tmp_path / nom)
+        ecrivain = Ecrivain(sortie)
+        for k in range(n):
+            ecrivain.ajouter("voies", {**voie, "id": k})
+        ecrivain.fermer(date)
+        return sortie
+
+    actuelle = base("actuelle.sqlite", "2026-11-04", 100)
+    assert v.volumes(base("bonne.sqlite", "2026-12-01", 99), actuelle)
+    assert not v.volumes(base("amputee.sqlite", "2026-12-01", 90), actuelle)
+    assert not v.volumes(base("ancienne.sqlite", "2026-10-01", 100), actuelle)
