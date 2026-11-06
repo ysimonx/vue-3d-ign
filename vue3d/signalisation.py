@@ -85,12 +85,17 @@ def _cap(xa, ya, xb, yb):
     return math.degrees(math.atan2(xb - xa, yb - ya)) % 360
 
 
-def _requete_bloc(bi, bj):
+def rectangle_bloc(bi, bj):
+    """Le rectangle (west, south, east, north) à lire pour le bloc."""
     x0, y0 = bi * BLOC_M - 1, bj * BLOC_M - 1
     x1, y1 = (bi + 1) * BLOC_M + 1, (bj + 1) * BLOC_M + 1
     coins = [wgs84(x, y) for x in (x0, x1) for y in (y0, y1)]
-    w, s = min(c[0] for c in coins), min(c[1] for c in coins)
-    e, n = max(c[0] for c in coins), max(c[1] for c in coins)
+    return (round(min(c[0] for c in coins), 7), round(min(c[1] for c in coins), 7),
+            round(max(c[0] for c in coins), 7), round(max(c[1] for c in coins), 7))
+
+
+def _requete_bloc(bi, bj):
+    w, s, e, n = rectangle_bloc(bi, bj)
     return ('[out:json][timeout:120];'
             f'node["highway"~"^(stop|give_way|traffic_signals)$"]({s:.7f},{w:.7f},{n:.7f},{e:.7f})->.n;'
             '.n out body;way(bn.n)["highway"];out geom;')

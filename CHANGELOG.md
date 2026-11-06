@@ -15,6 +15,15 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **OpenStreetMap en local, sans Overpass** (6 novembre 2026) : monuments,
+  limites de vitesse et signalisation peuvent se lire dans une base SQLite tirée
+  de l'extrait France de Geofabrik (`outils/preparer_osm.py`, `VUE3D_OSM`), au lieu
+  d'interroger Overpass. 708 Mo, cinq minutes de construction, et 0,2 à 26 ms par
+  lecture au lieu de 40 s en médiane, centre de Paris compris. Comparée au vrai
+  Overpass sur quatre lieux, Corse comprise : mêmes éléments dans le même ordre aux
+  douze questions, et mêmes résultats sauf trois voies de Strasbourg sur 773,
+  toutes modifiées après l'extrait. Les données ont la date de l'extrait, jusqu'à
+  la base suivante. Sans `VUE3D_OSM`, rien ne change : Overpass reste interrogé.
 - **Votre avis sur le rendu** (5 novembre 2026) : 👍 et 👎 en bas à gauche
   de la vue, comptés pour tous, un avis par adresse IP et par scène, qu'un
   nouveau clic change ou retire. Un 👎 garde le lien de la vue jugée, sa

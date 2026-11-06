@@ -19,6 +19,7 @@ heure (429 au-delà), et pas plus de CARRES_PAR_HEURE carrés neufs ; derrière
 un proxy, `VUE3D_PROXY` dit combien croire de `X-Forwarded-For`.
 """
 
+import contextlib
 import functools
 import logging
 import math
@@ -36,6 +37,7 @@ from .dpe import fetch_dpe
 from .dvf import fetch_dvf
 from .monuments import BlocsMonuments, attente_overpass
 from .nuage import fetch_nuage
+from .osm_local import lecteur as lecteur_osm
 from .ouvrages import fetch_ouvrages
 from .panneaux import lecteur as lecteur_panneaux
 from .routes import scene as routes_scene
@@ -46,12 +48,14 @@ from .scene import construire as construire_scene
 from .avis import AVIS_PAR_HEURE, Avis
 from .signalements import SIGNALEMENTS_PAR_HEURE, Signalements
 from .signalisation import SIGNALISATION_VERSION, BlocsSignaux, fetch_signalisation
+from .signalisation import rectangle_bloc as rectangle_signaux
 from .solaire import fetch_solaire
 from .toits import autoriser_bassin
 from .tuiles import TUILES_RELECTURES_PAR_HEURE, Stock, fetch_tuile
 from .vehicules import fetch_mer
 from .vehicules import lecteur as lecteur_vehicules
 from .vitesses import VITESSES_VERSION, BlocsOsm, fetch_vitesses
+from .vitesses import rectangle_bloc as rectangle_voies
 
 logging.basicConfig(level=os.environ.get("VUE3D_LOG", "INFO"),
                     format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -124,7 +128,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
               lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
               lire_bornes=fetch_bornes, lire_carre=fetch_carre, quota_carres=None,
               lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_signalisation=None,
-              lire_solaire=fetch_solaire):
+              lire_solaire=fetch_solaire, osm=None):
     """`construire`, `lire_monuments`, `lire_ouvrages`, `lire_vehicules`,
     `lire_panneaux`, `lire_nuage`, `lire_dpe`, `lire_dvf`, `lire_mer`,
     `lire_bornes` et `lire_solaire` sont injectables
@@ -133,6 +137,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     de `vehicules.lecteur()` ; None, le service n'a ni véhicules, ni piscines,
     ni navires.
     `lire_panneaux` : de `panneaux.lecteur()` ; None, pas de panneaux.
+    `osm` : de `osm_local.lecteur()`, à la place d'Overpass ; None, Overpass.
     `lire_tuile` : (couche, z, x, y) -> octets d'une tuile WMTS de l'IGN.
     `quota` : scènes neuves par heure et par adresse IP, 0 sans limite ;
     `proxy` : proxys devant le service, dont on croit `X-Forwarded-For`.
@@ -163,8 +168,9 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     # de l'application, pas depuis le répertoire courant — avec
     # VUE3D_CACHE=./cache, l'orthophoto répondait 404.
     dossier = os.path.abspath(dossier_cache or os.environ.get("VUE3D_CACHE", "/tmp/vue3d-cache"))
-    cache = Cache(dossier, lire_monuments=lire_monuments or BlocsMonuments(dossier),
-                  lire_ouvrages=lire_ouvrages,
+    if lire_monuments is None:
+        lire_monuments = osm.monuments if osm else BlocsMonuments(dossier)
+    cache = Cache(dossier, lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
                   lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
                   lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf,
                   lire_mer=lire_mer, lire_bornes=lire_bornes, lire_solaire=lire_solaire)
@@ -177,16 +183,19 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     carres = Carres(cache.dossier, lire=lire_carre)
     vegetations = Carres(cache.dossier, lire=lire_vegetation, couche="vegetation-",
                          version=VEGETATION_VERSION)
-    attente = functools.partial(attente_overpass, CarreIndisponible)
+    # Sans Overpass, rien à attendre : une lecture de la base prend une
+    # milliseconde, et neuf carrés demandés d'un coup n'ont plus à se refuser.
+    attente = contextlib.nullcontext if osm else functools.partial(attente_overpass, CarreIndisponible)
     if lire_vitesses is None:
-        blocs = BlocsOsm(cache.dossier)
+        blocs = BlocsOsm(cache.dossier, lire=osm and (lambda bi, bj: osm.voies(*rectangle_voies(bi, bj))))
 
         def lire_vitesses(i, j):
             return fetch_vitesses(i, j, blocs)
     vitesses = Carres(cache.dossier, lire=lire_vitesses, couche="vitesses-", version=VITESSES_VERSION,
                       attente=attente)
     if lire_signalisation is None:
-        blocs_signaux = BlocsSignaux(cache.dossier)
+        blocs_signaux = BlocsSignaux(cache.dossier,
+                                     lire=osm and (lambda bi, bj: osm.signaux(*rectangle_signaux(bi, bj))))
 
         def lire_signalisation(i, j):
             return fetch_signalisation(i, j, blocs_signaux)
@@ -221,11 +230,12 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
 autoriser_bassin(chauffer=not (os.environ.get("FLASK_DEBUG") == "1"
                                and "WERKZEUG_RUN_MAIN" not in os.environ))
 
-# Le détecteur de VUE3D_VEHICULES et le registre de VUE3D_PANNEAUX sont
+# Le détecteur de VUE3D_VEHICULES, le registre de VUE3D_PANNEAUX et la base de VUE3D_OSM sont
 # chargés ici, une fois : demandés sans leur réseau ou leur base, ils
 # arrêtent le démarrage, avec la commande qui les produit. Sur deux lignes :
 # une trace d'erreur sur la ligne commune laissait croire que les panneaux
 # étaient en cause quand c'était le réseau des véhicules qui manquait.
 lire_vehicules = lecteur_vehicules()
 lire_panneaux = lecteur_panneaux()
-app = creer_app(lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux)
+osm = lecteur_osm()
+app = creer_app(lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux, osm=osm)

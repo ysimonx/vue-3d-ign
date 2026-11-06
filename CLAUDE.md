@@ -25,6 +25,8 @@ node outils/verifier-solaire.mjs http://localhost:8080   # ensoleillement des to
 node outils/mesure-ecarts-toits.mjs "http://localhost:8080/?lat=43.9116&lon=5.2003"   # toits contre le nuage LiDAR (puppeteer-core)
 python outils/valider_ifc.py essai.ifc           # validation par ifcopenshell (pip install ifcopenshell pytest, hors requirements)
 python outils/valider_citygml.py essai.gml       # géométrie du CityGML ; son schéma : citygml-tools validate essai.gml
+python outils/preparer_osm.py donnees/france-latest.osm.pbf donnees/osm.sqlite   # base OSM locale, depuis l'extrait Geofabrik (pip install osmium, hors requirements) ; VUE3D_OSM=donnees/osm.sqlite la branche
+python outils/verifier_osm.py donnees/osm.sqlite # cette base contre le vrai Overpass (réseau)
 python outils/reparer_anneaux.py cache --essai   # anneau des scènes en cache relu au WMTS natif ; sans --essai, réécrit
 python3 -m http.server -d outils 8000            # visionneuse-ifc.html : un IFC exporté, relu par web-ifc, propriétés au clic
 npm install puppeteer-core && node outils/essai-navigateur.mjs "http://localhost:8080/?lat=43.9116&lon=5.2003"
@@ -57,6 +59,7 @@ vue3d/
   releves.py    détections gardées par rectangle de terrain (cache/releves/) : un point décalé ne détecte que la bande nouvelle
   solaire.py    année type de PVGIS (direct, diffus, global des 8 760 heures) : couche à part, lue au clic seulement, datée ; l'ensoleillement des toits se calcule dans la page, sur le GPU (couches/solaire.js)
   panneaux.py   panneaux solaires du registre OpenPVMapper (SQLite R-tree) : couche à part, optionnelle (VUE3D_PANNEAUX)
+  osm_local.py  OpenStreetMap sans Overpass : base SQLite R-tree des parties, des limites et de la signalisation, aux réponses de la forme d'Overpass ; optionnelle (VUE3D_OSM), sans elle le service interroge Overpass
   dpe.py        DPE de l'ADEME rattachés aux bâtiments (RNB, sinon adresse à 5 m) : couche à part, lue au clic seulement, datée
   dvf.py        ventes DVF (fichiers Etalab) jointes aux parcelles du cadastre IGN : couche à part, lue au clic seulement, datée
   bornes.py     bornes de recharge (Base nationale des IRVE, API tabulaire de data.gouv.fr) réunies par station : couche à part, lue au clic seulement, datée ; pour la voiture, par bloc de 4 km (cache/carres/bornes-v1/), relu après 7 jours
@@ -80,10 +83,11 @@ docs/logo/      le logo « Tuile » : SVG avec et sans le nom (vectorisé), icô
 Pas de base de données, pas de clé d'API, pas de build front : les pages sont
 des fichiers statiques, modules ES compris, et lisent le point dans leur URL.
 
-Les couches des véhicules et des panneaux sont les seules dépendances
-optionnelles : sans `VUE3D_VEHICULES`, ni onnxruntime ni réseau ne sont
-chargés ; sans `VUE3D_PANNEAUX`, aucune base n'est lue ; les tests ne
-demandent jamais ni l'un ni l'autre (`/donnees/` est ignoré par git). Les poids (RTMDet-R, Apache-2.0 ; YOLO11-OBB, AGPL-3.0 ;
+Les couches des véhicules et des panneaux et la base OpenStreetMap sont les
+seules dépendances optionnelles : sans `VUE3D_VEHICULES`, ni onnxruntime ni
+réseau ne sont chargés ; sans `VUE3D_PANNEAUX`, aucune base n'est lue ; sans
+`VUE3D_OSM`, OpenStreetMap se lit à Overpass ; les tests ne demandent jamais
+rien de tout cela (`/donnees/` est ignoré par git). Les poids (RTMDet-R, Apache-2.0 ; YOLO11-OBB, AGPL-3.0 ;
 tous deux entraînés sur DOTA, usage académique) ne doivent **jamais** entrer
 dans le dépôt : ils sont exportés par `outils/exporter_vehicules.py` dans
 l'étage `export` du Dockerfile.

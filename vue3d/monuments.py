@@ -241,7 +241,7 @@ def _blocs(west, south, east, north):
             for bj in range(math.floor(south * BLOCS_PAR_DEGRE), math.floor(north * BLOCS_PAR_DEGRE) + 1)]
 
 
-def _touche(element, rectangle):
+def touche(element, rectangle):
     """Comme le filtre d'Overpass : un nœud dans le rectangle, ou un segment
     qui le traverse. Pas une aire : une partie qui l'englobe n'y était pas."""
     return any(LineString([(p["lon"], p["lat"]) for p in ligne]).intersects(rectangle)
@@ -291,7 +291,7 @@ class BlocsMonuments:
                     elements[e["type"] != "way", e["id"]] = e
         rectangle = box(west, south, east, north)
         return {"elements": [elements[c] for c in sorted(elements)
-                             if _touche(elements[c], rectangle)]}
+                             if touche(elements[c], rectangle)]}
 
     def _completer(self, blocs):
         """Lit les blocs qui manquent encore une fois leurs verrous pris, en

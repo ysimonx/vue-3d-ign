@@ -672,9 +672,9 @@ Toutes servies sans clé par la Géoplateforme de l'IGN, sous
 | Plan IGN v2 | WMTS `GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2` | Le fond plan, au choix de la photo |
 | Géocodage | `geocodage/search`, `geocodage/reverse` | La recherche d'un lieu (Base Adresse Nationale et lieux nommés, lus séparément), et la commune du point affiché ; appelé par le navigateur |
 | BD TOPO, hydrographie | WFS `surface_hydrographique`, `troncon_hydrographique` | Étendues et cours d'eau |
-| OpenStreetMap, `building:part` | API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
-| OpenStreetMap, `maxspeed` | API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les limitations de vitesse de la vue en voiture, rapprochées des tronçons BD TOPO |
-| OpenStreetMap, `highway=stop`, `give_way`, `traffic_signals` | API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les stops, cédez-le-passage et feux de la vue en voiture, rattachés aux tronçons BD TOPO |
+| OpenStreetMap, `building:part` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
+| OpenStreetMap, `maxspeed` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les limitations de vitesse de la vue en voiture, rapprochées des tronçons BD TOPO |
+| OpenStreetMap, `highway=stop`, `give_way`, `traffic_signals` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les stops, cédez-le-passage et feux de la vue en voiture, rattachés aux tronçons BD TOPO |
 | Parcellaire Express | WFS `CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle` | Les parcelles des ventes DVF, au clic |
 
 Hors du territoire, en mer et à l'étranger, où le RGE ALTI n'a pas
@@ -854,8 +854,8 @@ principales :
   une largeur de convention.
 - **Les monuments OSM valent ce que les contributeurs y ont mis** : des
   parties sans hauteur (La Merveille, Le Châtelet) reçoivent celle de la BD
-  TOPO, et l'infobulle le dit. La couche vient d'Overpass, le seul service
-  hors IGN du projet.
+  TOPO, et l'infobulle le dit. La couche a la date de sa lecture, ou de
+  l'extrait de la base locale.
 - **Les véhicules sont un instantané, et une lecture incomplète.** Ils sont là
   où ils étaient le jour de la prise de vue, qui n'est pas celui du LiDAR. Le
   réseau en manque — un sur cinq dans un parking serré pour le meilleur des

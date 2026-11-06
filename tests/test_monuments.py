@@ -11,8 +11,8 @@ from shapely.geometry import box
 from vue3d import app as module_app
 from vue3d import monuments as module_monuments
 from vue3d.monuments import (HAUTEUR_PAR_DEFAUT_M, METRES_PAR_NIVEAU,
-                             TOIT_PART_COTE, BlocsMonuments, _lignes, _touche,
-                             monuments_pour_emprise)
+                             TOIT_PART_COTE, BlocsMonuments, _lignes,
+                             monuments_pour_emprise, touche)
 
 # Un degré de longitude vaut ~73,5 km à 48,64° : les carrés ci-dessous font
 # quelques dizaines de mètres, comme les parties réelles.
@@ -278,14 +278,14 @@ def test_la_couche_lue_par_blocs_est_celle_lue_d_overpass(tmp_path):
         == monuments_pour_emprise(*emprise, direct, {"features": []})
 
 
-def test_touche_comme_le_filtre_d_overpass():
+def testtouche_comme_le_filtre_d_overpass():
     """Un segment qui traverse le rectangle suffit, sans nœud dedans ; une
     partie qui l'englobe n'y est pas : ni nœud, ni segment."""
     rectangle = box(2.0, 47.0, 2.001, 47.001)
     traverse = _way({}, [(1.99, 47.0005), (2.01, 47.0005), (2.01, 47.0006), (1.99, 47.0006), (1.99, 47.0005)])
     englobe = _way({}, _carre(1.9, 46.9, 0.3))
-    assert _touche(traverse, rectangle)
-    assert not _touche(englobe, rectangle)
+    assert touche(traverse, rectangle)
+    assert not touche(englobe, rectangle)
 
 
 def test_un_bloc_sans_partie_est_un_fait_garde(tmp_path):

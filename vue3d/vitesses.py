@@ -117,12 +117,17 @@ def regle_generale(nature, urbain):
 
 # --- Les voies OSM, par bloc --------------------------------------------------------------------
 
-def _requete_bloc(bi, bj):
+def rectangle_bloc(bi, bj):
+    """Le rectangle (west, south, east, north) à lire pour le bloc, marge comprise."""
     x0, y0 = bi * BLOC_M - ECART_MAX_M, bj * BLOC_M - ECART_MAX_M
     x1, y1 = (bi + 1) * BLOC_M + ECART_MAX_M, (bj + 1) * BLOC_M + ECART_MAX_M
     coins = [wgs84(x, y) for x in (x0, x1) for y in (y0, y1)]
-    w, s = min(c[0] for c in coins), min(c[1] for c in coins)
-    e, n = max(c[0] for c in coins), max(c[1] for c in coins)
+    return (round(min(c[0] for c in coins), 7), round(min(c[1] for c in coins), 7),
+            round(max(c[0] for c in coins), 7), round(max(c[1] for c in coins), 7))
+
+
+def _requete_bloc(bi, bj):
+    w, s, e, n = rectangle_bloc(bi, bj)
     return ('[out:json][timeout:120];'
             f'way["highway"][~"^maxspeed(:forward|:backward)?$"~"."]({s:.7f},{w:.7f},{n:.7f},{e:.7f});'
             'out tags geom;')
