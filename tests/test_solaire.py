@@ -111,7 +111,8 @@ def test_le_climat_n_est_lu_qu_a_la_demande_et_jamais_a_moitie(tmp_path):
     client = module_app.creer_app(
         str(tmp_path), construire=lambda lat, lon, avancer=None: (
             gzip.compress(json.dumps(scene).encode()), b"\xff\xd8jpeg"),
-        lire_monuments=lambda *b: {"elements": []}, lire_ouvrages=lambda *b: {},
+        lire_monuments=lambda *b: {"elements": []}, lire_eoliennes=lambda *b: {"elements": []},
+        lire_ouvrages=lambda *b: {},
         lire_nuage=lambda *b: None, lire_solaire=lire_solaire).test_client()
     assert client.get("/api/scene?lat=43.9116&lon=5.2003").status_code == 200
     assert lectures == []

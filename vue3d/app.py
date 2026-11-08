@@ -3,8 +3,8 @@
 Les routes sont rangées par page, chacune dans son blueprint :
 
     vue3d/routes/scene.py     /, /api/scene et les couches d'un point (ortho,
-                              monuments, ouvrages, nuage, détections, panneaux,
-                              DPE, DVF, bornes), /api/avancement, /api/reconstruire,
+                              monuments, éoliennes, ouvrages, nuage, détections,
+                              panneaux, DPE, DVF, bornes), /api/avancement, /api/reconstruire,
                               /api/avis
     vue3d/routes/voiture.py   /voiture, ses carrés (/api/carre, /api/vegetation,
                               /api/vitesses, /api/signalisation), /api/bornes-bloc,
@@ -35,6 +35,7 @@ from .carres import (CARRES_PAR_HEURE, VEGETATION_VERSION, CarreIndisponible, Ca
                      fetch_vegetation)
 from .dpe import fetch_dpe
 from .dvf import fetch_dvf
+from .eoliennes import BlocsEoliennes
 from .monuments import BlocsMonuments, attente_overpass
 from .nuage import fetch_nuage
 from .osm_local import lecteur as lecteur_osm
@@ -128,8 +129,8 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
               lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
               lire_bornes=fetch_bornes, lire_carre=fetch_carre, quota_carres=None,
               lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_signalisation=None,
-              lire_solaire=fetch_solaire, osm=None):
-    """`construire`, `lire_monuments`, `lire_ouvrages`, `lire_vehicules`,
+              lire_solaire=fetch_solaire, osm=None, lire_eoliennes=None):
+    """`construire`, `lire_monuments`, `lire_eoliennes`, `lire_ouvrages`, `lire_vehicules`,
     `lire_panneaux`, `lire_nuage`, `lire_dpe`, `lire_dvf`, `lire_mer`,
     `lire_bornes` et `lire_solaire` sont injectables
     pour les tests, qui n'appellent ni l'IGN, ni Overpass, ni l'ADEME, ni
@@ -138,6 +139,8 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     ni navires.
     `lire_panneaux` : de `panneaux.lecteur()` ; None, pas de panneaux.
     `osm` : de `osm_local.lecteur()`, à la place d'Overpass ; None, Overpass.
+    `lire_eoliennes` : (emprise) -> réponse Overpass des éoliennes ; None : de
+    la base `osm` si elle les a, sinon d'Overpass, par bloc gardé dans le cache.
     `lire_tuile` : (couche, z, x, y) -> octets d'une tuile WMTS de l'IGN.
     `quota` : scènes neuves par heure et par adresse IP, 0 sans limite ;
     `proxy` : proxys devant le service, dont on croit `X-Forwarded-For`.
@@ -170,8 +173,12 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     dossier = os.path.abspath(dossier_cache or os.environ.get("VUE3D_CACHE", "/tmp/vue3d-cache"))
     if lire_monuments is None:
         lire_monuments = osm.monuments if osm else BlocsMonuments(dossier)
-    cache = Cache(dossier, lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
-                  lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
+    if lire_eoliennes is None:
+        # Une base d'avant les éoliennes reste bonne pour le reste : elles se
+        # lisent alors à Overpass, jusqu'à la base suivante.
+        lire_eoliennes = osm.eoliennes if osm and osm.a_les_eoliennes else BlocsEoliennes(dossier)
+    cache = Cache(dossier, lire_monuments=lire_monuments, lire_eoliennes=lire_eoliennes,
+                  lire_ouvrages=lire_ouvrages, lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux,
                   lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf,
                   lire_mer=lire_mer, lire_bornes=lire_bornes, lire_solaire=lire_solaire)
     # Hors du dossier des versions de scène : une tuile ne dépend pas de

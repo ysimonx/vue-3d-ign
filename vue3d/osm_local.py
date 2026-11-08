@@ -1,6 +1,7 @@
 """OpenStreetMap sans Overpass : une base locale des seuls objets que le service lit.
 
-Les monuments, les limites de vitesse et la signalisation lisent OpenStreetMap.
+Les monuments, les éoliennes, les limites de vitesse et la signalisation lisent
+OpenStreetMap.
 À Overpass public, c'était la source la plus lente du service et la seule qui
 l'ait figé (vue3d/monuments.py) : 40 s en médiane et 250 s au neuvième décile sur
 douze jours de lectures, 17 échecs le 4 novembre 2026. Saturée, son instance
@@ -8,16 +9,20 @@ principale répond elle-même que l'accès public vise les outils conduits par u
 humain, et qu'un usage automatisé doit avoir sa propre instance.
 
 **Pourquoi une base et pas une instance.** Le service ne pose à Overpass que
-trois questions, toujours sur un rectangle : les parties de bâtiments, les voies
-qui portent une limite, les stops, cédez-le-passage et feux avec les voies qui
-les portent. Une instance complète saurait répondre à toutes les autres, pour
+quatre questions, toujours sur un rectangle : les parties de bâtiments, les
+éoliennes, les voies qui portent une limite, les stops, cédez-le-passage et feux
+avec les voies qui les portent. Une instance complète saurait répondre à toutes les autres, pour
 des dizaines de gigaoctets et un service de plus à faire tourner.
 
 **Comment elle est servie.** Comme le registre des panneaux (vue3d/panneaux.py) :
 `outils/preparer_osm.py` lit une fois l'extrait France de Geofabrik et range ces
 objets dans une base SQLite avec un index spatial R-tree par couche. Ses réponses
-ont la forme de celles d'Overpass, pour les lecteurs de monuments.py, vitesses.py
-et signalisation.py, qui ne voient pas la différence. Sans `VUE3D_OSM`, rien
+ont la forme de celles d'Overpass, pour les lecteurs de monuments.py,
+eoliennes.py, vitesses.py et signalisation.py, qui ne voient pas la différence.
+
+**Une base d'avant les éoliennes** (novembre 2026) reste au format 1 et sert
+le reste : la table manque, et les éoliennes se lisent à Overpass jusqu'à la
+base suivante (`BaseOsm.a_les_eoliennes`). Sans `VUE3D_OSM`, rien
 n'est lu, et le service interroge Overpass comme avant.
 
 **Ce que la base change.** Ses données ont la date de l'extrait, et ne suivent
@@ -39,17 +44,23 @@ from .monuments import touche
 
 journal = logging.getLogger(__name__)
 
-# Format de la base : une base d'un autre format arrête le démarrage.
+# Format de la base : une base d'un autre format arrête le démarrage. Une
+# table de plus (les éoliennes) ne le change pas : un lecteur ne lit que les
+# siennes.
 OSM_VERSION = 1
 # Les tables de la base, une par question posée à Overpass, plus les voies des
 # panneaux : une limite sans panneau n'a pas à porter ses nœuds.
-COUCHES = ("monuments", "voies", "signaux", "porteuses")
+COUCHES = ("monuments", "voies", "signaux", "porteuses", "eoliennes")
 # Ce que les lecteurs regardent, seul gardé : voies_du_bloc, signaux_du_bloc.
 # Les parties gardent tous leurs tags, hauteurs et formes de toit.
 CLES_VOIES = ("maxspeed", "maxspeed:forward", "maxspeed:backward")
 CLES_SIGNAUX = ("highway", "direction", "traffic_signals:direction")
 CLES_PORTEUSES = ("highway",)
 TYPES_SIGNAUX = ("stop", "give_way", "traffic_signals")
+# Les tags que lit eoliennes_pour_emprise, et les deux qui font une éolienne.
+CLES_EOLIENNES = ("power", "generator:source", "height", "height:hub", "rotor:diameter",
+                  "generator:output:electricity", "manufacturer", "model", "name", "ref", "operator",
+                  "offshore")
 # Dans la base, une ligne est une suite d'entiers de 1e-7 degré, l'unité
 # d'OpenStreetMap : divisés, ils redonnent au bit près les flottants d'Overpass.
 _UNITE = 10 ** 7
@@ -159,11 +170,17 @@ class OsmMalConfigure(RuntimeError):
 
 
 class BaseOsm:
-    """Les trois questions du service, sur un rectangle (west, south, east,
+    """Les quatre questions du service, sur un rectangle (west, south, east,
     north) : mêmes réponses qu'Overpass, mêmes éléments dans le même ordre."""
 
     def __init__(self, chemin):
         self.chemin = chemin
+        base = sqlite3.connect(f"file:{chemin}?mode=ro", uri=True)
+        try:
+            tables = {t for (t,) in base.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        finally:
+            base.close()
+        self.a_les_eoliennes = "eoliennes" in tables
 
     def _elements(self, couche, west, south, east, north):
         # Une connexion par lecture, comme les panneaux : les lectures partent
@@ -186,6 +203,15 @@ class BaseOsm:
         return {"elements": sorted((e for e in self._elements("monuments", west, south, east, north)
                                     if touche(e, rectangle)),
                                    key=lambda e: (e["type"] != "way", e["id"]))}
+
+    def eoliennes(self, west, south, east, north):
+        """Les éoliennes dont la place est dans le rectangle, comme
+        `eoliennes.BlocsEoliennes` : les nœuds puis les ways, par identifiant ;
+        un way n'a que son centre, comme dans `out center`."""
+        trouvees = [{"type": "way", "id": e["id"], "center": e["geometry"][0], "tags": e["tags"]}
+                    if e["type"] == "way" else e
+                    for e in self._elements("eoliennes", west, south, east, north)]
+        return {"elements": sorted(trouvees, key=lambda e: (e["type"] != "node", e["id"]))}
 
     def voies(self, west, south, east, north):
         """Les voies qui portent une limite, comme `vitesses._requete_bloc`."""
@@ -228,4 +254,7 @@ def lecteur(chemin=None):
         raise OsmMalConfigure(f"VUE3D_OSM={chemin} : format {meta.get('version')}, "
                               f"{OSM_VERSION} attendu ; {commande}")
     journal.info("OpenStreetMap : base locale %s, données du %s", chemin, meta.get("date"))
-    return BaseOsm(chemin)
+    lue = BaseOsm(chemin)
+    if not lue.a_les_eoliennes:
+        journal.warning("OpenStreetMap : base d'avant les éoliennes, lues à Overpass ; %s", commande)
+    return lue

@@ -27,6 +27,12 @@ def client(tmp_path):
             raise ConnectionError("Overpass injoignable : 504")
         return {"elements": []}
 
+    def lire_eoliennes(west, south, east, north):
+        # Au sud de 46° : Overpass en panne, comme pour les monuments.
+        if south < 46:
+            raise ConnectionError("Overpass injoignable : 504")
+        return {"elements": []}
+
     def lire_ouvrages(west, south, east, north):
         # Au sud de 46° : l'IGN en panne sur ces couches.
         if south < 46:
@@ -45,7 +51,7 @@ def client(tmp_path):
 
     appli = module_app.creer_app(str(tmp_path), construire=construire,
                                  lire_monuments=lire_monuments, lire_ouvrages=lire_ouvrages,
-                                 lire_nuage=lire_nuage)
+                                 lire_nuage=lire_nuage, lire_eoliennes=lire_eoliennes)
     client = appli.test_client()
     client.lectures_nuage = lectures_nuage
     return client
@@ -103,6 +109,7 @@ def client_vehicules(tmp_path):
     # par passage, relevées le 2 octobre 2026).
     appli = module_app.creer_app(str(tmp_path), construire=construire,
                                  lire_monuments=lambda *b: {"elements": []},
+                                 lire_eoliennes=lambda *b: {"elements": []},
                                  lire_ouvrages=lambda *b: {}, lire_vehicules=lecteur,
                                  lire_mer=lire_mer)
     return appli.test_client()
@@ -352,6 +359,7 @@ def client_panneaux(tmp_path):
 
     appli = module_app.creer_app(str(tmp_path), construire=construire,
                                  lire_monuments=lambda *b: {"elements": []},
+                                 lire_eoliennes=lambda *b: {"elements": []},
                                  lire_ouvrages=lambda *b: {}, lire_panneaux=lire_panneaux)
     return appli.test_client()
 
@@ -443,6 +451,7 @@ def client_dpe_dvf(tmp_path):
 
     appli = module_app.creer_app(str(tmp_path), construire=construire,
                                  lire_monuments=lambda *b: {"elements": []},
+                                 lire_eoliennes=lambda *b: {"elements": []},
                                  lire_ouvrages=lambda *b: {}, lire_nuage=lambda *b: None,
                                  lire_dpe=lire_dpe, lire_dvf=lire_dvf, lire_bornes=lire_bornes)
     return appli.test_client(), lectures
@@ -496,6 +505,7 @@ def client_quota(tmp_path):
     def creer(**options):
         return module_app.creer_app(str(tmp_path), construire=construire,
                                     lire_monuments=lambda *b: {"elements": []},
+                                    lire_eoliennes=lambda *b: {"elements": []},
                                     lire_ouvrages=lambda *b: {}, lire_nuage=lambda *b: None,
                                     **options).test_client()
     return creer

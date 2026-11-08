@@ -23,9 +23,10 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+from vue3d.eoliennes import eoliennes_pour_emprise, fetch_eoliennes, position
 from vue3d.monuments import _lignes, fetch_monuments, monuments_pour_emprise
 from vue3d.osm_local import COUCHES, lecteur
-from vue3d.scene import emprise, point_normalise
+from vue3d.scene import emprise, emprise_anneau, point_normalise
 from vue3d.signalisation import _requete_bloc as requete_signaux
 from vue3d.signalisation import rectangle_bloc as rectangle_signaux
 from vue3d.signalisation import signaux_du_bloc
@@ -33,7 +34,8 @@ from vue3d.vitesses import BLOC_M, _requete_bloc as requete_voies
 from vue3d.vitesses import lambert93, overpass, rectangle_bloc, voies_du_bloc
 
 LIEUX = [("Strasbourg, cathédrale", 48.5818, 7.7510), ("Lyon, Fourvière", 45.7623, 4.8223),
-         ("Aix-en-Provence, Rotonde", 43.5263, 5.4454), ("Ajaccio, port", 41.9192, 8.7386)]
+         ("Aix-en-Provence, Rotonde", 43.5263, 5.4454), ("Ajaccio, port", 41.9192, 8.7386),
+         ("Fruges, parc éolien", 50.5285, 2.0850)]
 
 
 # Part d'éléments qui peuvent différer d'Overpass : la base a un ou deux jours de
@@ -41,8 +43,9 @@ LIEUX = [("Strasbourg, cathédrale", 48.5818, 7.7510), ("Lyon, Fourvière", 45.7
 # et 4 733 éléments, 3 voies de Strasbourg sur 773 (0,4 %), modifiées depuis, et
 # aucune ailleurs. 2 % laisse passer une ville très éditée, pas une base fausse.
 ECART_ADMIS = 0.02
-# Questions qui doivent avoir eu une réponse, sur douze, pour conclure.
-QUESTIONS_MIN = 6
+# Questions qui doivent avoir eu une réponse, sur vingt, pour conclure : la
+# moitié, comme quand il y en avait douze.
+QUESTIONS_MIN = 10
 # Part de chaque couche de la base en service qu'une nouvelle base doit garder :
 # OpenStreetMap ne perd pas 5 % de ses voies en un mois, un extrait tronqué si.
 VOLUME_MIN = 0.95
@@ -54,9 +57,15 @@ def ids(reponse):
 
 def identiques(direct, local):
     """Le même élément vu d'Overpass et de la base : mêmes points, mêmes nœuds, et
-    les tags que la base garde. Overpass en porte d'autres, qu'elle ne lit pas."""
-    points = (lambda e: [(e["lat"], e["lon"])]) if direct["type"] == "node" else (
-        lambda e: [[(p["lat"], p["lon"]) for p in ligne] for ligne in _lignes(e)])
+    les tags que la base garde. Overpass en porte d'autres, qu'elle ne lit pas.
+    Le centre d'une éolienne dessinée en way, la base le tire des nœuds, Overpass
+    aussi : au millionième de degré près, 11 cm."""
+    if "center" in local:
+        points = lambda e: (round(e["center"]["lat"], 6), round(e["center"]["lon"], 6))
+    elif direct["type"] == "node":
+        points = lambda e: [(e["lat"], e["lon"])]
+    else:
+        points = lambda e: [[(p["lat"], p["lon"]) for p in ligne] for ligne in _lignes(e)]
     return (points(direct) == points(local)
             and all((direct.get("tags") or {}).get(k) == v for k, v in local["tags"].items())
             and ("nodes" not in local or direct.get("nodes") == local["nodes"]))
@@ -91,10 +100,13 @@ def volumes(nouvelle, actuelle):
     """Ce que chaque base contient ; False si la nouvelle a perdu quelque chose,
     ou si elle est plus ancienne que celle en service."""
     def contenu(chemin):
+        # Une base d'avant les éoliennes n'en a pas la table : zéro.
         base = sqlite3.connect(f"file:{chemin}?mode=ro", uri=True)
         try:
+            tables = {t for (t,) in base.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
             return (base.execute("SELECT valeur FROM meta WHERE cle = 'date'").fetchone()[0],
-                    {c: base.execute(f"SELECT count(*) FROM {c}").fetchone()[0] for c in COUCHES})
+                    {c: base.execute(f"SELECT count(*) FROM {c}").fetchone()[0] if c in tables else 0
+                     for c in COUCHES})
         finally:
             base.close()
 
@@ -118,9 +130,20 @@ def main():
             x, y = lambert93(lon, lat)
             bloc = (int(x // BLOC_M), int(y // BLOC_M))
             bbox = emprise(*point_normalise(lat, lon), 500)
+            anneau = emprise_anneau(*point_normalise(lat, lon))
+            west, south, east, north = anneau
+
+            def eoliennes_direct():
+                # Overpass rend aussi les ways qui touchent l'anneau sans que leur
+                # centre y soit : la base ne les garde pas, la couche non plus.
+                return {"elements": [e for e in fetch_eoliennes(*anneau)["elements"]
+                                     if west <= position(e)["lon"] <= east and south <= position(e)["lat"] <= north]}
+
             questions = [
                 ("monuments", lambda: fetch_monuments(*bbox, extrait=False), base.monuments, bbox,
                  lambda r: monuments_pour_emprise(*bbox, r, {"features": []})),
+                ("éoliennes", eoliennes_direct, base.eoliennes, anneau,
+                 lambda r: eoliennes_pour_emprise(*anneau, r)),
                 ("limites", lambda: overpass(requete_voies(*bloc)), base.voies, rectangle_bloc(*bloc), voies_du_bloc),
                 ("panneaux", lambda: overpass(requete_signaux(*bloc)), base.signaux,
                  rectangle_signaux(*bloc), signaux_du_bloc),

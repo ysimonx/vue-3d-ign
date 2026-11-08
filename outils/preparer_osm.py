@@ -24,8 +24,8 @@ import osmium.filter
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from vue3d.osm_local import (CLES_PORTEUSES, CLES_SIGNAUX, CLES_VOIES, COUCHES, TYPES_SIGNAUX,
-                             Ecrivain)
+from vue3d.osm_local import (CLES_EOLIENNES, CLES_PORTEUSES, CLES_SIGNAUX, CLES_VOIES, COUCHES,
+                             TYPES_SIGNAUX, Ecrivain)
 
 journal = logging.getLogger("preparer_osm")
 
@@ -52,17 +52,34 @@ def relations(pbf):
     return trouvees
 
 
+def _eolienne(objet):
+    return objet.tags.get("power") == "generator" and objet.tags.get("generator:source") == "wind"
+
+
 def noeuds_et_voies(pbf, ecrivain):
-    """Les panneaux, les parties en ways, les voies à limite, les voies à panneau."""
+    """Les panneaux, les éoliennes, les parties en ways, les voies à limite, les
+    voies à panneau."""
     panneaux = set()
     for o in osmium.FileProcessor(pbf, osmium.osm.NODE | osmium.osm.WAY).with_locations().with_filter(
-            osmium.filter.KeyFilter("highway", "building:part")):
+            osmium.filter.KeyFilter("highway", "building:part", "generator:source")):
         if o.is_node():
             if o.tags.get("highway") in TYPES_SIGNAUX and o.location.valid():
                 panneaux.add(o.id)
                 ecrivain.ajouter("signaux", {"type": "node", "id": o.id, "lon": o.location.lon,
                                              "lat": o.location.lat, "tags": _tags(o, CLES_SIGNAUX)})
+            if _eolienne(o) and o.location.valid():
+                ecrivain.ajouter("eoliennes", {"type": "node", "id": o.id, "lon": o.location.lon,
+                                               "lat": o.location.lat, "tags": _tags(o, CLES_EOLIENNES)})
             continue
+        if _eolienne(o):
+            # Le pied dessiné en contour : son centre, celui de sa boîte comme
+            # dans `out center` d'Overpass.
+            situes = [p for _, p in _geometrie(o)]
+            if situes:
+                lons, lats = [p["lon"] for p in situes], [p["lat"] for p in situes]
+                centre = {"lon": (min(lons) + max(lons)) / 2, "lat": (min(lats) + max(lats)) / 2}
+                ecrivain.ajouter("eoliennes", {"type": "way", "id": o.id, "geometry": [centre],
+                                               "tags": _tags(o, CLES_EOLIENNES)})
         partie = o.tags.get("building:part", "no") != "no"
         route = "highway" in o.tags
         limite = route and any(k in o.tags for k in CLES_VOIES)

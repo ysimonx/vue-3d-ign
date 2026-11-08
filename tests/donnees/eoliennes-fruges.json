@@ -1,0 +1,640 @@
+{
+ "note": "Réponse d'Overpass du 8 novembre 2026 (out tags center), réduite au rectangle 2.06,50.505,2.11,50.552 : une partie du parc de Fruges (Pas-de-Calais). Licence ODbL, © contributeurs OpenStreetMap.",
+ "osm3s": {
+  "timestamp_osm_base": "2026-11-08T22:08:42Z",
+  "timestamp_areas_base": "2026-11-08T20:04:49Z",
+  "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+ },
+ "rectangle": [
+  2.06,
+  50.505,
+  2.11,
+  50.552
+ ],
+ "elements": [
+  {
+   "type": "node",
+   "id": 1524401435,
+   "lat": 50.5461339,
+   "lon": 2.0988798,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "99.5",
+    "height:hub": "64",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "E3",
+    "rotor:diameter": "71",
+    "source": "Géorisques - Eolien terrestre - 2026 - https://www.georisques.gouv.fr/donnees/bases-de-donnees/eolien-terrestre",
+    "start_date": "2007-10-04"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1524410794,
+   "lat": 50.514205,
+   "lon": 2.1066373,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "height:hub": "119",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "B4-18",
+    "rotor:diameter": "70",
+    "source": "Géorisques - Eolien terrestre - 2026 - https://www.georisques.gouv.fr/donnees/bases-de-donnees/eolien-terrestre",
+    "start_date": "2009-04-06"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1524410795,
+   "lat": 50.5143477,
+   "lon": 2.1025905,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "height:hub": "119",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "B4-17",
+    "rotor:diameter": "70",
+    "source": "Géorisques - Eolien terrestre - 2026 - https://www.georisques.gouv.fr/donnees/bases-de-donnees/eolien-terrestre",
+    "start_date": "2009-04-06"
+   }
+  },
+  {
+   "type": "node",
+   "id": 1524410798,
+   "lat": 50.5154339,
+   "lon": 2.0988968,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "height:hub": "119",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "B4-16",
+    "rotor:diameter": "70",
+    "source": "Géorisques - Eolien terrestre - 2026 - https://www.georisques.gouv.fr/donnees/bases-de-donnees/eolien-terrestre",
+    "start_date": "2009-04-06"
+   }
+  },
+  {
+   "type": "node",
+   "id": 9909706051,
+   "lat": 50.509193,
+   "lon": 2.0815122,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2.3 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "82",
+    "power": "generator",
+    "ref": "827681",
+    "was:operator": "Ostwind"
+   }
+  },
+  {
+   "type": "node",
+   "id": 9909706052,
+   "lat": 50.5397981,
+   "lon": 2.0728916,
+   "tags": {
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2.3 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "125",
+    "height:hub": "84",
+    "manufacturer": "Enercon",
+    "model": "E-82 E2",
+    "power": "generator",
+    "ref": "CV-01",
+    "rotor:diameter": "82",
+    "source": "Géorisques - Eolien terrestre - 2026 - https://www.georisques.gouv.fr/donnees/bases-de-donnees/eolien-terrestre",
+    "start_date": "2022-04-05"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74968712,
+   "center": {
+    "lat": 50.5128625,
+    "lon": 2.0806296
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782341",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74970044,
+   "center": {
+    "lat": 50.509444,
+    "lon": 2.0752926
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782339",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74970122,
+   "center": {
+    "lat": 50.5156319,
+    "lon": 2.0806284
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782342",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74970166,
+   "center": {
+    "lat": 50.5111003,
+    "lon": 2.0779561
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782340",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74970266,
+   "center": {
+    "lat": 50.5178678,
+    "lon": 2.0976542
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "height:hub": "119",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "B4-15",
+    "rotor:diameter": "70",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010",
+    "start_date": "2009-04-06"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74971921,
+   "center": {
+    "lat": 50.5119715,
+    "lon": 2.0899993
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74972025,
+   "center": {
+    "lat": 50.5113951,
+    "lon": 2.0946274
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74972177,
+   "center": {
+    "lat": 50.5141544,
+    "lon": 2.0887964
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74972989,
+   "center": {
+    "lat": 50.5101551,
+    "lon": 2.0676792
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782373",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74973051,
+   "center": {
+    "lat": 50.513584,
+    "lon": 2.0736077
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782371",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74973650,
+   "center": {
+    "lat": 50.5096176,
+    "lon": 2.0959325
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74973719,
+   "center": {
+    "lat": 50.5161993,
+    "lon": 2.0936237
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74974039,
+   "center": {
+    "lat": 50.5119825,
+    "lon": 2.0706051
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782372",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 74974072,
+   "center": {
+    "lat": 50.5154842,
+    "lon": 2.0764679
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "84",
+    "power": "generator",
+    "ref": "782370",
+    "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2010"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245414852,
+   "center": {
+    "lat": 50.548874,
+    "lon": 2.097502
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "99.5",
+    "height:hub": "64",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "E2",
+    "rotor:diameter": "71",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013",
+    "start_date": "2007-10-04"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245414853,
+   "center": {
+    "lat": 50.5486115,
+    "lon": 2.1038207
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "99.5",
+    "height:hub": "64",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "E4",
+    "rotor:diameter": "71",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013",
+    "start_date": "2007-10-04"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245414854,
+   "center": {
+    "lat": 50.551314,
+    "lon": 2.0964385
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "height": "99.5",
+    "height:hub": "64",
+    "manufacturer": "Enercon",
+    "model": "E-70 E4",
+    "power": "generator",
+    "ref": "E1",
+    "rotor:diameter": "71",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013",
+    "start_date": "2007-10-04"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603207,
+   "center": {
+    "lat": 50.5453684,
+    "lon": 2.0837275
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603214,
+   "center": {
+    "lat": 50.5442229,
+    "lon": 2.0782774
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603222,
+   "center": {
+    "lat": 50.5375632,
+    "lon": 2.0687144
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603227,
+   "center": {
+    "lat": 50.5349285,
+    "lon": 2.0729703
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603234,
+   "center": {
+    "lat": 50.5461774,
+    "lon": 2.0873506
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603241,
+   "center": {
+    "lat": 50.5307286,
+    "lon": 2.0608271
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603249,
+   "center": {
+    "lat": 50.5461169,
+    "lon": 2.0770384
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603255,
+   "center": {
+    "lat": 50.5343079,
+    "lon": 2.0681074
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603262,
+   "center": {
+    "lat": 50.5435727,
+    "lon": 2.081824
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  },
+  {
+   "type": "way",
+   "id": 245603269,
+   "center": {
+    "lat": 50.5337841,
+    "lon": 2.0646381
+   },
+   "tags": {
+    "building": "yes",
+    "generator:method": "wind_turbine",
+    "generator:output:electricity": "2 MW",
+    "generator:source": "wind",
+    "generator:type": "horizontal_axis",
+    "power": "generator",
+    "source": "cadastre-dgi-fr source : Direction Générale des Finances Publiques - Cadastre. Mise à jour : 2013"
+   }
+  }
+ ]
+}

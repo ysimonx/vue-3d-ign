@@ -222,3 +222,35 @@ def test_une_base_amputee_ou_plus_ancienne_est_refusee(tmp_path, capsys):
     assert v.volumes(base("bonne.sqlite", "2026-12-01", 99), actuelle)
     assert not v.volumes(base("amputee.sqlite", "2026-12-01", 90), actuelle)
     assert not v.volumes(base("ancienne.sqlite", "2026-10-01", 100), actuelle)
+
+
+def test_une_base_en_service_d_avant_les_eoliennes_ne_bloque_pas_la_suivante(tmp_path, capsys):
+    """La première base qui les a remplace une base sans leur table ; une base
+    qui les perd ensuite est refusée."""
+    v = _verifier()
+    voie = _way(1, [(2.0, 47.0), (2.001, 47.001)], {"maxspeed": "50"})
+    eolienne = {"type": "node", "id": 7, "lon": 2.0, "lat": 47.0, "tags": {"power": "generator"}}
+
+    def base(nom, date, eoliennes):
+        sortie = str(tmp_path / nom)
+        ecrivain = Ecrivain(sortie)
+        ecrivain.ajouter("voies", voie)
+        for e in eoliennes:
+            ecrivain.ajouter("eoliennes", e)
+        ecrivain.fermer(date)
+        if not eoliennes:
+            with sqlite3.connect(sortie) as b:
+                b.executescript("DROP TABLE eoliennes; DROP TABLE eoliennes_emprises;")
+        return sortie
+
+    ancienne = base("ancienne.sqlite", "2026-11-04", [])
+    nouvelle = base("nouvelle.sqlite", "2026-12-02", [eolienne])
+    assert v.volumes(nouvelle, ancienne)
+    assert not v.volumes(base("amputee.sqlite", "2027-01-02", []), nouvelle)
+
+
+def test_le_centre_d_une_eolienne_se_compare_au_millionieme():
+    v = _verifier()
+    direct = {"type": "way", "id": 3, "center": {"lat": 50.5178678, "lon": 2.0976542}, "tags": {"power": "generator"}}
+    assert v.identiques(direct, {**direct, "center": {"lat": 50.5178679, "lon": 2.0976541}})
+    assert not v.identiques(direct, {**direct, "center": {"lat": 50.5178778, "lon": 2.0976542}})
