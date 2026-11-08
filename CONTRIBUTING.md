@@ -66,7 +66,7 @@ En conteneur : `docker compose up -d --build`, sur le port 8080 (ou
 flowchart LR
     P["Page<br/>static/index.html<br/>js/scene/ · three.js"] -->|"GET /api/scene"| A["app.py<br/>Flask"]
     P -.->|"GET /api/avancement<br/>toutes les 0,5 s"| A
-    P -.->|"GET /api/monuments<br/>GET /api/ouvrages<br/>GET /api/nuage<br/>après la scène"| A
+    P -.->|"GET /api/monuments<br/>GET /api/eoliennes<br/>GET /api/ouvrages<br/>GET /api/nuage<br/>après la scène"| A
     A --> C{"Cache<br/>scene.py"}
     C -->|"déjà construite"| D[("cache/vN/lat_lon/<br/>scene.json.gz · ortho.jpg<br/>monuments.json.gz<br/>ouvrages-vM.json.gz<br/>nuage-vM.json.gz")]
     C -->|"absente : verrou par point"| B["construire()<br/>16 lectures ensemble"]
@@ -92,8 +92,9 @@ Le trajet d'une demande, dans l'ordre :
    lit alors seize sources de l'IGN, toutes ensemble (`_lire_ensemble` ; huit
    requêtes au plus en cours pour tout le service, `geopf.place`), et compte
    les lectures finies pour la barre d'avancement de la page. Pendant ce
-   temps, deux tâches de fond lisent les couches à part : Overpass pour les
-   monuments OSM, quatre couches BD TOPO pour les ouvrages.
+   temps, trois tâches de fond lisent les couches à part : Overpass pour les
+   monuments et pour les éoliennes OSM (ou la base locale, `VUE3D_OSM`),
+   quatre couches BD TOPO pour les ouvrages.
 4. `assembler()` fait les deux calculs longs : les toitures (`toits.py`, et
    `pans.py` pour les toits que le résumé manque), puis les arbres
    (`houppiers.py`), une fois réservoirs et constructions ponctuelles retirés
@@ -142,7 +143,8 @@ anneau de relief grossier s'étend au-delà, sur 2 km de côté.
 | `relief.py` | Relief RGE ALTI et anneau | Quantifié au décimètre ; le service rend −99999 hors couverture ; `echantillonneur` le relit côté serveur comme la page |
 | `eau.py` | Étendues et cours d'eau | Découpés sur l'emprise ; les axes « fictifs » des rivières larges sont écartés ; `masque_eau` retire l'eau du sursol des houppiers |
 | `lignes.py` | Lignes à haute tension | Hauteur des pylônes BD TOPO, à défaut médiane par tension |
-| `monuments.py` | Parties de monuments OSM | Seule source hors IGN, et la plus lente ; extrait embarqué pour les lieux d'exemple ; règle de remplacement aux deux tiers, enveloppes |
+| `monuments.py` | Parties de monuments OSM | Seule source hors IGN, et la plus lente ; extrait embarqué pour les lieux d'exemple ; règle de remplacement aux deux tiers, enveloppes ; `interroger_overpass` et `BlocsMonuments`, que les éoliennes reprennent |
+| `eoliennes.py` | Éoliennes OSM | Couche à part, versionnée par `EOLIENNES_VERSION`, sur l'emprise de l'anneau ; `height` est le bout de pale (96 % des trios se tiennent), la paire de dimensions la plus vraisemblable corrige les autres (altitudes, rayon pour diamètre, inversions) ; replis par classe de puissance, marqués `estime` ; blocs de 0,05° (`BlocsEoliennes`) ; table `eoliennes` de la base locale |
 | `ouvrages.py` | Murs, ponts, voies ferrées, terrains de sport | Couche à part, versionnée par `OUVRAGES_VERSION` ; hauteur d'un mur ou d'un pont = altitude de ses sommets − relief de la scène |
 | `nuage.py` | Bâti du nuage de points LiDAR HD, ouvrages ajourés | Couche à part, versionnée par `NUAGE_VERSION` ; dalles COPC lues par plages à travers `geopf` (laspy ne fait aucune requête), une à une : en 40 à la fois, la Géoplateforme répond 429 ; Lambert-93 écrit ici, vérifié contre pyproj au millimètre ; ajouré = sol vu sous une structure à travers l'emprise (une cour à ciel ouvert ne compte pas), ou emprise qui chevauche un ajouré |
 | `vehicules.py` | Véhicules et piscines lus sur l'orthophoto | Couche à part et **optionnelle** (`VUE3D_VEHICULES`) : un réseau ONNX à boîtes orientées sur l'orthophoto à 0,2 m, une passe par objet, chacun à son échelle ; fichier de cache au nom du détecteur ; sans la variable, ni onnxruntime ni réseau ne sont chargés |
@@ -545,6 +547,7 @@ direct. Ils écrivent leurs sorties dans `cache/mesures/`, ignoré par git.
 | `chrono-page.mjs` | Chronologie d'un chargement dans Chrome : quand chaque demande part, est envoyée et revient (puppeteer-core) |
 | `mesure_pans.py` | Toits en pans sur des lieux réels, par le vrai chemin de la scène |
 | `mesure_constructions.py` | Réservoirs, constructions ponctuelles et ouvrages sur des lieux réels : hauteurs, effet du masque sur les houppiers, masses expliquées |
+| `mesure_eoliennes.py` | Éoliennes : les tags OSM de la France entière et ce que `dimensions()` en fait (`osm`), la BD TOPO contre OSM sur quatre parcs et sur la métropole (`bdtopo`), le MNH et le rayon des mâts ajusté au nuage LiDAR HD (`lidar`), la taille des blocs sur les scènes d'un cache (`blocs`) ; les réponses d'Overpass et de la BD TOPO sont gardées dans `donnees/` |
 | `mesure_nuage.py` | Nuage LiDAR HD sur des lieux réels : coût de la lecture selon la taille des blocs, part du sol et de la structure vus sous chaque emprise, ouvrages ajourés, volume de la couche |
 | `mesure_vehicules.py` | Véhicules et piscines sur des lieux réels, par le vrai chemin de la couche : comptes selon le seuil, la tuile et son recouvrement, gabarits, accord entre les deux détecteurs, images annotées, planches de vignettes des piscines ; demande les réseaux exportés et `requirements-vehicules.txt` |
 | `exporter_vehicules.py` | Pas une mesure : télécharge les poids de RTMDet-R ou de YOLO11-OBB et les convertit en ONNX ; tourne dans l'étage `export` du Dockerfile |
@@ -660,11 +663,40 @@ Des chantiers mesurés, prêts à être repris :
   ont elles aussi des sommets en 3D et pourraient être dessinées à leur
   altitude plutôt qu'écartées ; les monuments OSM (`bridge:structure`,
   `building:part`) sont une autre piste pour les ouvrages d'art remarquables.
-- **Constructions non dessinées.** Éoliennes (300 lues, hauteur renseignée 45
-  fois, sans dire si elle compte les pales), croix et calvaires, murs de
-  soutènement (une marche du relief, que le RGE ALTI lisse). Les réservoirs
+- **Constructions non dessinées.** Croix et calvaires, murs de soutènement (une
+  marche du relief, que le RGE ALTI lisse). Les réservoirs
   sont des cylindres à toit plat : sphères de gaz et toits flottants ne sont
   pas distingués, alors que le MNH les montre là où il les voit.
+- **Éoliennes : la BD TOPO en repli.** Sa hauteur est le bout de pale (la plus
+  proche de lui pour 8 069 éoliennes OSM aux dimensions connues sur 8 204, à
+  moins de 10 % pour 7 578), et elle la donne pour 93 % de ses 11 090
+  éoliennes : elle remplirait les 21 % d'éoliennes OSM dont une dimension au
+  moins est estimée, et ajouterait les 243 éoliennes en service qu'OSM n'a pas
+  (2,3 %). Le prix : une seconde source, la Géoplateforme, dans une couche qui
+  ne lit qu'OpenStreetMap, appariée à moins de 20 m (1,6 m d'écart médian).
+  Mesure : `python outils/mesure_eoliennes.py bdtopo`.
+- **Éoliennes dans la vue en voiture.** La couche couvre l'anneau d'une scène ;
+  la voiture lit des carrés de 500 m le long de la route prévue. Il faudrait
+  des blocs à elle, comme les limitations (`vitesses.py`, blocs de 2 km), ou
+  les blocs de 0,05° de `BlocsEoliennes` lus le long de la route, et la
+  géométrie de `blocsEolienne` partagée par `js/commun/`.
+- **Éoliennes : le reste de la machine.** Seul le mât est mesuré (27 mâts dans
+  le nuage) ; nacelle, moyeu et corde des pales sont des proportions de
+  convention. Le nuage montre aussi la nacelle, autour du moyeu, et les pales.
+  Le rotor regarde l'ouest : la direction du vent de l'année type de PVGIS
+  (`WD10m`, déjà lue pour l'ensoleillement), pondérée par l'énergie du vent, le
+  tournerait face au mistral ou à la tramontane. Les 25 éoliennes à axe
+  vertical sont dessinées comme les autres. Ni l'IFC ni le CityGML ne les
+  exportent encore.
+- **Éoliennes sur photogrammétrie.** Le MNH LiDAR HD ne voit pas les mâts : six
+  scènes construites à leur pied (Bouin, Aumelas, Fruges) n'ont ni houppier ni
+  masse à moins de 12 m. Le repli MNS − MNT, lui, montre une tache de 3,4 à
+  4,8 m de rayon à la hauteur du moyeu (62 à 69 m, sur des fenêtres de 60 m
+  qui y retombaient) : au-dessus de 40 m, elle n'est pas un arbre, mais dans
+  une scène hors LiDAR HD sa base pourrait laisser une masse de sursol au pied
+  du mât. Les positions BD TOPO (`construction_ponctuelle`, nature
+  « Eolienne »), déjà lues par la scène, la retireraient du sursol, au prix
+  d'une nouvelle `SCENE_VERSION`.
 - **Tuyauterie des sites industriels.** Une fois les citernes retirées du
   sursol, il reste 2 660 houppiers et masses sur quatre parcs de stockage,
   pour l'essentiel des portiques et des tuyaux ; la couche `canalisation` de

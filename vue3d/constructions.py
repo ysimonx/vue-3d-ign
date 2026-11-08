@@ -44,9 +44,10 @@ bâtiment de 119,1 m, à Gardanne) ; les 16 autres le dépassent de 1,3 à 9 foi
 un socle de 32,8 m à Gardanne, que l'ancienne règle effaçait.
 Clochers et minarets ne sont pas repris : ils sont dans leur bâtiment ; croix et calvaires
 n'ont jamais de hauteur (0 sur 14) et le MNH n'y lit que les arbres voisins ;
-un transformateur n'est pas une construction élevée ; la hauteur d'une
-éolienne (renseignée 45 fois sur 300) ne dit pas ce qu'elle mesure, du mât ou
-du bout de pale. Aucun de ceux-là n'est repris.
+un transformateur n'est pas une construction élevée. Aucun de ceux-là n'est
+repris. Les éoliennes ont leur couche, tirée d'OpenStreetMap (vue3d/eoliennes.py),
+qui dit la hauteur du moyeu et le diamètre du rotor ; la hauteur BD TOPO, elle,
+est celle du bout de pale (8 069 fois sur 8 204, mesuré en novembre 2026).
 
 **Les très hautes cheminées perdent leur sommet dans le LiDAR.** Gardanne
 (295 m) y culmine à 155 m, Porcheville (220 m) à 92 m, Saint-Avold (165 m) à

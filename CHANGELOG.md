@@ -15,6 +15,26 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Les éoliennes** (9 novembre 2026), d'OpenStreetMap : mât, nacelle et
+  rotor à trois pales, jusqu'à l'anneau autour de la scène — une éolienne de
+  150 m se voit de loin. Le rotor tourne au régime d'une grande éolienne (le
+  bout des pales à 70 m/s) quand le curseur « vitesse » est à sa valeur par
+  défaut, plus ou moins vite avec lui, et s'arrête à son minimum ; il regarde
+  l'ouest, faute de mesure du vent. Au survol, la fiche dit le nom,
+  l'exploitant, le modèle, la puissance, les hauteurs du moyeu et du bout de
+  pale, le diamètre du rotor, et ce qui est estimé. Le bouton **Éoliennes**
+  n'apparaît que s'il y en a. Mesuré sur les 10 918 éoliennes OSM de
+  métropole : `height` y est le bout de pale (96 % des 8 373 qui portent les
+  trois dimensions), des altitudes, des rayons et des inversions sont
+  corrigés par la paire de dimensions la plus vraisemblable, et une
+  dimension qui manque vient de la classe de puissance (21 % des éoliennes).
+  Le rayon du mât est celui que le nuage LiDAR HD montre : 1,5 m au pied
+  pour 60 m de moyeu, 2,5 m pour 137 m. La BD TOPO, dont 94 % des éoliennes
+  ont leur jumelle OSM à moins de 20 m, n'est pas lue. Couche à part
+  (`/api/eoliennes`), lue dès la scène, gardée par bloc de 0,05° ; avec
+  `VUE3D_OSM`, il faut refaire la base (`outils/preparer_osm.py`) pour la
+  servir sans Overpass : une base d'avant reste bonne pour le reste. Pas
+  encore dans les exports IFC et CityGML, ni dans la vue en voiture.
 - **OpenStreetMap en local, sans Overpass** (6 novembre 2026) : monuments,
   limites de vitesse et signalisation peuvent se lire dans une base SQLite tirée
   de l'extrait France de Geofabrik (`outils/preparer_osm.py`, `VUE3D_OSM`), au lieu

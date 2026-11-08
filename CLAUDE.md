@@ -22,6 +22,7 @@ node outils/verifier-modules.mjs                 # ordre d'évaluation des modul
 node outils/verifier-recherche.mjs               # recherche d'un lieu, exécutée sous Node
 node outils/verifier-export.mjs essai.ifc essai.gml   # exports IFC et CityGML, exécutés sous Node
 node outils/verifier-solaire.mjs http://localhost:8080   # ensoleillement des toits contre PVGIS (réseau)
+python outils/mesure_eoliennes.py osm donnees/eoliennes-france.json   # éoliennes : tags OSM (osm), BD TOPO (bdtopo), mâts au LiDAR (lidar), blocs (blocs ~/Services/vue-3d-ign/cache)
 node outils/mesure-ecarts-toits.mjs "http://localhost:8080/?lat=43.9116&lon=5.2003"   # toits contre le nuage LiDAR (puppeteer-core)
 python outils/valider_ifc.py essai.ifc           # validation par ifcopenshell (pip install ifcopenshell pytest, hors requirements)
 python outils/valider_citygml.py essai.gml       # géométrie du CityGML ; son schéma : citygml-tools validate essai.gml
@@ -39,7 +40,7 @@ node outils/film-voiture.mjs "http://localhost:8080/voiture?simu=1&lat=48.8532&l
 ```
 vue3d/
   app.py        l'application Flask et l'état du service (cache, stocks, quotas) ; quota de scènes neuves par IP (VUE3D_QUOTA, VUE3D_PROXY derrière un proxy)
-  routes/       les routes, un blueprint par page : scene.py (/, /api/scene, /api/ortho, /api/monuments, /api/ouvrages, /api/nuage, /api/piscines, /api/navires, /api/vehicules, /api/panneaux, /api/dpe, /api/dvf, /api/bornes, /api/solaire, /api/avancement, POST /api/reconstruire, GET et POST /api/avis), voiture.py (/voiture, /api/carre, /api/vegetation, /api/vitesses, /api/signalisation, /api/bornes-bloc, POST /api/signalement), service.py (/api/tuile, /api/sante)
+  routes/       les routes, un blueprint par page : scene.py (/, /api/scene, /api/ortho, /api/monuments, /api/eoliennes, /api/ouvrages, /api/nuage, /api/piscines, /api/navires, /api/vehicules, /api/panneaux, /api/dpe, /api/dvf, /api/bornes, /api/solaire, /api/avancement, POST /api/reconstruire, GET et POST /api/avis), voiture.py (/voiture, /api/carre, /api/vegetation, /api/vitesses, /api/signalisation, /api/bornes-bloc, POST /api/signalement), service.py (/api/tuile, /api/sante)
   scene.py      assemblage d'une scène, cache disque par point arrondi
   couches.py    lecture WFS (bâtiments, végétation, BD Forêt, routes)
   batiments.py  bâtiments découpés sur l'emprise, en retrait du bord
@@ -53,6 +54,7 @@ vue3d/
   eau.py        étendues et cours d'eau BD TOPO, découpés sur l'emprise
   lignes.py     lignes à haute tension et hauteur de leurs supports
   monuments.py  parties de monuments OSM (building:part), seule source hors IGN ; lues par bloc de 0,01° gardé dans cache/carres/, trois fils au plus attendent Overpass (attente_overpass)
+  eoliennes.py  éoliennes OSM (power=generator, wind) sur l'anneau : couche à part ; height = bout de pale, paire de dimensions la plus vraisemblable, replis par classe de puissance (`estime`) ; blocs de 0,05° (BlocsEoliennes, héritée de BlocsMonuments), table de la base locale
   ouvrages.py   murs, ponts, voies ferrées, terrains de sport : couche à part, chargée après la scène
   nuage.py      bâti du nuage de points LiDAR HD (dalles COPC lues par plages, via geopf) ; ouvrages ajourés en points : couche à part, lue en deux temps (carré proche, puis zone entière)
   vehicules.py  véhicules, piscines et navires lus sur l'orthophoto par un réseau ONNX : couche à part, optionnelle (VUE3D_VEHICULES) ; les navires gardés sur l'eau, mer comprise (communes BD TOPO, RGE ALTI)
