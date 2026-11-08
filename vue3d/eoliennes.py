@@ -67,8 +67,9 @@ du point OSM, 2 m de haut, et pas le mât, qui en fait 67.
 Le nuage de points, lui, les classe en « sursol pérenne » (classe 64), mât,
 nacelle et pales : son mât donne le rayon que dessine la vue
 (`python outils/mesure_eoliennes.py lidar`, static/js/scene/couches/eoliennes.js).
-Rien ne passe donc par les houppiers, et la couche est à part, chargée après
-la scène, comme les monuments.
+Six scènes construites au pied de mâts (Bouin, Aumelas, Fruges) n'ont ni
+houppier ni masse à moins de 12 m : rien ne passe par les houppiers, et la
+couche est à part, chargée après la scène, comme les monuments.
 """
 
 import math

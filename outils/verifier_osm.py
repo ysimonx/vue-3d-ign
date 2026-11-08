@@ -59,10 +59,12 @@ def identiques(direct, local):
     """Le même élément vu d'Overpass et de la base : mêmes points, mêmes nœuds, et
     les tags que la base garde. Overpass en porte d'autres, qu'elle ne lit pas.
     Le centre d'une éolienne dessinée en way, la base le tire des nœuds, Overpass
-    aussi : au millionième de degré près, 11 cm."""
+    aussi : à un millionième de degré près, 11 cm (14 sur 10 918 s'écartaient d'un
+    dix-millionième le 2026-11-09)."""
     if "center" in local:
-        points = lambda e: (round(e["center"]["lat"], 6), round(e["center"]["lon"], 6))
-    elif direct["type"] == "node":
+        return (all(abs(direct["center"][k] - local["center"][k]) <= 1e-6 for k in ("lat", "lon"))
+                and all((direct.get("tags") or {}).get(k) == v for k, v in local["tags"].items()))
+    if direct["type"] == "node":
         points = lambda e: [(e["lat"], e["lon"])]
     else:
         points = lambda e: [[(p["lat"], p["lon"]) for p in ligne] for ligne in _lignes(e)]
