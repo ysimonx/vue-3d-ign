@@ -5,6 +5,7 @@
     GET /api/scene?lat=…&lon=…     la scène, JSON gzippé (construite au besoin)
     GET /api/ortho?lat=…&lon=…     l'orthophoto de la scène, en JPEG
     GET /api/monuments?lat=…&lon=…   la couche des monuments OSM, JSON gzippé
+    GET /api/eoliennes?lat=…&lon=…   les éoliennes OSM de l'anneau, JSON gzippé
     GET /api/ouvrages?lat=…&lon=…    la couche des ouvrages BD TOPO, JSON gzippé
     GET /api/nuage?lat=…&lon=…       le bâti du nuage LiDAR HD, JSON gzippé
                                    `&proche=1` : d'abord le carré autour du point
@@ -33,9 +34,10 @@ import secrets
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from ..avis import AVIS_OCTETS_MAX, AvisComplets, AvisInvalide
-from ..scene import (NOM_BORNES, NOM_DPE, NOM_DVF, NOM_MONUMENTS, NOM_NUAGE, NOM_NUAGE_PROCHE, NOM_ORTHO,
-                     NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE, NOM_SOLAIRE, BornesIndisponibles,
-                     DpeIndisponibles, DvfIndisponible, HorsEmprise, MonumentsIndisponibles,
+from ..scene import (NOM_BORNES, NOM_DPE, NOM_DVF, NOM_EOLIENNES, NOM_MONUMENTS, NOM_NUAGE, NOM_NUAGE_PROCHE,
+                     NOM_ORTHO, NOM_OUVRAGES, NOM_PANNEAUX, NOM_SCENE, NOM_SOLAIRE, BornesIndisponibles,
+                     DpeIndisponibles, DvfIndisponible, EoliennesIndisponibles, HorsEmprise,
+                     MonumentsIndisponibles,
                      NuageIndisponible, OuvragesIndisponibles, PanneauxIndisponibles,
                      ReconstructionRefusee, SceneIncomplete, SolaireIndisponible, VehiculesDesactives,
                      VehiculesIndisponibles, nom_scene, point_normalise, zone_normalisee)
@@ -111,6 +113,8 @@ def blueprint(cache, construire, quota, avis, quota_avis):
                 return None, refus
             if couche == NOM_MONUMENTS:
                 return cache.obtenir_monuments(*p, construire=construire, zone=zone), None
+            if couche == NOM_EOLIENNES:
+                return cache.obtenir_eoliennes(*p, construire=construire, zone=zone), None
             if couche == NOM_OUVRAGES:
                 return cache.obtenir_ouvrages(*p, construire=construire, zone=zone), None
             if couche == NOM_NUAGE:
@@ -139,6 +143,7 @@ def blueprint(cache, construire, quota, avis, quota_avis):
                 # répondent pendant que la scène se construit, et elles sont
                 # souvent prêtes quand la page les demande.
                 cache.prelire_monuments(*p, zone=zone)
+                cache.prelire_eoliennes(*p, zone=zone)
                 cache.prelire_ouvrages(*p, zone=zone)
                 cache.prelire_vehicules(*p, zone=zone)
                 cache.prelire_panneaux(*p, zone=zone)
@@ -153,6 +158,11 @@ def blueprint(cache, construire, quota, avis, quota_avis):
                                 "dans quelques instants.")
         except MonumentsIndisponibles as exc:
             log.warning("Monuments OSM indisponibles pour %s : %s", p, exc)
+            return None, erreur(503, "OpenStreetMap n'a pas répondu ("
+                                f"{exc}). Rien n'a été mis en cache : réessayez "
+                                "dans quelques instants.")
+        except EoliennesIndisponibles as exc:
+            log.warning("Éoliennes OSM indisponibles pour %s : %s", p, exc)
             return None, erreur(503, "OpenStreetMap n'a pas répondu ("
                                 f"{exc}). Rien n'a été mis en cache : réessayez "
                                 "dans quelques instants.")
@@ -222,6 +232,13 @@ def blueprint(cache, construire, quota, avis, quota_avis):
         """La couche OSM, demandée par la page une fois la scène affichée :
         `null` quand l'emprise n'a aucune partie, le cas de presque partout."""
         return couche(NOM_MONUMENTS)
+
+    @bp.get("/api/eoliennes")
+    def eoliennes():
+        """Les éoliennes OSM de l'anneau, demandées par la page une fois la
+        scène affichée : `null` quand il n'y en a aucune, le cas de presque
+        partout."""
+        return couche(NOM_EOLIENNES)
 
     @bp.get("/api/ouvrages")
     def ouvrages():

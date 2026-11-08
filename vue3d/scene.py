@@ -27,6 +27,10 @@ vue3d/ouvrages.py) suivent le même chemin (`Cache.obtenir_ouvrages`) : rien de
 ce qu'ils décrivent n'entre dans un calcul de la scène, qui n'a donc pas à
 échouer avec eux ni à être reconstruite quand leur format change.
 
+Les éoliennes d'OpenStreetMap (vue3d/eoliennes.py) suivent le chemin des
+monuments (`Cache.obtenir_eoliennes`), sur l'emprise de l'anneau : une éolienne
+se voit de loin.
+
 Les véhicules, les piscines et les navires de l'orthophoto (vue3d/vehicules.py)
 sont une troisième couche à part, optionnelle : elle n'existe que si le service a été
 lancé avec un détecteur (`Cache.obtenir_vehicules`, `VUE3D_VEHICULES`). Les
@@ -73,6 +77,7 @@ from .couches import (COUCHE_BATIMENTS, COUCHE_FORET, COUCHE_ROUTES,
 from .bornes import BORNES_VERSION, bornes_pour_emprise, fetch_bornes
 from .dpe import DPE_VERSION, dpe_pour_emprise, fetch_dpe
 from .dvf import DVF_VERSION, dvf_pour_emprise, fetch_dvf
+from .eoliennes import EOLIENNES_VERSION, eoliennes_pour_emprise, fetch_eoliennes
 from .eau import (COUCHE_COURS_EAU, COUCHE_SURFACES_EAU, eau_pour_emprise,
                   masque_eau)
 from .geopf import Groupe
@@ -173,6 +178,8 @@ LECTURE_TERRAIN = "terrain sous les toits"
 NOM_SCENE = "scene.json.gz"
 NOM_ORTHO = "ortho.jpg"
 NOM_MONUMENTS = "monuments.json.gz"
+# Les éoliennes d'OpenStreetMap, sur l'emprise de l'anneau.
+NOM_EOLIENNES = f"eoliennes-v{EOLIENNES_VERSION}.json.gz"
 # La version de la couche est dans son nom : la changer ne refait qu'elle.
 NOM_OUVRAGES = f"ouvrages-v{OUVRAGES_VERSION}.json.gz"
 
@@ -260,6 +267,11 @@ class HorsEmprise(ValueError):
 class MonumentsIndisponibles(RuntimeError):
     """Overpass n'a pas répondu : la couche OSM n'est pas mise en cache, la
     scène reste affichée sans elle, réessayer plus tard."""
+
+
+class EoliennesIndisponibles(RuntimeError):
+    """Overpass n'a pas répondu pour les éoliennes : rien n'est mis en cache,
+    la scène reste affichée sans elles, réessayer plus tard."""
 
 
 class NuageIndisponible(RuntimeError):
@@ -775,7 +787,8 @@ class Cache:
     def __init__(self, dossier, lire_monuments=fetch_monuments, lire_ouvrages=fetch_ouvrages,
                  lire_vehicules=None, lire_panneaux=None, lire_nuage=fetch_nuage,
                  lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
-                 lire_bornes=fetch_bornes, lire_solaire=fetch_solaire):
+                 lire_bornes=fetch_bornes, lire_solaire=fetch_solaire,
+                 lire_eoliennes=fetch_eoliennes):
         """`lire_vehicules` : de `vehicules.lecteur()`, ou une doublure qui a
         la même forme — `mode`, `detecteurs`, `orthophoto(emprise)` -> tableau
         RGB, `piscines(emprise, rgb=None)`, `navires(emprise, rgb=None)` et
@@ -787,7 +800,9 @@ class Cache:
         `lire_mer` : (emprise) -> de quoi dire où est la mer
         (vehicules.fetch_mer), lue pour les navires qui en ont.
         `lire_panneaux` : de `panneaux.lecteur()`, (emprise) -> installations ;
-        None, et la couche des panneaux n'existe pas."""
+        None, et la couche des panneaux n'existe pas.
+        `lire_eoliennes` : (emprise de l'anneau) -> réponse Overpass des
+        éoliennes (vue3d/eoliennes.py)."""
         self.dossier = dossier
         os.makedirs(dossier, exist_ok=True)
         self._verrous = {}
@@ -805,6 +820,7 @@ class Cache:
         # réseau. Un bassin de fils par source : Overpass peut tenir les siens
         # plus de 100 s, l'IGN n'a pas à attendre derrière lui.
         self.lire_monuments = lire_monuments
+        self.lire_eoliennes = lire_eoliennes
         self.lire_ouvrages = lire_ouvrages
         self.lire_vehicules = self._qui_cede(lire_vehicules)
         self.mode_vehicules = lire_vehicules.mode if lire_vehicules else None
@@ -819,6 +835,8 @@ class Cache:
         self._taches = {
             NOM_MONUMENTS: concurrent.futures.ThreadPoolExecutor(
                 max_workers=2, thread_name_prefix="overpass"),
+            NOM_EOLIENNES: concurrent.futures.ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="eoliennes"),
             NOM_OUVRAGES: concurrent.futures.ThreadPoolExecutor(
                 max_workers=2, thread_name_prefix="ouvrages"),
             # Une lecture SQLite de quelques millisecondes.
@@ -1031,14 +1049,19 @@ class Cache:
                 oublier = getattr(self.lire_monuments, "oublier", None)
                 if oublier:
                     oublier(*emprise(lat, lon, zone))
+                # Ses éoliennes, gardées par bloc sur l'anneau (BlocsEoliennes).
+                oublier = getattr(self.lire_eoliennes, "oublier", None)
+                if oublier:
+                    oublier(*emprise_anneau(lat, lon, zone=zone))
             journal.info("Scène %.4f, %.4f (zone %s) mise de côté, à reconstruire",
                          lat, lon, zone or "par défaut")
         finally:
             verrou.release()
 
-    def _prelire(self, nom, lat, lon, lire, zone=None):
+    def _prelire(self, nom, lat, lon, lire, zone=None, etendue=emprise):
         """Lance en tâche de fond la lecture d'une couche à part, si elle
-        n'est ni en cache ni déjà demandée pour ce point."""
+        n'est ni en cache ni déjà demandée pour ce point. `etendue` : (lat,
+        lon, zone=) -> l'emprise qu'elle lit, celle de la scène par défaut."""
         lat, lon = point_normalise(lat, lon)
         zone = zone_normalisee(zone)
         if os.path.exists(self.chemin(lat, lon, nom, zone)):
@@ -1046,10 +1069,10 @@ class Cache:
         with self._verrou_global:
             if (nom, lat, lon, zone) not in self._lectures:
                 self._lectures[(nom, lat, lon, zone)] = self._taches[nom].submit(
-                    lire, *emprise(lat, lon, zone))
+                    lire, *etendue(lat, lon, zone=zone))
 
     def _obtenir_couche(self, nom, lat, lon, construire, lire, indisponible, assembler,
-                        zone=None, attente=contextlib.nullcontext):
+                        zone=None, attente=contextlib.nullcontext, etendue=emprise):
         """Chemin du dossier où la couche `nom` du point est écrite.
 
         La couche lit la scène, qui est donc construite d'abord au besoin. La
@@ -1063,6 +1086,8 @@ class Cache:
             assembler: (emprise, réponse de la source, scène) -> couche.
             attente: garde de la lecture, prise avant son verrou ; une couche
                 déjà écrite ne la demande pas.
+            etendue: (lat, lon, zone=) -> l'emprise que la couche lit et
+                assemble, celle de la scène par défaut.
         """
         dossier = self.obtenir(lat, lon, construire=construire, zone=zone)
         lat, lon = point_normalise(lat, lon)
@@ -1081,13 +1106,14 @@ class Cache:
                 return dossier
             with self._verrou_global:
                 tache = self._lectures.pop(cle, None)
+            bbox = etendue(lat, lon, zone=zone)
             try:
-                brut = tache.result() if tache else lire(*emprise(lat, lon, zone))
+                brut = tache.result() if tache else lire(*bbox)
             except Exception as exc:
                 raise indisponible(str(exc)) from exc
             with gzip.open(os.path.join(dossier, NOM_SCENE), "rt", encoding="utf-8") as f:
                 scene = json.load(f)
-            couche = assembler(emprise(lat, lon, zone), brut, scene)
+            couche = assembler(bbox, brut, scene)
             self._ecrire(dossier, nom,
                          gzip.compress(json.dumps(couche, separators=(",", ":")).encode(), 6))
             # Une lecture relancée entre-temps (page rechargée) ne sert plus.
@@ -1126,6 +1152,30 @@ class Cache:
             lambda bbox, brut, scene: monuments_pour_emprise(
                 *bbox, brut, scene.get("batiments") or {"features": []}), zone=zone,
             attente=lambda: attente_overpass(indisponible))
+
+    def prelire_eoliennes(self, lat, lon, zone=None):
+        """Lance la lecture des éoliennes en tâche de fond, comme celle des
+        monuments : elle part à la demande de la scène."""
+        self._prelire(NOM_EOLIENNES, lat, lon, self.lire_eoliennes, zone, etendue=emprise_anneau)
+
+    def obtenir_eoliennes(self, lat, lon, construire=construire, zone=None):
+        """Chemin du dossier où la couche des éoliennes du point est écrite.
+
+        Elle couvre l'emprise de l'anneau, et ne lit rien de la scène
+        (vue3d/eoliennes.py). None si l'anneau n'a aucune éolienne — le cas de
+        presque partout, un fait mis en cache comme tel.
+
+        Raises:
+            EoliennesIndisponibles si Overpass n'a pas répondu, ou si trop de
+            fils l'attendent déjà : rien n'est écrit, la demande suivante
+            réessaie.
+        """
+        def indisponible(message):
+            return EoliennesIndisponibles(f"éoliennes OSM illisibles : {message}")
+        return self._obtenir_couche(
+            NOM_EOLIENNES, lat, lon, construire, self.lire_eoliennes, indisponible,
+            lambda bbox, brut, scene: eoliennes_pour_emprise(*bbox, brut), zone=zone,
+            attente=lambda: attente_overpass(indisponible), etendue=emprise_anneau)
 
     def prelire_ouvrages(self, lat, lon, zone=None):
         """Lance la lecture des couches d'ouvrages en tâche de fond : quatre
