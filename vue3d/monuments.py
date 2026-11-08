@@ -198,12 +198,22 @@ def fetch_monuments(west, south, east, north, extrait=True):
         local = _extrait_de(west, south, east, north)
         if local is not None:
             return local
+    return interroger_overpass(_requete(west, south, east, north))
+
+
+def interroger_overpass(requete):
+    """Réponse JSON d'Overpass à `requete`, en essayant chaque instance, deux
+    tours ; les éoliennes (vue3d/eoliennes.py) passent par là aussi.
+
+    Raises:
+        requests.RequestException si toutes les instances ont échoué.
+    """
     dernier = None
     for tour in range(OVERPASS_TOURS):
         for url in OVERPASS_URLS:
             try:
                 reponse = requests.post(
-                    url, data={"data": _requete(west, south, east, north)},
+                    url, data={"data": requete},
                     headers={"User-Agent": "vue-3d-ign"},
                     timeout=OVERPASS_TIMEOUT_S)
                 if not reponse.ok:
@@ -234,11 +244,11 @@ def _lignes(element):
     return [g for g in lignes if g]
 
 
-def _blocs(west, south, east, north):
+def _blocs(west, south, east, north, par_degre=BLOCS_PAR_DEGRE):
     """Les blocs que touche un rectangle, dans l'ordre : [(bi, bj), …]."""
     return [(bi, bj)
-            for bi in range(math.floor(west * BLOCS_PAR_DEGRE), math.floor(east * BLOCS_PAR_DEGRE) + 1)
-            for bj in range(math.floor(south * BLOCS_PAR_DEGRE), math.floor(north * BLOCS_PAR_DEGRE) + 1)]
+            for bi in range(math.floor(west * par_degre), math.floor(east * par_degre) + 1)
+            for bj in range(math.floor(south * par_degre), math.floor(north * par_degre) + 1)]
 
 
 def touche(element, rectangle):
@@ -255,13 +265,44 @@ class BlocsMonuments:
     de vitesses.py). Un bloc sans aucune partie est un fait, gardé comme tel ; un
     échec n'écrit rien. `lire` : (west, south, east, north) -> réponse Overpass
     brute, injectable pour les tests.
+
+    Les éoliennes (vue3d/eoliennes.py) en héritent : leur dossier, leurs blocs,
+    leur lecture, et ce qu'est la place d'un élément.
     """
 
+    COUCHE = "osm-monuments"
+    VERSION = BLOCS_VERSION
+    PAR_DEGRE = BLOCS_PAR_DEGRE
+    LIBELLE = "Monuments OSM"
+
     def __init__(self, dossier, lire=None):
-        self.dossier = os.path.join(dossier, "carres", f"osm-monuments-v{BLOCS_VERSION}")
-        self.lire = lire or (lambda *rectangle: fetch_monuments(*rectangle, extrait=False))
+        self.dossier = os.path.join(dossier, "carres", f"{self.COUCHE}-v{self.VERSION}")
+        self.lire = lire or self._overpass
         self._verrous = {}
         self._verrou = threading.Lock()
+
+    @staticmethod
+    def _overpass(*rectangle):
+        return fetch_monuments(*rectangle, extrait=False)
+
+    @staticmethod
+    def _extrait(*emprise):
+        return _extrait_de(*emprise)
+
+    @staticmethod
+    def _points(element):
+        """Les points qui placent un élément dans ses blocs."""
+        return [p for ligne in _lignes(element) for p in ligne]
+
+    @staticmethod
+    def _rendu(element, rectangle):
+        """Si l'élément est dans la réponse d'Overpass pour ce rectangle."""
+        return touche(element, rectangle)
+
+    @staticmethod
+    def _ordre(element):
+        """L'ordre d'Overpass : les ways puis les relations, par identifiant."""
+        return element["type"] != "way", element["id"]
 
     def _chemin(self, bi, bj):
         return os.path.join(self.dossier, str(bi), f"{bj}.json.gz")
@@ -279,19 +320,19 @@ class BlocsMonuments:
         Raises:
             requests.RequestException si un bloc manquant n'a pas pu être lu.
         """
-        local = _extrait_de(west, south, east, north)
+        local = self._extrait(west, south, east, north)
         if local is not None:
             return local
-        blocs = _blocs(west, south, east, north)
+        blocs = _blocs(west, south, east, north, self.PAR_DEGRE)
         self._completer([b for b in blocs if not os.path.exists(self._chemin(*b))])
         elements = {}
         for bloc in blocs:
             with gzip.open(self._chemin(*bloc), "rt", encoding="utf-8") as f:
                 for e in json.load(f)["elements"]:
-                    elements[e["type"] != "way", e["id"]] = e
+                    elements[self._ordre(e)] = e
         rectangle = box(west, south, east, north)
         return {"elements": [elements[c] for c in sorted(elements)
-                             if touche(elements[c], rectangle)]}
+                             if self._rendu(elements[c], rectangle)]}
 
     def _completer(self, blocs):
         """Lit les blocs qui manquent encore une fois leurs verrous pris, en
@@ -305,21 +346,21 @@ class BlocsMonuments:
             if not manquants:
                 return
             bis, bjs = [b[0] for b in manquants], [b[1] for b in manquants]
-            brut = self.lire(min(bis) / BLOCS_PAR_DEGRE, min(bjs) / BLOCS_PAR_DEGRE,
-                             (max(bis) + 1) / BLOCS_PAR_DEGRE, (max(bjs) + 1) / BLOCS_PAR_DEGRE)
+            n = self.PAR_DEGRE
+            brut = self.lire(min(bis) / n, min(bjs) / n, (max(bis) + 1) / n, (max(bjs) + 1) / n)
             par_bloc = {b: [] for b in manquants}
             for e in brut.get("elements", []):
-                points = [p for ligne in _lignes(e) for p in ligne]
+                points = self._points(e)
                 if not points:
                     continue
                 lons, lats = [p["lon"] for p in points], [p["lat"] for p in points]
                 garde = {k: v for k, v in e.items() if k not in ("bounds", "nodes")}
-                for b in _blocs(min(lons), min(lats), max(lons), max(lats)):
+                for b in _blocs(min(lons), min(lats), max(lons), max(lats), self.PAR_DEGRE):
                     if b in par_bloc:
                         par_bloc[b].append(garde)
             for bloc, elements in par_bloc.items():
                 self._ecrire(bloc, elements)
-            journal.info("Monuments OSM : %d bloc(s) lu(s), %d élément(s)", len(manquants),
+            journal.info("%s : %d bloc(s) lu(s), %d élément(s)", self.LIBELLE, len(manquants),
                          len(brut.get("elements", [])))
         finally:
             for verrou in verrous:
@@ -327,7 +368,7 @@ class BlocsMonuments:
 
     def _ecrire(self, bloc, elements):
         chemin = self._chemin(*bloc)
-        octets = gzip.compress(json.dumps({"version": BLOCS_VERSION, "bloc": list(bloc),
+        octets = gzip.compress(json.dumps({"version": self.VERSION, "bloc": list(bloc),
                                            "lu": date.today().isoformat(), "elements": elements},
                                           separators=(",", ":")).encode())
         os.makedirs(os.path.dirname(chemin), exist_ok=True)
@@ -339,7 +380,7 @@ class BlocsMonuments:
     def oublier(self, west, south, east, north):
         """Efface les blocs de l'emprise : « Reconstruire la scène » relit ses
         parties, et les points voisins aussi, à leur prochaine couche."""
-        for bloc in _blocs(west, south, east, north):
+        for bloc in _blocs(west, south, east, north, self.PAR_DEGRE):
             with contextlib.suppress(FileNotFoundError):
                 os.remove(self._chemin(*bloc))
 
