@@ -108,6 +108,13 @@ def test_sans_dimension_la_classe_de_puissance_puis_les_medianes():
     assert dimensions({"height:hub": "100", "generator:output:electricity": "2.2 MW"}) == (100, 90, ["d_rotor"])
 
 
+def test_une_dimension_estimee_ne_fait_pas_toucher_le_sol_aux_pales():
+    """Un moyeu de 30 m seul, quand la classe donne 90 m de rotor ; un rotor de
+    150 m seul, quand elle donne 85 m de moyeu."""
+    assert dimensions({"height:hub": "30", "generator:output:electricity": "2 MW"}) == (30, 60, ["d_rotor"])
+    assert dimensions({"rotor:diameter": "180", "generator:output:electricity": "2 MW"}) == (90, 180, ["h_moyeu"])
+
+
 def test_le_petit_eolien_garde_son_mat_haut():
     """Une Skystream de 2,4 kW : 3,7 m de rotor sur 10,4 m de mât."""
     tags = {"height": "12.2", "height:hub": "10.4", "rotor:diameter": "3.7", "generator:output:electricity": "2.4 kW"}

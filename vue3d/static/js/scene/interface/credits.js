@@ -27,9 +27,10 @@ export function majCredits() {
         html += ' · Relief : <a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md"'
             + ' target="_blank" rel="noopener">Mapzen Terrain Tiles</a>, EU-DEM © Copernicus';
     }
-    // ODbL : la seule couche du projet hors données IGN (vue3d/monuments.py).
-    if (monumentsActifs && MONUMENTS) {
-        html += ' · Monuments 3D © <a href="https://www.openstreetmap.org/copyright"'
+    // ODbL : les monuments et les éoliennes (vue3d/monuments.py, vue3d/eoliennes.py).
+    const osm = [monumentsActifs && MONUMENTS && 'Monuments 3D', cite('eoliennes') && 'éoliennes'].filter(Boolean);
+    if (osm.length) {
+        html += ` · ${osm.join(', ').replace(/^./, c => c.toUpperCase())} © <a href="https://www.openstreetmap.org/copyright"`
             + ' target="_blank" rel="noopener">contributeurs OpenStreetMap</a>, ODbL';
     }
     if (cite('panneaux')) {

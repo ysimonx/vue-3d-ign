@@ -20,6 +20,9 @@
 //   pente reste orthonormé, direct, le toit vers le haut ;
 // - bateaux (blocsNavire) : de même, de la quille au dernier rouf, la coque
 //   symétrique d'un bout à l'autre ;
+// - éoliennes (blocsEolienne) : mât, nacelle, moyeu et chaque pale fermés et
+//   tournés vers l'extérieur, de la plus petite à la plus grande ; le mât au
+//   rayon mesuré ; les pales loin du sol et du mât, à tout angle du rotor ;
 // - normales et sphères englobantes que la page calcule elle-même, pour aller
 //   plus vite (normalesFacettes, normalesPliees, normalesIndexees,
 //   sphereEnglobante) : identiques à l'octet à celles de three.js
@@ -720,6 +723,78 @@ console.log(`${ok ? 'OK ' : 'KO '} trous du relief : ${n} bouchés, entre ${Math
             + `${dansRivage ? 'oui' : 'non'}, symétrique ${symetrique ? 'oui' : 'non'}, `
             + `grille vide ${toutEnTrous ? 'laissée' : 'touchée'}, losange ${losange ? 'oui' : 'non'}`);
 tout = tout && ok;
+}
+
+// --- Éoliennes -------------------------------------------------------------------
+{
+const src = sourceDesModules('scene');
+const extraireDe = (nom) => {
+  const i = src.indexOf(`function ${nom}(`);
+  let n = 0;
+  for (let j = src.indexOf('{', src.indexOf(')', i)); j < src.length; j++) {
+    if (src[j] === '{') n++;
+    else if (src[j] === '}' && --n === 0) return src.slice(i, j + 1);
+  }
+};
+const constDe = (nom) => {
+  const i = src.indexOf(`const ${nom} =`);
+  let n = 0;
+  for (let j = i; j < src.length; j++) {
+    if ('([{'.includes(src[j])) n++;
+    else if (')]}'.includes(src[j])) n--;
+    else if (src[j] === ';' && n === 0) return src.slice(i, j + 1);
+  }
+};
+const fonctions = ['rayonPiedMat', 'loft', 'anneauEllipse', 'versAxeX', 'deplaces', 'blocsEolienne'];
+const constantes = ['RAYON_PIED_PART_MOYEU', 'RAYON_PIED_M', 'RAYON_TETE_PART', 'PIED_ENTERRE_M', 'NACELLE',
+                    'MOYEU', 'PROFIL_PALE', 'COTES_MAT'];
+const { blocsEolienne, rayonPiedMat } = new Function(constantes.map(constDe).join('\n') + '\n'
+  + fonctions.map(extraireDe).join('\n') + `\nreturn { ${fonctions.join(', ')} };`)();
+const cle = p => p.map(c => c.toFixed(5)).join(',');
+function fermeture(tris) {
+  const aretes = new Map();
+  let volume = 0, degeneres = 0;
+  for (const [a, b, c] of tris) {
+    volume += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], w = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    if (Math.hypot(u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]) < 1e-12) degeneres++;
+    for (const [p, q] of [[a, b], [b, c], [c, a]]) aretes.set(cle(p) + '>' + cle(q), (aretes.get(cle(p) + '>' + cle(q)) || 0) + 1);
+  }
+  let ouvertes = 0;
+  for (const [k, n] of aretes) { const [p, q] = k.split('>'); if (n !== 1 || (aretes.get(q + '>' + p) || 0) !== 1) ouvertes++; }
+  return { ouvertes, volume, degeneres };
+}
+// De la petite éolienne de jardin aux plus grandes de métropole, par les
+// dimensions qu'elles ont dans OSM.
+const machines = [['Skystream', 10.4, 3.7], ['E-44', 45, 44], ['E-70', 64, 71], ['V90', 85, 90], ['V117', 91.5, 117],
+                  ['V126', 137, 126], ['V150', 127, 150], ['V162', 115, 162]];
+for (const [nom, hMoyeu, dRotor] of machines) {
+  const b = blocsEolienne(hMoyeu, dRotor);
+  const blocs = [...b.fixe, ...b.rotor];
+  const bilans = blocs.map(x => ({ partie: x.partie, ...fermeture(x.tris) }));
+  const mauvais = bilans.filter(x => x.ouvertes || x.volume <= 0 || x.degeneres);
+  // Le pied au rayon mesuré, à la cote 0 : le mât est enterré sous elle.
+  const mat = b.fixe[0].tris.flat();
+  const auSol = Math.max(...mat.filter(p => Math.abs(p[1]) < 3.01).map(p => Math.hypot(p[0], p[2])));
+  // Les pales, à tout angle du rotor (pas de 5°) : le point le plus bas du
+  // rotor au-dessus du sol, le plus proche de l'axe du mât en avant de lui.
+  let bas = Infinity, recul = Infinity;
+  const pales = b.rotor.filter(x => x.partie === 'pale').flatMap(x => x.tris.flat());
+  for (let deg = 0; deg < 360; deg += 5) {
+    const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    for (const [x, y, z] of pales) {
+      const Y = hMoyeu + y * c - z * s, X = b.avance + x;
+      bas = Math.min(bas, Y);
+      if (Y < hMoyeu) recul = Math.min(recul, X);
+    }
+  }
+  const ok = !mauvais.length && auSol > rayonPiedMat(hMoyeu) && bas > 0 && recul > rayonPiedMat(hMoyeu);
+  console.log(`${ok ? 'OK ' : 'KO '} éolienne « ${nom} » (moyeu ${hMoyeu} m, rotor ${dRotor} m) : ${blocs.length} volumes, `
+              + `${mauvais.length ? 'défauts : ' + mauvais.map(x => `${x.partie} ${x.ouvertes} arêtes ouvertes, volume ${x.volume.toFixed(1)}, ${x.degeneres} dégénérés`).join(' ; ') : 'tous fermés, tournés vers l\'extérieur'}, `
+              + `mât de ${rayonPiedMat(hMoyeu).toFixed(2)} m au pied, pale à ${bas.toFixed(1)} m du sol au plus bas, `
+              + `à ${(recul - rayonPiedMat(hMoyeu)).toFixed(2)} m du pied du mât`);
+  tout = tout && ok;
+}
 }
 
 process.exit(tout ? 0 : 1);

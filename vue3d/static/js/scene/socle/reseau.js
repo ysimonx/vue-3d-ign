@@ -7,6 +7,7 @@ import { REQUETE } from './point.js';
 export const URL_VUE3D = `api/scene?${REQUETE}`;
 export const URL_VUE3D_ORTHO = `api/ortho?${REQUETE}`;
 export const URL_MONUMENTS = `api/monuments?${REQUETE}`;
+export const URL_EOLIENNES = `api/eoliennes?${REQUETE}`;
 export const URL_OUVRAGES = `api/ouvrages?${REQUETE}`;
 export const URL_NUAGE = `api/nuage?${REQUETE}`;
 export const URL_PISCINES = `api/piscines?${REQUETE}`;

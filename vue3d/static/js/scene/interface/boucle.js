@@ -14,6 +14,7 @@ import { MAT_EAU, MAT_EAU_INTERMITTENTE } from '../couches/eau.js';
 import { MAT_ROUTE, MAT_CHEMIN } from '../couches/routes.js';
 import { MAT_PYLONE, MAT_CABLE } from '../couches/lignes.js';
 import { MAT_RESERVOIR, MAT_CHEMINEE, MAT_TOUR } from '../couches/constructions.js';
+import { MAT_EOLIENNE, tournerEoliennes } from '../couches/eoliennes.js';
 import {
     MAT_FEUILLAGE, MAT_MASSE, MAT_TRONC, GEO_TRONC, groupeVegSimple, montrerVegetation, btnVeg,
 } from '../vegetation/couche.js';
@@ -55,7 +56,7 @@ dimensionner();
         const essai = new THREE.Group();
         for (const m of [MAT_CIBLE, MAT_VOISIN, MAT_TOIT_VOISIN, MAT_TOIT_SURFACE, MAT_INCONNU, MAT_DESSUS,
                          MAT_TERRAIN, MAT_EAU, MAT_EAU_INTERMITTENTE, MAT_ROUTE, MAT_CHEMIN, MAT_PYLONE,
-                         MAT_RESERVOIR, MAT_CHEMINEE, MAT_TOUR, MAT_FEUILLAGE, MAT_MASSE]) {
+                         MAT_RESERVOIR, MAT_CHEMINEE, MAT_TOUR, MAT_EOLIENNE, MAT_FEUILLAGE, MAT_MASSE]) {
             essai.add(new THREE.Mesh(triangle, m));
         }
         // Sur sa géométrie : l'opacité de ses sommets est une variante du programme.
@@ -160,7 +161,10 @@ function surveillerMouvement(duree) {
 // Notre-Dame en zone de 1 000 m. Les houppiers détaillés comptent même
 // masqués par la forme simple, qui n'est pas comptée : la carte garde leur
 // ombre. Une position changée n'arrive dans matrixWorld qu'au rendu suivant :
-// la carte est alors redessinée une image plus tard, jamais oubliée.
+// la carte est alors redessinée une image plus tard, jamais oubliée. Les
+// rotors des éoliennes (`tourne`) n'y comptent pas : ils tournent à chaque
+// image, et la carte serait redessinée sans fin ; leur ombre suit quand la
+// caméra s'arrête.
 let signature = new Float64Array(1 << 14), signatureOmbre = new Float64Array(1 << 14);
 let longueur = 0, longueurOmbre = -1;
 function noter(v) {
@@ -173,7 +177,7 @@ function noter(v) {
 }
 function signer(o) {
     if (o === groupeVegSimple || (!o.visible && !o.userData.vegetation)) return;
-    if (o.castShadow && o.geometry) {
+    if (o.castShadow && o.geometry && !o.userData.tourne) {
         const m = o.matrixWorld.elements, pos = o.geometry.attributes.position;
         noter(o.id); noter(o.geometry.id); noter(pos ? pos.version : -1);
         noter(o.isInstancedMesh ? o.instanceMatrix.version + 1e6 * o.count : -1);
@@ -228,6 +232,7 @@ function boucle(maintenant) {
     }
     if (droneActif) majDrone(dt, maintenant);
     else controls.update();
+    tournerEoliennes(dt, Number(vitesse.value));
     majHorizon(maintenant);
     if (horizonActif) {
         ciel.position.copy(camera.position);
