@@ -479,8 +479,8 @@ Pour l'un comme pour l'autre :
 
 C'est une maquette de contexte, pas un relevé : les emprises de la BD TOPO
 sont à un mètre près, un toit résumé n'a que deux pans ou une pyramide, et
-réservoirs, murs, ponts, eau, routes et ouvrages dessinés en points (la tour
-Eiffel) ne sont pas encore exportés.
+réservoirs, éoliennes, murs, ponts, eau, routes et ouvrages dessinés en points
+(la tour Eiffel) ne sont pas encore exportés.
 
 ## Lieux à essayer
 
@@ -555,6 +555,13 @@ Chaque premier chargement construit la scène, en quelques secondes.
 - **Les lignes à haute tension** de RTE (63 à 400 kV), jusqu'à un kilomètre
   alentour : pylônes à leur hauteur, câbles tendus entre eux. Le réseau de
   distribution d'Enedis n'est pas dans la BD TOPO.
+- **Les éoliennes**, jusqu'à un kilomètre alentour elles aussi, d'après
+  OpenStreetMap : mât, nacelle et rotor à la hauteur du moyeu et au diamètre
+  que leurs tags donnent, le mât au rayon que le nuage LiDAR HD mesure. Le
+  rotor tourne avec le curseur « vitesse » et s'arrête à son minimum ; faute
+  de mesure du vent, il regarde l'ouest. Une dimension qui manque vient de la
+  classe de puissance de l'éolienne, et la fiche le dit. Le bouton
+  **Éoliennes** débraye la couche ; il n'apparaît que s'il y en a.
 - **Les arbres, un par un.** La végétation est segmentée houppier par houppier
   sur le modèle de hauteur à 0,5 m. Chaque arbre garde sa hauteur, son emprise,
   son allongement et son profil mesurés : un pin parasol a un sommet plat, un
@@ -673,6 +680,7 @@ Toutes servies sans clé par la Géoplateforme de l'IGN, sous
 | Géocodage | `geocodage/search`, `geocodage/reverse` | La recherche d'un lieu (Base Adresse Nationale et lieux nommés, lus séparément), et la commune du point affiché ; appelé par le navigateur |
 | BD TOPO, hydrographie | WFS `surface_hydrographique`, `troncon_hydrographique` | Étendues et cours d'eau |
 | OpenStreetMap, `building:part` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les monuments en vraie 3D, là où le LiDAR manque |
+| OpenStreetMap, `power=generator`, `generator:source=wind` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, par bloc de 0,05°, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les éoliennes : hauteur du moyeu, diamètre du rotor, modèle, puissance, exploitant |
 | OpenStreetMap, `maxspeed` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les limitations de vitesse de la vue en voiture, rapprochées des tronçons BD TOPO |
 | OpenStreetMap, `highway=stop`, `give_way`, `traffic_signals` | Base locale tirée de l'extrait France de Geofabrik, sinon API Overpass, par bloc de 2 km, © contributeurs OSM, [ODbL](https://www.openstreetmap.org/copyright) | Les stops, cédez-le-passage et feux de la vue en voiture, rattachés aux tronçons BD TOPO |
 | Parcellaire Express | WFS `CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle` | Les parcelles des ventes DVF, au clic |
@@ -908,6 +916,7 @@ principales :
 | `GET /api/scene?lat=…&lon=…` | La scène, en JSON gzippé |
 | `GET /api/ortho?lat=…&lon=…` | L'orthophoto de la scène, en JPEG |
 | `GET /api/monuments?lat=…&lon=…` | La couche des monuments OSM, en JSON gzippé (`null` sans partie), que la page demande une fois la scène affichée |
+| `GET /api/eoliennes?lat=…&lon=…` | Les éoliennes OSM de l'anneau, en JSON gzippé (`null` sans éolienne) : place, `h_moyeu`, `d_rotor`, `h_total`, nom, exploitant, modèle, `puissance_kw`, `estime` (les dimensions qui viennent d'un repli), `osm` (l'objet) ; lues avec la scène, demandées après elle |
 | `GET /api/ouvrages?lat=…&lon=…` | La couche des murs, ponts, voies ferrées et terrains de sport, en JSON gzippé (`null` sans ouvrage), demandée elle aussi après la scène |
 | `GET /api/nuage?lat=…&lon=…` | Le bâti du nuage de points LiDAR HD, en JSON gzippé (`null` hors couverture), demandé après la scène : 10 à 90 s à la première demande. Avec `&proche=1`, d'abord un carré de 400 m autour du point, que la page affiche avant la zone entière (en zone de 800 m et plus) ; au-delà de 1 000 m, le kilomètre central seulement |
 | `GET /api/piscines?lat=…&lon=…` | Les piscines de l'orthophoto, en JSON gzippé, demandées après la scène ; `{"mode": "aucun", "piscines": []}` si le service n'a pas de détecteur |
@@ -927,7 +936,7 @@ principales :
 | `POST /api/reconstruire?lat=…&lon=…` | Met de côté la scène et ses couches (202) : la demande suivante les reconstruit d'après les données de l'IGN du moment, l'ancienne revenant si l'IGN ne répond pas. 429 moins de 10 min après sa construction, 409 pendant qu'elle ou une de ses couches se calcule |
 
 Codes d'erreur : 400 sans coordonnées valides, 422 hors de France métropolitaine,
-503 si un service de l'IGN, l'ADEME, les fichiers DVF ou PVGIS n'ont pas répondu
+503 si un service de l'IGN, OpenStreetMap, l'ADEME, les fichiers DVF ou PVGIS n'ont pas répondu
 (rien n'est mis en cache, réessayer).
 Tout ce qui vient du dossier d'une scène est revalidé à chaque visite (304
 tant que le fichier n'a pas été réécrit) : une scène reconstruite apparaît
@@ -1036,7 +1045,8 @@ en tire son favicon et son icône d'écran d'accueil (`vue3d/static/`).
 
 Code sous licence [MIT](LICENSE). Les données affichées appartiennent à l'IGN et
 sont diffusées sous Licence Ouverte Etalab 2.0 ; les parties de monuments, les
-limitations de vitesse et la signalisation de la voiture viennent d'OpenStreetMap (© contributeurs OSM, ODbL). Le dépôt embarque un
+éoliennes, les limitations de vitesse et la signalisation de la voiture viennent
+d'OpenStreetMap (© contributeurs OSM, ODbL). Le dépôt embarque un
 extrait OpenStreetMap pour les lieux d'exemple ci-dessus, sous ODbL et non sous
 MIT : voir [vue3d/donnees/LICENCE.md](vue3d/donnees/LICENCE.md).
 
