@@ -268,10 +268,12 @@ def dimensions(tags):
         moyeu = total
     estime = []
     if moyeu is None:
-        moyeu = moyeu_classe
+        # Pas plus bas que ne le veut le rotor connu : une pale ne touche pas
+        # le sol (moyeu / bout de pale au moins à la borne basse).
+        moyeu = max(moyeu_classe, rotor / 2 * bas / (1 - bas)) if rotor else moyeu_classe
         estime.append("h_moyeu")
     if rotor is None:
-        rotor = rotor_classe
+        rotor = min(rotor_classe, 2 * moyeu * (1 - bas) / bas)
         estime.append("d_rotor")
     return moyeu, rotor, estime
 

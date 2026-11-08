@@ -27,6 +27,7 @@ import './couches/eau.js';
 import './couches/routes.js';
 import './couches/lignes.js';
 import './couches/constructions.js';
+import { chargerEoliennes } from './couches/eoliennes.js';
 import { chargerOuvrages } from './couches/ouvrages.js';
 import { chargerNuage } from './couches/nuage.js';
 import './couches/ecarts-toits.js';
@@ -76,6 +77,7 @@ quandLesBatimentsArrivent(features => {
     // ce chaînage plutôt qu'un chargement en parallèle.
     activerVegetation();
     chargerMonuments();
+    chargerEoliennes();
     chargerOuvrages();
     chargerNuage();
     chargerDetections();
