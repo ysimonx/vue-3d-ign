@@ -89,7 +89,9 @@ const FORMATS = {
 //   node outils/demo-video.mjs bornes carre      # docs/demo/demo-bornes-carre.mp4
 //   node outils/demo-video.mjs bornes paysage    # docs/demo/demo-bornes-paysage.mp4
 //   node outils/demo-video.mjs ensoleillement carre   # Strasbourg : le soleil des toits, puis le partage de la vue
-const SERIE = ['lidar', 'recherche', 'dpe-dvf', 'drone', 'bornes', 'vehicules', 'soleil', 'export', 'ensoleillement'];
+//   node outils/demo-video.mjs eoliennes carre   # Fruges : les éoliennes d'OpenStreetMap, rotors qui tournent
+const SERIE = ['lidar', 'recherche', 'dpe-dvf', 'drone', 'bornes', 'vehicules', 'soleil', 'export', 'ensoleillement',
+               'eoliennes'];
 const DANS_SERIE = SERIE.includes(FORMAT);
 const ASPECT = DANS_SERIE ? (process.argv[3] || 'carre') : null;
 const ASPECTS = {
@@ -184,6 +186,16 @@ const NOTRE_DAME = { lat: 48.85296, lon: 2.34991, zone: 1000 };
 // La Grande Île de Strasbourg : 1 148 toits calculés en zone de 1 000 m,
 // cours étroites et pans à l'ombre de leurs voisins (mesuré le 3 novembre 2026).
 const STRASBOURG = { lat: 48.5819, lon: 7.751, zone: 1000 };
+// Le plateau de Fruges : huit Vestas V117 à moins de 1,3 km du point, toutes
+// mesurées dans OpenStreetMap (moyeu, rotor, puissance), une ligne à haute
+// tension au premier plan ; 30 éoliennes jusqu'à l'anneau (compté le 9
+// novembre 2026). FRUGES_VUE : le cadre de la capture du post « Power ».
+// FRUGES_LIGNE : vu du sud, le long de la ligne à 400 kV, jusqu'au poste où
+// elle en rejoint deux autres ; au carré, le cadre de la capture laissait la
+// ligne sous la légende.
+const FRUGES = { lat: 50.4935, lon: 2.0990, zone: 1000 };
+const FRUGES_VUE = { lat: 50.4948, lon: 2.1003, hauteur: 70, distance: 560, azimut: 222, elevation: 15 };
+const FRUGES_LIGNE = { lat: 50.49367, lon: 2.09652, hauteur: 40, distance: 600, azimut: 190, elevation: 14 };
 const SITE = 'vue-3d-ign.kysoe.com';
 const SITE_DEMO = `https://${SITE}`;
 const LINKEDIN = 'linkedin.com/in/ysimon';
@@ -1115,6 +1127,56 @@ const SEQUENCES_SERIE = [
           await s.glisser(s.duree, null, { est: 0, nord: 0, hauteur: 10, distance: 820, azimut: 200, elevation: 40 });
       } },
 
+    // --- Éoliennes : le plateau de Fruges -----------------------------------------------
+    // 15 h, soleil bas au sud-ouest, derrière la caméra : les mâts éclairés,
+    // leurs ombres longues vers le nord-est. Les rotors regardent l'ouest (pas
+    // de mesure du vent) : vus de l'ouest-sud-ouest, presque de face.
+    {
+        id: 'eo-titre', lieu: FRUGES, duree: 7, formats: ['eoliennes'],
+        court: 'Le plateau de Fruges, dans le Pas-de-Calais',
+        carte: { titre: 'Éoliennes', sous: 'Vue 3D IGN · les éoliennes d’OpenStreetMap' }, carteDifferee: true,
+        async jouer(s) {
+            await s.heure(15);
+            await s.chauffer({ ...FRUGES_VUE, hauteur: 60, distance: 780, azimut: 200, elevation: 24 }, 20);
+            await s.glisser(s.duree, { ...FRUGES_VUE, hauteur: 60, distance: 780, azimut: 200, elevation: 24 },
+                                     { ...FRUGES_VUE, hauteur: 60, distance: 620, azimut: 212, elevation: 19 }, t => apparaitre(s, t));
+        },
+    },
+    {
+        id: 'eo-rotor', lieu: FRUGES, duree: 9, formats: ['eoliennes'],
+        court: 'Mât, nacelle et rotor, à la taille relevée dans OpenStreetMap',
+        async jouer(s) {
+            const { e, n } = await s.eolienne();
+            const fr = v => String(Math.round(v * 10) / 10).replace('.', ',');
+            await s.cartouche(`<b>${n} éoliennes</b> alentour<br>${e.modele || 'Éolienne'} : moyeu à ${fr(e.h_moyeu)} m,`
+                              + `<br>${fr(e.h_total)} m en bout de pale`);
+            await s.glisser(s.duree, null, { ...e, hauteur: 85, distance: 250, azimut: 248, elevation: 7 });
+        },
+    },
+    {
+        id: 'eo-fiche', lieu: FRUGES, duree: 8, formats: ['eoliennes'],
+        court: 'Au survol : le modèle, la puissance, le moyeu et le rotor',
+        async jouer(s) {
+            const { e } = await s.eolienne();
+            await s.cartouche('');
+            await s.glisser(2.5, null, { ...e, hauteur: 70, distance: 210, azimut: 234, elevation: 11 });
+            // Le mât, pas le rotor : il ne bouge pas sous le curseur. Sous la
+            // nacelle : plus bas, la fiche touchait la légende.
+            await s.curseurVers({ ...e, hauteur: 65 }, 1.4);
+            await filmer(s.duree - 3.9);
+        },
+    },
+    {
+        id: 'eo-ligne', lieu: FRUGES, duree: 8, formats: ['eoliennes'],
+        court: 'La ligne à 400 kV de la BD TOPO, qui file vers un poste électrique',
+        async jouer(s) {
+            await s.lacher();
+            await s.glisser(s.duree, null, FRUGES_LIGNE);
+        },
+    },
+    finSerie('eoliennes', FRUGES, { ...FRUGES_VUE, hauteur: 60, distance: 760, azimut: 230, elevation: 22 },
+             'Éoliennes © contributeurs OpenStreetMap (ODbL)'),
+
 ];
 /** Le cartouche d'un export, tiré de la note de la page : format, taille, contenu, repère. */
 function cartoucheExport(format, note, repere) {
@@ -1125,7 +1187,8 @@ function cartoucheExport(format, note, repere) {
 }
 // Ce que chaque film lit d'avance, sur le serveur, avant de filmer : le clic
 // filmé trouve alors sa couche en cache, sans attente à l'image.
-const PRELECTURES = { lidar: ['nuage'], 'dpe-dvf': ['dpe', 'dvf'], bornes: ['bornes'], ensoleillement: ['solaire'] };
+const PRELECTURES = { lidar: ['nuage'], 'dpe-dvf': ['dpe', 'dvf'], bornes: ['bornes'], ensoleillement: ['solaire'],
+                      eoliennes: ['eoliennes'] };
 
 // --- Voix -------------------------------------------------------------------
 // Avec une voix, les phrases sont dites avant le tournage : la durée de chaque
@@ -1193,6 +1256,8 @@ const STYLE_DEMO = `
     /* Les indicateurs de lecture des couches (nuage LiDAR, monuments…) : du
        bruit à l'image, apparu à l'ouverture du film foncier. */
     .etat-couche { display:none !important; }
+    /* Le vote 👍/👎 sur le rendu : de l'interface, pas du film. */
+    #avis { display:none !important; }
     #decalage { display:none !important; }
     #tip { font-size:${Math.round(fmt.police * 0.55)}px !important; line-height:1.35 !important; max-width:${fmt.police * 12}px; }
     #demo-legende { position:absolute; left:50%; bottom:7%; transform:translateX(-50%); z-index:5;
@@ -1696,6 +1761,16 @@ const outils = {
     decaler(b, az, d) {
         const kx = 111320 * Math.cos(b.lat * RAD);
         return { ...b, lon: b.lon + d * Math.sin(az * RAD) / kx, lat: b.lat + d * Math.cos(az * RAD) / 111320 };
+    },
+    /** L'éolienne la plus proche du point, mesurée de bout en bout (rien d'estimé : sa fiche
+     *  ne dit que des valeurs relevées), et le nombre d'éoliennes de la couche. */
+    async eolienne() {
+        const { eoliennes } = await couche('eoliennes');
+        const l = lieuCourant, kx = 111320 * Math.cos(l.lat * RAD);
+        const loin = e => Math.hypot((e.lon - l.lon) * kx, (e.lat - l.lat) * 111320);
+        const e = eoliennes.filter(e => !e.estime.length).sort((a, b) => loin(a) - loin(b))[0];
+        if (!e) throw new Error('aucune éolienne mesurée dans la couche');
+        return { e, n: eoliennes.length };
     },
     /** Le quartier le plus vendu : la maille de 60 m qui a le plus de parcelles vendues, son centre. */
     async amasVentes() {
