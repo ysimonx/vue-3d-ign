@@ -81,8 +81,8 @@ from .houppiers import houppiers_pour_emprise
 from .mnh import dimensions_grille, fetch_mnh_grid, fetch_sol_grid
 from .monuments import attente_overpass, fetch_monuments, monuments_pour_emprise
 from .ortho import fetch_exg_grid, fetch_ortho_jpeg
-from .nuage import (NUAGE_COTE_MAX_M, NUAGE_PROCHE_COTE_M, NUAGE_PROCHE_ZONE_MIN_M, NUAGE_VERSION, fetch_nuage,
-                    nuage_pour_emprise)
+from .nuage import (NUAGE_COTE_MAX_M, NUAGE_PROCHE_COTE_M, NUAGE_PROCHE_ZONE_MIN_M, NUAGE_VERSION, attente_nuage,
+                    fetch_nuage, nuage_pour_emprise)
 from .ouvrages import OUVRAGES_VERSION, fetch_ouvrages, ouvrages_pour_emprise
 from .panneaux import PANNEAUX_VERSION, panneaux_pour_emprise
 from .releves import (MARGE_NAVIRES_PX, MARGE_PISCINES_PX, MARGE_VEHICULES_PX, Releves,
@@ -1160,8 +1160,9 @@ class Cache:
         ajourés), ses masses et ses houppiers (ceux qu'ils expliquent).
 
         Raises:
-            NuageIndisponible si une dalle n'a pas pu être lue : rien n'est
-            écrit, la demande suivante réessaie.
+            NuageIndisponible si une dalle n'a pas pu être lue, ou si
+            NUAGE_ATTENTES nuages se lisent déjà : rien n'est écrit, la
+            demande suivante réessaie.
         """
         # Une zone de plus de NUAGE_COTE_MAX_M n'en lit que le carré central.
         lire = self.lire_nuage
@@ -1173,7 +1174,7 @@ class Cache:
             lambda bbox, brut, scene: nuage_pour_emprise(
                 *bbox, brut, scene.get("relief"), scene.get("batiments"), scene.get("masses"),
                 scene.get("houppiers")),
-            zone=zone)
+            zone=zone, attente=lambda: attente_nuage(NuageIndisponible))
 
     def obtenir_nuage_proche(self, lat, lon, construire=construire, zone=None):
         """(dossier, nom du fichier) de la première lecture du nuage : un carré
@@ -1185,8 +1186,9 @@ class Cache:
         deux lectures vaillent mieux qu'une.
 
         Raises:
-            NuageIndisponible si une dalle n'a pas pu être lue : rien n'est
-            écrit, la demande suivante réessaie.
+            NuageIndisponible si une dalle n'a pas pu être lue, ou si
+            NUAGE_ATTENTES nuages se lisent déjà : rien n'est écrit, la
+            demande suivante réessaie.
         """
         normal = point_normalise(lat, lon)
         cote = zone_normalisee(zone) or SCENE_COTE_M
@@ -1200,7 +1202,7 @@ class Cache:
             lambda bbox, brut, scene: nuage_pour_emprise(
                 *bbox, brut, scene.get("relief"), scene.get("batiments"), scene.get("masses"),
                 scene.get("houppiers")),
-            zone=zone), NOM_NUAGE_PROCHE
+            zone=zone, attente=lambda: attente_nuage(NuageIndisponible)), NOM_NUAGE_PROCHE
 
     def prelire_panneaux(self, lat, lon, zone=None):
         """Lance la lecture du registre en tâche de fond, si le service en a un."""

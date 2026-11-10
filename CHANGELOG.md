@@ -559,6 +559,14 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Les nuages LiDAR HD ne figent plus le service** (10 novembre 2026) : trois
+  fils au plus lisent un nuage à la fois, carrés proches et zones entières
+  réunis. Un nuage de plus reçoit un 503 tout de suite, et la page le
+  redemande 30 s plus tard, au lieu de prendre un des huit fils du service.
+  Ce matin-là, la Géoplateforme répondait 429 : quatre nuages, trois piscines
+  et des véhicules tenaient les huit fils, et les tuiles attendaient derrière
+  eux jusqu'à 9,5 s. Sur le journal du 15 octobre au 10 novembre, cette borne
+  aurait refusé 27 lectures sur 1 670.
 - **Moins de lectures d'Overpass pour les monuments** (6 novembre 2026) : ses
   réponses sont gardées par bloc de 0,01° au lieu de l'être par point, et une
   requête couvre tous les blocs qui manquent. Décaler le point ne relit plus

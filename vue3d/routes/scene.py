@@ -163,7 +163,8 @@ def blueprint(cache, construire, quota, avis, quota_avis):
                                 "dans quelques instants.")
         except NuageIndisponible as exc:
             log.warning("Nuage LiDAR HD indisponible pour %s : %s", p, exc)
-            return None, erreur(503, "Un service de l'IGN n'a pas répondu ("
+            # Un service de l'IGN qui n'a pas répondu, ou trop de nuages déjà en lecture.
+            return None, erreur(503, "Le nuage LiDAR HD de l'IGN n'a pas pu être lu ("
                                 f"{exc}). Rien n'a été mis en cache : réessayez "
                                 "dans quelques instants.")
         except VehiculesIndisponibles as exc:

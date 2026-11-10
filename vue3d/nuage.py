@@ -36,9 +36,11 @@ NUAGE_COTE_MAX_M, la seconde lecture n'en couvre que le carré central.
 """
 
 import base64
+import contextlib
 import io
 import logging
 import math
+import threading
 
 import laspy
 import numpy as np
@@ -144,6 +146,18 @@ NUAGE_PROCHE_ZONE_MIN_M = 800
 # zone de 2 000 m, la Géoplateforme répond 429 en 7 s, à deux reprises, et
 # quatre fois les points en demanderaient une dizaine de Go.
 NUAGE_COTE_MAX_M = 1000
+# Fils du service qui peuvent lire un nuage à la fois, carrés proches et
+# zones entières réunis. Le service n'en a que huit, et un nuage neuf en tient
+# un de 10 s à plusieurs minutes. Le 10 novembre 2026, de 8 h 21 à 8 h 25,
+# quatre nuages, trois piscines et des véhicules les tenaient tous, et les
+# tuiles attendaient derrière eux jusqu'à 9,5 s. Sur le journal de production
+# du 15 octobre au 10 novembre 2026 (1 670 lectures du nuage de plus d'une
+# demi-seconde), il y en avait trois au plus 97,8 % du temps où un nuage se
+# lisait ; cette borne en aurait refusé 27, que la page redemande 30 s plus
+# tard, et ôté 655 des 2 453 s à huit fils pleins (sans compter ces reprises).
+# Deux en auraient refusé 110.
+NUAGE_ATTENTES = 3
+_attentes_nuage = threading.BoundedSemaphore(NUAGE_ATTENTES)
 
 # Lambert-93 (RGF93, ellipsoïde GRS80), constantes de l'IGN (ALG0019) :
 # excentricité, exposant, constante et pôle de la projection, méridien 3° E.
@@ -180,6 +194,25 @@ def depuis_lambert93(x, y):
         s = np.sin(lat)
         lat = 2 * np.arctan(((1 + _E * s) / (1 - _E * s)) ** (_E / 2) * np.exp(iso)) - np.pi / 2
     return np.degrees(lon), np.degrees(lat)
+
+
+@contextlib.contextmanager
+def attente_nuage(indisponible):
+    """Une des NUAGE_ATTENTES places, le temps qu'un fil du service lit un
+    nuage, verrou de sa couche compris : à prendre avant lui, comme
+    monuments.attente_overpass, ou la file se reformerait derrière le verrou
+    d'un même point.
+
+    Raises:
+        `indisponible`(message) sans attendre si toutes sont prises : rien
+        n'est écrit, la page réessaie.
+    """
+    if not _attentes_nuage.acquire(blocking=False):
+        raise indisponible(f"{NUAGE_ATTENTES} nuages sont déjà en lecture")
+    try:
+        yield
+    finally:
+        _attentes_nuage.release()
 
 
 def lire_plage(url, debut, fin):

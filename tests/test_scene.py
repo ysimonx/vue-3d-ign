@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from vue3d import monuments, scene
+from vue3d import monuments, nuage, scene
 from vue3d.releves import (MARGE_NAVIRES_PX, MARGE_PISCINES_PX, MARGE_VEHICULES_PX, emprise_image,
                            rectangle)
 from vue3d.scene import Cache, HorsEmprise, SceneIncomplete, emprise, point_normalise
@@ -356,6 +356,44 @@ def test_trois_fils_au_plus_attendent_overpass(tmp_path):
             fil.join(10)
     cache.obtenir_monuments(48.9, 2.1, construire=_scene_avec_un_batiment)
     assert os.path.exists(cache.chemin(48.9, 2.1, scene.NOM_MONUMENTS))
+
+
+def test_trois_nuages_au_plus_se_lisent_a_la_fois(tmp_path):
+    """Des dalles qui tardent : le nuage de trop est refusé aussitôt au lieu
+    de prendre un fil de plus au service, et un nuage écrit reste servi."""
+    entrees = threading.Semaphore(0)
+    reponse = threading.Event()
+
+    def lire(*bbox, **options):
+        entrees.release()
+        assert reponse.wait(10)
+        return None                             # hors couverture : un fait, écrit
+
+    cache = Cache(str(tmp_path), lire_nuage=lambda *bbox, **options: None)
+    ecrit = cache.obtenir_nuage(48.8, 2.1, construire=_scene_avec_un_batiment)
+    cache.lire_nuage = lire
+    fils = [threading.Thread(target=cache.obtenir_nuage, args=(48.81 + k / 100, 2.1),
+                             kwargs={"construire": _scene_avec_un_batiment})
+            for k in range(nuage.NUAGE_ATTENTES)]
+    for fil in fils:
+        fil.start()
+    try:
+        for _ in fils:
+            assert entrees.acquire(timeout=10)
+        with pytest.raises(scene.NuageIndisponible, match="déjà en lecture"):
+            cache.obtenir_nuage(48.9, 2.1, construire=_scene_avec_un_batiment)
+        assert not os.path.exists(cache.chemin(48.9, 2.1, scene.NOM_NUAGE))
+        # Le carré proche, d'une zone de 1 000 m, partage les mêmes places.
+        with pytest.raises(scene.NuageIndisponible, match="déjà en lecture"):
+            cache.obtenir_nuage_proche(48.9, 2.1, zone=1000, construire=lambda lat, lon, avancer=None, zone=None:
+                                       _scene_avec_un_batiment(lat, lon, avancer))
+        assert cache.obtenir_nuage(48.8, 2.1, construire=_scene_avec_un_batiment) == ecrit
+    finally:
+        reponse.set()
+        for fil in fils:
+            fil.join(10)
+    cache.obtenir_nuage(48.9, 2.1, construire=_scene_avec_un_batiment)
+    assert os.path.exists(cache.chemin(48.9, 2.1, scene.NOM_NUAGE))
 
 
 def test_overpass_repond_pendant_que_la_scene_se_construit(tmp_path):
