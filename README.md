@@ -1058,3 +1058,7 @@ l'image par défaut. Construire l'image avec `VUE3D_VEHICULES` les y
 télécharge, sous leurs licences : Apache-2.0 pour RTMDet-R, **AGPL-3.0** pour
 YOLO11-OBB, et pour les deux les conditions du jeu de données DOTA, réservé à
 un usage académique.
+
+## Auteur
+
+Yannick Simon, ingénieur Arts et Métiers, CTO à temps partiel et développeur de solutions industrielles 4.0 avec IA, dans la région Aix-Marseille et à distance : [yannicksimon.fr](https://yannicksimon.fr/). Le projet en vidéo, comme cas d'usage : [Vue 3D IGN](https://yannicksimon.fr/cas-d-usage/vue-3d-ign/).
