@@ -16,11 +16,14 @@ messages de commit et dans les commentaires des modules.
 ### Ajouté
 
 - **Un don sur Tipeee, et les exports BIM à portée de la vue** (17 novembre
-  2026) : en bas à gauche de la vue, au-dessus de « Ce rendu ? », le logo de
-  Tipeee mène à la page de l'auteur (« Aidez-moi à améliorer ce projet ») ; le
-  README y renvoie aussi. Le logo est écrit dans la page : elle ne charge ni
-  script ni cookie de Tipeee. Sur ordinateur, deux boutons IFC et CityGML,
-  au-dessus du logo, lancent les exports du panneau, avec ses options.
+  2026) : en bas à droite de la vue, au-dessus des crédits, « Soutenez ce
+  projet » et le logo de Tipeee mènent à la page de l'auteur ; le README y
+  renvoie aussi. Le logo est écrit dans la page : elle ne charge ni
+  script ni cookie de Tipeee. Sur ordinateur, « Export BIM », IFC et CityGML,
+  au-dessus de « Ce rendu ? », lancent les exports du panneau, avec ses
+  options ; une pastille « ? » dit à quoi ils servent. Le premier export d'une
+  page se termine par un petit mot : le fichier est téléchargé, et un merci
+  sur Tipeee aide à améliorer le projet.
 - **Les éoliennes** (9 novembre 2026), d'OpenStreetMap : mât, nacelle et
   rotor à trois pales, jusqu'à l'anneau autour de la scène — une éolienne de
   150 m se voit de loin. Le rotor tourne au régime d'une grande éolienne (le

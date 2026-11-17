@@ -173,26 +173,63 @@ button.lien-ext:disabled { color:var(--muted); cursor:wait; }
         align-items:flex-start; gap:8px; max-width:calc(100% - 24px); }
 #avis[hidden], #avis-mot[hidden] { display:none; }
 /* En vol, le pad du drone occupe le bas de la vue. */
-#scene:has(#pad-drone:not([hidden])) #avis { display:none; }
+#scene:has(#pad-drone:not([hidden])) :is(#avis, #soutenir) { display:none; }
 /* Au-dessus de l'avis : les exports BIM, sur ordinateur seulement (un
-   téléphone n'a pas de logiciel pour ouvrir un IFC), puis le don sur Tipeee.
-   Cachés pendant que s'écrit le mot d'un 👎. */
-#avis .exports { display:none; background:rgba(31,35,40,.85); border:1px solid var(--line);
-                 border-radius:15px; overflow:hidden; }
+   téléphone n'a pas de logiciel pour ouvrir un IFC). Cachés pendant que
+   s'écrit le mot d'un 👎. */
+#avis .exports { display:none; position:relative; align-items:center; background:rgba(31,35,40,.85);
+                 border:1px solid var(--line); border-radius:15px; }
 @media (hover: hover) and (pointer: fine) { html:not(.tiroir) #avis .exports { display:flex; } }
+#avis .exports .titre { padding:0 6px 0 12px; color:var(--muted); font-size:11px; white-space:nowrap; }
 #avis .exports button { display:flex; align-items:center; gap:4px; height:28px; padding:0 10px;
                         background:none; border:0; color:var(--text); cursor:pointer;
                         font:600 11px/1 system-ui, sans-serif; }
-#avis .exports button + button { border-left:1px solid var(--line); }
+#avis .exports [data-format] { border-left:1px solid var(--line); }
+#avis .exports .aide { justify-content:center; width:16px; height:16px; padding:0; margin-right:8px;
+                       border:1px solid var(--muted); border-radius:50%; color:var(--muted);
+                       font:700 10px/1 system-ui, sans-serif; cursor:help; }
+#avis .exports .aide:hover { border-color:var(--accent); }
+#avis .exports .bulle { display:none; position:absolute; left:0; bottom:calc(100% + 8px); width:290px;
+                        padding:10px 12px; background:rgba(31,35,40,.96); border:1px solid var(--line);
+                        border-radius:8px; box-shadow:0 6px 20px rgba(0,0,0,.4); color:var(--muted);
+                        font:12px/1.45 system-ui, sans-serif; }
+#avis .exports .bulle b { color:var(--text); }
+#avis .exports .aide:is(:hover, :focus-visible) + .bulle { display:block; }
 #avis .exports button:hover:not(:disabled) { color:var(--accent); }
 #avis .exports button:disabled { color:var(--muted); cursor:wait; }
 #avis .exports button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 #avis .exports svg { width:14px; height:14px; fill:none; stroke:currentColor; stroke-width:2;
                      stroke-linecap:round; stroke-linejoin:round; }
-#soutenir { display:block; width:30px; height:30px; border-radius:7px; box-shadow:0 1px 3px rgba(0,0,0,.35); }
-#soutenir svg { display:block; width:100%; height:100%; }
+#avis:has(#avis-mot:not([hidden])) .exports { display:none; }
+/* Le don sur Tipeee, en bas à droite au-dessus des crédits, qui tiennent une
+   à trois lignes : il suit leur hauteur (--credits-h, interface/avis.js). Au
+   téléphone, « Soutenir » seul, pour tenir sur la ligne de l'avis. */
+#soutenir { position:absolute; right:12px; bottom:calc(20px + var(--credits-h, 0px)); z-index:3;
+            display:flex; align-items:center; gap:8px; height:34px; padding:0 14px 0 4px;
+            box-sizing:border-box; background:rgba(31,35,40,.85); border:1px solid var(--line);
+            border-radius:18px; color:var(--text); font:600 12px/1 system-ui, sans-serif;
+            text-decoration:none; white-space:nowrap; -webkit-tap-highlight-color:transparent; }
+#soutenir svg { width:26px; height:26px; flex:none; }
+@media (hover: hover) { #soutenir:hover { color:var(--accent); border-color:#D84556; } }
 #soutenir:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-#avis:has(#avis-mot:not([hidden])) :is(.exports, #soutenir) { display:none; }
+#soutenir .court, html.tiroir #soutenir .long { display:none; }
+html.tiroir #soutenir .court { display:inline; }
+/* Le merci d'un export BIM : une fois par page, au milieu de la vue, sans
+   la bloquer ; il se ferme d'un clic, d'Échap, ou en allant sur Tipeee. */
+#merci-export { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); z-index:5;
+                width:min(340px, calc(100% - 24px)); box-sizing:border-box; padding:14px 16px;
+                background:rgba(31,35,40,.96); border:1px solid var(--line); border-radius:10px;
+                box-shadow:0 8px 30px rgba(0,0,0,.45); color:var(--text); font-size:13px; line-height:1.45; }
+#merci-export[hidden] { display:none; }
+#merci-export h3 { margin:0 0 6px; font-size:14px; }
+#merci-export p { margin:0 0 12px; color:var(--muted); }
+#merci-export .fichier { color:var(--text); overflow-wrap:anywhere; }
+#merci-export .actions { display:flex; justify-content:flex-end; gap:8px; }
+#merci-export .actions > * { padding:7px 12px; border-radius:6px; font:600 12px/1.2 system-ui, sans-serif;
+                             cursor:pointer; text-decoration:none; }
+#merci-export .fermer { background:none; border:1px solid var(--line); color:var(--text); }
+#merci-export a { background:#D84556; border:1px solid #D84556; color:#fff; }
+@media (hover: hover) { #merci-export a:hover { filter:brightness(1.1); } }
 #avis .pouces { display:flex; background:rgba(31,35,40,.85); border:1px solid var(--line);
                 border-radius:18px; overflow:hidden; }
 #avis .pouces button { display:flex; align-items:center; gap:6px; height:34px; padding:0 12px;

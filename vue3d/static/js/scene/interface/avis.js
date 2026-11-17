@@ -110,9 +110,11 @@ formulaire.addEventListener('submit', async e => {
 });
 
 // Au téléphone, les crédits prennent tout le bas de la vue, sur deux ou
-// trois lignes : l'avis suit leur hauteur (scene.css, html.tiroir).
+// trois lignes : l'avis suit leur hauteur (scene.css, html.tiroir), et le don
+// sur Tipeee, posé au-dessus d'eux, partout. La mesure va à leur parent commun.
 const credits = document.getElementById('credits');
-new ResizeObserver(() => boite.style.setProperty('--credits-h', `${credits.offsetHeight}px`)).observe(credits);
+new ResizeObserver(() => credits.parentElement.style.setProperty('--credits-h', `${credits.offsetHeight}px`))
+    .observe(credits);
 
 // Les avis se montrent avec les bâtiments : avant, il n'y a pas de rendu à
 // juger, et sans scène le serveur n'en reçoit pas.

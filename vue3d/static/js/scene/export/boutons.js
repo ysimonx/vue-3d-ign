@@ -26,6 +26,20 @@ const FORMATS_EXPORT = {
 const noteExport = document.getElementById('note-export');
 const boutonsExport = [...document.querySelectorAll('[data-format]')];
 
+// Le merci, une fois par page : au second export, il gênerait.
+const merci = document.getElementById('merci-export');
+let merciMontre = false;
+function remercier(fichier) {
+    if (merciMontre) return;
+    merciMontre = true;
+    merci.querySelector('.fichier').textContent = fichier;
+    merci.hidden = false;
+}
+const fermerMerci = () => { merci.hidden = true; };
+merci.querySelector('.fermer').addEventListener('click', fermerMerci);
+merci.querySelector('a').addEventListener('click', fermerMerci);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !merci.hidden) fermerMerci(); });
+
 async function exporter(format) {
     const { nom, ecrire, extension, type, reperes } = FORMATS_EXPORT[format];
     // Les bâtiments sont posés sur le relief : sans lui, pas d'altitudes.
@@ -58,6 +72,7 @@ async function exporter(format) {
                optionsExport.masses && vegPrete && nombre(c.masses, 'masse'),
                c.maille && `relief à ${c.maille.toFixed(1).replace('.', ',')} m`].filter(Boolean).join(', ')
             + '. ' + reperes(modele);
+        remercier(lien.download);
     } catch (err) {
         noteExport.textContent = 'Export impossible : ' + err.message;
         console.error(err);
