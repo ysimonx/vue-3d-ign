@@ -15,6 +15,10 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Un lien pour soutenir le projet** (17 novembre 2026) : « 💛 Aidez-moi à
+  améliorer ce projet ↗ », sous « Méthode et sources » dans le panneau, et en
+  tête du README, mène à la page Tipeee de l'auteur. C'est un simple lien : la
+  page ne charge ni script ni cookie de Tipeee.
 - **Les éoliennes** (9 novembre 2026), d'OpenStreetMap : mât, nacelle et
   rotor à trois pales, jusqu'à l'anneau autour de la scène — une éolienne de
   150 m se voit de loin. Le rotor tourne au régime d'une grande éolienne (le

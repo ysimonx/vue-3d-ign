@@ -16,6 +16,10 @@ n'importe quelle adresse dans le champ de recherche. Le service tourne sur
 une machine personnelle : une scène neuve met de quelques secondes à une
 minute à se construire, et le nombre de scènes neuves par heure est limité.
 
+**💛 Aidez-moi à améliorer ce projet** : [un don sur Tipeee](https://fr.tipeee.com/yannickoo)
+me donne du temps pour de nouvelles couches, des corrections et les idées des
+visiteurs.
+
 ![Le village de Gordes, au 21 décembre à 13 h](docs/capture-gordes.jpg)
 
 *Gordes (Vaucluse) au 21 décembre à 13 h : 249 bâtiments, 2 160 houppiers,
