@@ -17,8 +17,9 @@ import { poserSurLeRelief } from '../terrain/relief.js';
 import { OUVRAGES, groupeOuvrages, ouvragesEnVolume } from '../couches/ouvrages.js';
 import { NUAGE, pointsNuage } from '../couches/nuage.js';
 import { TEX_ECORCE } from './textures.js';
+import { geometrieRamure } from '../../commun/ramure.js';
 import {
-    aUnTronc, gabaritTronc, nouveauTampon, facesHouppier, sommetsHouppier, ajouterHouppier,
+    aUnTronc, gabaritTronc, gabaritHouppier, nouveauTampon, facesHouppier, sommetsHouppier, ajouterHouppier,
     facesHouppierSimple, sommetsHouppierSimple, ajouterHouppierSimple,
 } from './formes.js';
 
@@ -76,6 +77,18 @@ export const GEO_TRONC = (() => {
     g.setAttribute('color', new THREE.BufferAttribute(c, 4));
     return g;
 })();
+// La ramure (commun/ramure.js), le fût prolongé et cinq branches, se voit au
+// travers du houppier des arbres proches de la caméra : à moins de
+// DISTANCE_RAMURE, et pas quand la vue rame. Calée sur le houppier mesuré
+// (gabaritHouppier) : de sa base à son sommet, étirée sur son ellipse et
+// tournée sur son axe. Comme le tronc, dessinée avant le feuillage sans
+// écrire sa profondeur, et sans ombre portée : l'ombre reste celle du
+// houppier. 60 faces par arbre : 1,3 million pour les 21 700 arbres de Gordes
+// en zone de 1 000 m si tous la portaient, d'où la distance.
+const GEO_RAMURE = geometrieRamure();
+const MAT_RAMURE = new THREE.MeshStandardMaterial({
+    color: 0x5b4535, roughness: 1, flatShading: true, transparent: true, opacity: 0.7, depthWrite: false });
+const DISTANCE_RAMURE = 150;
 
 /**
  * Hauteur de la toiture du bâtiment visé, en mètres.
@@ -164,6 +177,18 @@ function construireVegetation() {
         repris.add(m);
         return m;
     };
+    // La ramure d'une tuile : un maillage instancié, posé par placerVegetation.
+    const ajouterRamure = (cle, arbres) => {
+        if (!arbres.length) return;
+        const garde = reprendre(cle, arbres);
+        const mesh = garde || new THREE.InstancedMesh(GEO_RAMURE, MAT_RAMURE, arbres.length);
+        if (!garde) {
+            mesh.renderOrder = -1;
+            mesh.visible = false;
+            mesh.userData = { genre: 'ramure', cle, elements: arbres };
+        }
+        groupeVegetation.add(mesh);
+    };
     const dessines = vegetationDessinee();
     // Les éléments de chaque tuile, dans leur ordre : un élément ne change
     // jamais de tuile, ceux d'une tuile sont donc une sous-suite de ses
@@ -177,6 +202,7 @@ function construireVegetation() {
         tuile.elements.push(el);
     }
     for (const [cle, { genre, elements }] of tuiles) {
+        if (genre === 'houppier') ajouterRamure(cle.replace('houppier', 'ramure'), elements.filter(aUnTronc));
         const garde = reprendre(cle, elements);
         if (garde) { groupeVegetation.add(garde); continue; }
         // Des éléments en moins : leurs faces sont recopiées de l'ancien
@@ -212,7 +238,10 @@ function construireVegetation() {
     }
     // Les maillages remplacés rendent leur mémoire au GPU ; la géométrie des
     // troncs est partagée.
-    for (const m of avant.values()) if (m.geometry !== GEO_TRONC) m.geometry.dispose();
+    for (const m of avant.values()) {
+        if (m.geometry !== GEO_TRONC && m.geometry !== GEO_RAMURE) m.geometry.dispose();
+        else if (m.userData.genre === 'ramure') m.dispose();
+    }
     // Les maillages repris sont déjà posés : tout changement du sol les a
     // reposés (appliquerExageration). Les reposer refaisait 11,6 millions de
     // sommets et leur envoi au GPU à Gordes en zone de 1 000 m.
@@ -296,6 +325,21 @@ function placerVegetation(maillages = groupeVegetation.children) {
     for (const mesh of maillages) {
         const elements = mesh.userData.elements || [];
         const sols = Float32Array.from(elements, el => ySol(el.lon, el.lat) - ENFONCEMENT);
+        if (mesh.userData.genre === 'ramure') {
+            elements.forEach((el, n) => {
+                const { a, b, axe, hBase, h } = gabaritHouppier(el);
+                const demi = Math.max((h - hBase) / 2, 0.2);
+                // axe_deg est compté depuis l'est vers le nord, comme dans ajouterHouppier.
+                dummy.rotation.set(0, axe, 0);
+                dummy.position.set(el.x, sols[n] + hBase + demi, -el.y);
+                dummy.scale.set(a, demi, b);
+                dummy.updateMatrix();
+                mesh.setMatrixAt(n, dummy.matrix);
+            });
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.computeBoundingSphere();
+            continue;
+        }
         if (mesh.userData.genre === 'tronc') {
             elements.forEach((el, n) => {
                 const { hT, rT } = gabaritTronc(el);
@@ -423,6 +467,11 @@ export function montrerVegetation(enMouvement, toutSimple) {
     }
     const simples = groupeVegSimple.children;
     groupeVegSimple.visible = enMouvementVisible;
+    for (const m of groupeVegetation.children) {
+        if (m.userData.genre !== 'ramure') continue;
+        const s = m.boundingSphere;
+        m.visible = !toutSimple && !!s && camera.position.distanceTo(s.center) - s.radius < DISTANCE_RAMURE;
+    }
     details.forEach((d, i) => {
         const s = d.geometry.boundingSphere;
         const loin = enMouvementVisible

@@ -10,6 +10,7 @@ import { NIVEAU_PROCHE, preparerAltitudes, altitudeL93 } from '../sol/altitudes.
 import { voiture } from '../socle/etat.js';
 import { CARRE_M, VEGETATION_VERSION, carres } from './grille.js';
 import { ajourer } from './batiments.js';
+import { reunir, geometrieRamure } from '../../commun/ramure.js';
 
 // Ceux de la scène (vue3d/houppiers.py), découpés sur le MNH du LiDAR HD
 // carré par carré (/api/vegetation) : 1 à 5 s de lecture par carré au
@@ -48,45 +49,17 @@ function touffe(cx, cy, cz, r, graine) {
     }
     return g;
 }
-/** Des géométries non indexées, réunies en une. */
-function reunir(geos) {
-    const n = geos.reduce((s, g) => s + g.attributes.position.array.length, 0), tout = new Float32Array(n);
-    let k = 0;
-    for (const g of geos) { tout.set(g.attributes.position.array, k); k += g.attributes.position.array.length; g.dispose(); }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(tout, 3));
-    g.computeVertexNormals();
-    return g;
-}
 // Dans le repère du houppier, la sphère unité que chaque arbre étire à sa
 // largeur et à sa hauteur : une touffe au sommet, quatre autour, plus bas.
 const TOUFFES = [[0, 0.3, 0, 0.62], [0.45, -0.2, 0.12, 0.55], [-0.38, -0.15, 0.32, 0.55],
                  [-0.12, -0.22, -0.46, 0.55], [0.28, 0.05, -0.32, 0.5]];
-/** Une branche : un cylindre effilé à cinq pans, de `a` (rayon ra) à `b` (rayon rb). */
-function branche(a, b, ra, rb) {
-    const d = new THREE.Vector3().subVectors(b, a), l = d.length();
-    const g = new THREE.CylinderGeometry(rb, ra, l, 5, 1, true).toNonIndexed();
-    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()));
-    g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-    return g;
-}
-/** Le fût prolongé jusqu'au haut du houppier, et cinq branches qui montent vers son bord. */
-function ramure() {
-    const geos = [branche(new THREE.Vector3(0, -0.9, 0), new THREE.Vector3(0, 0.55, 0), 0.07, 0.025)];
-    for (let i = 0; i < 5; i++) {
-        const t = 2 * Math.PI * (i / 5 + 0.1 * alea(i, 3)), y = -0.6 + 0.12 * i;
-        geos.push(branche(new THREE.Vector3(0, y, 0), new THREE.Vector3(0.7 * Math.cos(t), y + 0.45, 0.7 * Math.sin(t)),
-            0.045, 0.015));
-    }
-    return reunir(geos);
-}
 // Le détail selon la distance : près de la voiture, les touffes (100 faces)
 // et la ramure (60) ; plus loin, la boule de 20 faces et le cône de 7, où
 // l'on ne voit plus la différence. Toutes en touffes, voiture arrêtée à
 // Gordes (jusqu'à 9 000 arbres par carré, garrigue comprise), la vue
 // dessinait 7,96 M triangles au lieu de 1,33 M.
 const GEO_TOUFFES = reunir(TOUFFES.map(([x, y, z, r], i) => touffe(x, y, z, r, 17 * i)));
-const GEO_RAMURE = ramure();
+const GEO_RAMURE = geometrieRamure();
 const GEO_BOULE = new THREE.IcosahedronGeometry(1, 0);
 const AXE_Y = new THREE.Vector3(0, 1, 0);
 const GEO_CONE = new THREE.ConeGeometry(1, 1, 7, 1, true).translate(0, 0.5, 0);

@@ -519,6 +519,12 @@ messages de commit et dans les commentaires des modules.
 
 ### Modifié
 
+- **Des branches dans les arbres proches de la vue 3D** (18 novembre 2026) :
+  à moins de 150 m de la caméra, le fût se prolonge dans le houppier et cinq
+  branches montent vers son bord, au travers du feuillage. Calées sur le
+  houppier mesuré (sa base, son sommet, son ellipse et son axe), sans ombre
+  portée ; cachées quand la vue rame. La même ramure que la vue en voiture
+  (commun/ramure.js).
 - **Les arbres de la vue en voiture, plus vrais de près** (18 novembre 2026) :
   près de la voiture (à 150 m au départ, puis de 0 à 300 m selon la fluidité
   de la vue : moins de détail sous 30 images par seconde, avant que la
