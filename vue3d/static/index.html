@@ -75,8 +75,6 @@
             <button type="button" id="btn-reconstruire" class="reconstruire"
                     title="Relire les données de l'IGN et reconstruire cette scène et ses couches. Au plus une fois toutes les 10 minutes.">↻ Reconstruire la scène</button>
             <a href="https://github.com/ysimonx/vue-3d-ign#readme" target="_blank" rel="noopener">📐 Méthode et sources ↗</a>
-            <a href="https://fr.tipeee.com/yannickoo" target="_blank" rel="noopener"
-               title="Vue 3D IGN est gratuit, sans publicité ni compte. Un don sur Tipeee me donne du temps pour l'améliorer : nouvelles couches, corrections, idées des visiteurs.">💛 Aidez-moi à améliorer ce projet ↗</a>
         </header>
 
         <div class="section">
@@ -392,6 +390,31 @@
         <!-- L'avis sur le rendu : 👍 et 👎 comptés pour tous ; un 👎 demande,
              sans l'exiger, ce qui ne va pas (interface/avis.js). -->
         <div id="avis" hidden>
+            <!-- Sur ordinateur, les deux exports BIM du panneau à portée de la vue :
+                 leur data-format les branche à export/boutons.js, mêmes options. -->
+            <div class="exports" role="group" aria-label="Exporter la vue">
+                <button type="button" data-format="ifc"
+                        title="Télécharger la vue en IFC 4, pour Revit, ArchiCAD… (options : panneau, Export BIM)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>IFC
+                </button>
+                <button type="button" data-format="citygml"
+                        title="Télécharger la vue en CityGML 2.0, pour les SIG (options : panneau, Export BIM)">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>CityGML
+                </button>
+            </div>
+            <!-- Le logo de Tipeee (son favicon), écrit ici : rien n'est chargé de chez eux. -->
+            <a id="soutenir" href="https://fr.tipeee.com/yannickoo" target="_blank" rel="noopener"
+               title="Aidez-moi à améliorer ce projet : un don sur Tipeee">
+                <svg viewBox="0 0 480.3 480.3" role="img" aria-label="Aidez-moi à améliorer ce projet : un don sur Tipeee">
+                    <rect width="480.3" height="480.3" rx="80" fill="#D84556"/>
+                    <g fill="#fff">
+                        <path d="M257.8,277.2h-11.2l0-115.4c0-2-1.6-3.6-3.5-3.6l-59.7,17.9c-2.7,0.7-3.5,3.2-3.5,5.2l0,34.3c0,2,1.6,3.6,3.5,3.6L194,216l0,61.3h-11.2c-2,0-3.5,1.6-3.5,3.6l0,35.9c0,2,1.6,3.6,3.5,3.6l75.1,0c2,0,3.5-1.6,3.5-3.6l0-35.9C261.3,278.8,259.7,277.2,257.8,277.2z"/>
+                        <path d="M220.2,153.1c14.5,0,26.3-11.8,26.3-26.3c0-14.5-11.8-26.3-26.3-26.3c-14.5,0-26.3,11.8-26.3,26.3C193.9,141.3,205.7,153.1,220.2,153.1z"/>
+                        <path d="M158.3,158.2h-27.5c0-0.9,0-1.8,0-2.8l0-35.6c0,0,0.9-10-9.8-6.3c-10.7,3.7-35.2,10.8-35.2,10.8s-5.7,0.8-5.7,8.2c0,6.2,0.1,9.8,0.2,25.6l-13,0c-2,0-3.5,1.6-3.5,3.6l0,35.9c0,2,1.6,3.6,3.5,3.6h13.2c0,19.1,0.1,44.3,0.1,78.2c0,0-3.2,63.4,76.8,32.2c0,0,4-2.2,4.3-5.7l0-34.7c0,0,0-5.3-4.9-2.9c0,0-26,11.9-26-5.1c0-13.7,0-14.3,0-61.9l27.5,0c2,0,3.5-1.6,3.5-3.6l0-35.9C161.8,159.8,160.2,158.2,158.3,158.2z"/>
+                        <path d="M355.5,158.2c-8.6,0-16.8,1.7-24.4,4.9v-1.5c0-2-1.6-3.6-3.5-3.6l-60.5,0c-2,0-3.5,1.6-3.5,3.6v35.9c0,2,1.6,3.6,3.5,3.6h11.5l0,139.3H267c-2,0-3.5,1.6-3.5,3.6l0,35.9c0,2,1.6,3.6,3.5,3.6l75.3,0c2,0,3.5-1.6,3.5-3.6V344c0-2-1.6-3.6-3.5-3.6h-11.2l0-25.2c7.6,3.2,15.8,4.9,24.4,4.9c39.1,0,70.8-36.3,70.8-81C426.2,194.5,394.6,158.2,355.5,158.2zM356.3,278.2c-14-0.1-25.3-17.6-25.2-39.1c0.1-21.5,11.5-38.9,25.5-38.9c14,0.1,25.3,17.6,25.2,39.1C381.7,260.9,370.3,278.3,356.3,278.2z"/>
+                    </g>
+                </svg>
+            </a>
             <form id="avis-mot" hidden>
                 <label for="avis-texte">Qu'est-ce qui ne va pas ? <small>facultatif</small></label>
                 <textarea id="avis-texte" rows="3" maxlength="1000"
