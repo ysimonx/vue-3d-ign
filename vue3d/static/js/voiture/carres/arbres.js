@@ -7,7 +7,8 @@ import { depuisLambert93 } from '../socle/lambert93.js';
 import { ancres, ancrer } from '../socle/monde.js';
 import { scene } from '../socle/rendu.js';
 import { NIVEAU_PROCHE, preparerAltitudes, altitudeL93 } from '../sol/altitudes.js';
-import { CARRE_M, VEGETATION_VERSION } from './grille.js';
+import { voiture } from '../socle/etat.js';
+import { CARRE_M, VEGETATION_VERSION, carres } from './grille.js';
 import { ajourer } from './batiments.js';
 
 // Ceux de la scène (vue3d/houppiers.py), découpés sur le MNH du LiDAR HD
@@ -29,13 +30,12 @@ const PORTS_ARBRES = {
     arbuste:    { base: 0x6a8e44, cime: 0xa2c46e, tronc: 0, forme: 'boule' },
 };
 for (const p of Object.values(PORTS_ARBRES)) { p.base = new THREE.Color(p.base); p.cime = new THREE.Color(p.cime); }
-// arbres=film, pour les films (outils/film-trajet.mjs), où le nombre de
-// faces compte moins que l'allure : une boule lisse à 20 faces, la même pour
-// tous, faisait à l'écran une baudruche au bout d'un bâton ; pleine (90 %),
-// un bloc « bien plus moche que dans la Tesla ». Le houppier y devient cinq
-// touffes bosselées qui se chevauchent, toujours translucides, et la ramure
-// (le fût prolongé, cinq branches) se voit au travers ; l'arbre est tourné
-// au hasard.
+// Une boule lisse à 20 faces, la même pour tous, faisait à l'écran une
+// baudruche au bout d'un bâton ; pleine (90 %), un bloc « bien plus moche que
+// dans la Tesla ». De près, le houppier est fait de cinq touffes bosselées
+// qui se chevauchent, toujours translucides, et la ramure (le fût prolongé,
+// cinq branches) se voit au travers ; l'arbre est tourné au hasard. Les
+// films (arbres=film, outils/film-trajet.mjs) les veulent toutes ainsi.
 const FILM = PARAMS.get('arbres') === 'film';
 /** Une touffe : un icosaèdre dont chaque sommet s'écarte de ±20 % selon sa position. */
 function touffe(cx, cy, cz, r, graine) {
@@ -80,19 +80,27 @@ function ramure() {
     }
     return reunir(geos);
 }
-// Peu de faces : jusqu'à 9 000 arbres par carré à Gordes (garrigue comprise).
-const GEO_BOULE = FILM ? reunir(TOUFFES.map(([x, y, z, r], i) => touffe(x, y, z, r, 17 * i)))
-    : new THREE.IcosahedronGeometry(1, 0);                                       // 100 ou 20 faces
-const GEO_RAMURE = FILM ? ramure() : null;                                       // 60 faces
+// Le détail selon la distance : près de la voiture, les touffes (100 faces)
+// et la ramure (60) ; plus loin, la boule de 20 faces et le cône de 7, où
+// l'on ne voit plus la différence. Toutes en touffes, voiture arrêtée à
+// Gordes (jusqu'à 9 000 arbres par carré, garrigue comprise), la vue
+// dessinait 7,96 M triangles au lieu de 1,33 M.
+const GEO_TOUFFES = reunir(TOUFFES.map(([x, y, z, r], i) => touffe(x, y, z, r, 17 * i)));
+const GEO_RAMURE = ramure();
+const GEO_BOULE = new THREE.IcosahedronGeometry(1, 0);
 const AXE_Y = new THREE.Vector3(0, 1, 0);
-const GEO_CONE = new THREE.ConeGeometry(1, 1, 7, 1, true).translate(0, 0.5, 0);  // 7 faces
+const GEO_CONE = new THREE.ConeGeometry(1, 1, 7, 1, true).translate(0, 0.5, 0);
 const GEO_FUT = new THREE.CylinderGeometry(0.6, 1, 1, 5, 1, true).translate(0, 0.5, 0);
+// Un carré passe au détail quand la voiture s'en approche à moins de
+// DETAIL_M[0] mètres, et le quitte au-delà de DETAIL_M[1] : l'écart évite
+// qu'il bascule sans cesse quand la voiture longe le seuil.
+const DETAIL_M = [150, 250];
 // Translucides, à la demande de Yannick : opaques, les houppiers cachaient
 // la route et les façades derrière eux. Moins que dans la scène (30 %), où
 // le bâti est le sujet : vus de la route, à 30 %, ils ne se lisaient plus.
-// depthWrite reste, sinon les faces d'un même houppier se mêleraient.
-// Film : le fût et la ramure plus marqués, pour se lire au travers.
-const OPACITE_FEUILLAGE = 0.45, OPACITE_FUT = FILM ? 0.85 : 0.6;
+// depthWrite reste, sinon les faces d'un même houppier se mêleraient. Le fût
+// et la ramure à 85 % : à 60 %, la ramure ne se lisait pas au travers.
+const OPACITE_FEUILLAGE = 0.45, OPACITE_FUT = 0.85;
 // Effacés à moins de 15 m de la caméra, estompés jusqu'à 35 m. Film : à 6
 // et 14 m, et sans le tramage du cône de la caméra à la voiture : la caméra
 // d'un film, à 30–40 m de la voiture, tramait sinon les arbres qui bordent
@@ -102,8 +110,8 @@ const MAT_FEUILLAGE = ajourer(new THREE.MeshLambertMaterial({ color: 0xffffff, f
     transparent: true, opacity: OPACITE_FEUILLAGE }), 'feuillage', ARBRES_PROCHES_M, !FILM);
 const MAT_FUT = ajourer(new THREE.MeshLambertMaterial({ color: 0x6b5240, transparent: true, opacity: OPACITE_FUT }),
     'fut', ARBRES_PROCHES_M, !FILM);
-const MAT_RAMURE = FILM ? ajourer(new THREE.MeshLambertMaterial({ color: 0x5b4535, flatShading: true,
-    transparent: true, opacity: OPACITE_FUT }), 'ramure', ARBRES_PROCHES_M, false) : null;
+const MAT_RAMURE = ajourer(new THREE.MeshLambertMaterial({ color: 0x5b4535, flatShading: true,
+    transparent: true, opacity: OPACITE_FUT }), 'ramure', ARBRES_PROCHES_M, !FILM);
 
 export async function chargerVegetation(c) {
     const g = c.veg;
@@ -133,39 +141,36 @@ export async function chargerVegetation(c) {
 }
 
 /**
- * Les arbres d'un carré en trois maillages instanciés (houppiers ronds,
- * cônes, fûts) : trois appels de dessin. Un arbre pose sur le relief au
- * pied de son sommet ; son houppier part du haut du fût nu de son port.
+ * Les arbres d'un carré en maillages instanciés : de loin, boules et cônes ;
+ * de près, touffes et ramure ; le fût, toujours. Un arbre pose sur le relief
+ * au pied de son sommet ; son houppier part du haut du fût nu de son port.
+ * De près, les conifères sont en touffes, en colonne comme des cyprès : en
+ * cônes translucides, ceux qui frôlaient la caméra faisaient des triangles
+ * verts géants devant la montagne (D17 à Puyloubier, D56 vers Rousset).
  */
 export function construireVegetation(c) {
     const d = c.veg.donnees;
     const cx = (c.i + 0.5) * CARRE_M, cy = (c.j + 0.5) * CARRE_M;
     const [ox, oy] = d.origine;
     const arbres = d.arbres, ports = d.ports.map(n => PORTS_ARBRES[n] || PORTS_ARBRES.feuillu);
-    // Film : les conifères en touffes, en colonne comme des cyprès ; en cônes
-    // translucides, ceux qui frôlaient la caméra faisaient des triangles verts
-    // géants devant la montagne (D17 à Puyloubier, D56 vers Rousset).
-    const forme = p => (FILM && p.forme === 'cone' ? 'colonne' : p.forme);
-    let nBoules = 0, nCones = 0, nFuts = 0, nRamures = 0;
+    let nBoules = 0, nCones = 0, nFuts = 0;
     for (const a of arbres) {
         const p = ports[a[4]];
-        if (forme(p) === 'cone') nCones++; else nBoules++;
-        if (a[2] >= HAUTEUR_MIN_TRONC * 10 && p.tronc >= 0.1) {
-            nFuts++;
-            if (forme(p) !== 'cone') nRamures++;
-        }
+        if (p.forme === 'cone') nCones++; else nBoules++;
+        if (a[2] >= HAUTEUR_MIN_TRONC * 10 && p.tronc >= 0.1) nFuts++;
     }
-    const groupe = new THREE.Group();
-    const boules = new THREE.InstancedMesh(GEO_BOULE, MAT_FEUILLAGE, Math.max(nBoules, 1));
-    const cones = new THREE.InstancedMesh(GEO_CONE, MAT_FEUILLAGE, Math.max(nCones, 1));
-    const futs = new THREE.InstancedMesh(GEO_FUT, MAT_FUT, Math.max(nFuts, 1));
+    const instances = (geo, mat, n) => new THREE.InstancedMesh(geo, mat, Math.max(n, 1));
+    const boules = FILM ? null : instances(GEO_BOULE, MAT_FEUILLAGE, nBoules);
+    const cones = FILM ? null : instances(GEO_CONE, MAT_FEUILLAGE, nCones);
+    const touffes = instances(GEO_TOUFFES, MAT_FEUILLAGE, nBoules + nCones);
+    const ramures = instances(GEO_RAMURE, MAT_RAMURE, nFuts);
+    const futs = instances(GEO_FUT, MAT_FUT, nFuts);
     // La ramure avant le feuillage : il écrit sa profondeur, et la cacherait.
-    const ramures = FILM ? new THREE.InstancedMesh(GEO_RAMURE, MAT_RAMURE, Math.max(nRamures, 1)) : null;
-    if (ramures) ramures.renderOrder = -1;
+    ramures.renderOrder = -1;
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), ech = new THREE.Vector3();
     const tour = new THREE.Quaternion();
     const teinte = new THREE.Color();
-    let ib = 0, ic = 0, it = 0, ir = 0;
+    let ib = 0, ic = 0, id = 0, ir = 0, it = 0;
     for (const a of arbres) {
         const x = ox + a[0] / 10, y = oy + a[1] / 10, h = a[2] / 10, r = Math.max(a[3] / 10, 0.5);
         const p = ports[a[4]];
@@ -173,26 +178,36 @@ export function construireVegetation(c) {
         if (!Number.isFinite(sol)) sol = 0;
         const lx = x - cx, lz = cy - y;
         const bas = h < HAUTEUR_MIN_TRONC ? 0 : h * p.tronc;
+        const tronc = h >= HAUTEUR_MIN_TRONC && p.tronc >= 0.1;
         const al = alea(x, y);
         teinte.copy(p.base).lerp(p.cime, 0.25 + 0.5 * al).multiplyScalar(0.92 + 0.12 * alea(y, x));
-        if (forme(p) === 'cone') {
-            pos.set(lx, sol + bas - 0.3, lz); ech.set(r, h - bas + 0.3, r);
-            cones.setMatrixAt(ic, m.compose(pos, q, ech));
-            cones.setColorAt(ic++, teinte);
-        } else {
-            const largeur = forme(p) === 'colonne' ? r * 0.65 : r;
+        if (p.forme === 'cone') {
+            if (cones) {
+                pos.set(lx, sol + bas - 0.3, lz); ech.set(r, h - bas + 0.3, r);
+                cones.setMatrixAt(ic, m.compose(pos, q, ech));
+                cones.setColorAt(ic++, teinte);
+            }
+        } else if (boules) {
+            const largeur = p.forme === 'colonne' ? r * 0.65 : r;
             pos.set(lx, sol + (bas + h) / 2, lz); ech.set(largeur, Math.max((h - bas) / 2, 0.4), largeur);
-            boules.setMatrixAt(ib, m.compose(pos, FILM ? tour.setFromAxisAngle(AXE_Y, 2 * Math.PI * alea(y, x + 0.5)) : q, ech));
+            boules.setMatrixAt(ib, m.compose(pos, q, ech));
             boules.setColorAt(ib++, teinte);
-            if (ramures && h >= HAUTEUR_MIN_TRONC && p.tronc >= 0.1) ramures.setMatrixAt(ir++, m);
         }
-        if (h >= HAUTEUR_MIN_TRONC && p.tronc >= 0.1) {
+        const largeur = p.forme === 'boule' ? r : r * 0.65;
+        pos.set(lx, sol + (bas + h) / 2, lz); ech.set(largeur, Math.max((h - bas) / 2, 0.4), largeur);
+        m.compose(pos, tour.setFromAxisAngle(AXE_Y, 2 * Math.PI * alea(y, x + 0.5)), ech);
+        touffes.setMatrixAt(id, m);
+        touffes.setColorAt(id++, teinte);
+        if (tronc) {
+            ramures.setMatrixAt(ir++, m);
             const hT = h * p.tronc + Math.min(1, h * 0.1), rT = Math.min(Math.max(h / 20, 0.18), 0.6);
             pos.set(lx, sol - 0.5, lz); ech.set(rT, hT + 0.5, rT);
             futs.setMatrixAt(it++, m.compose(pos, q, ech));
         }
     }
-    for (const [maillage, n] of [[boules, ib], [cones, ic], [futs, it], ...(ramures ? [[ramures, ir]] : [])]) {
+    const groupe = new THREE.Group();
+    const maillages = [[boules, ib], [cones, ic], [touffes, id], [ramures, ir], [futs, it]].filter(([mm]) => mm);
+    for (const [maillage, n] of maillages) {
         maillage.count = n;
         if (!n) continue;
         maillage.instanceMatrix.needsUpdate = true;
@@ -200,10 +215,44 @@ export function construireVegetation(c) {
         maillage.computeBoundingSphere();
         groupe.add(maillage);
     }
-    c.veg.mesh = groupe;
-    c.veg.nb = arbres.length;
+    const g = c.veg;
+    g.mesh = groupe;
+    g.maillages = maillages.map(([mm]) => mm);
+    g.loin = [boules, cones].filter(Boolean);
+    g.pres = [touffes, ramures];
+    g.detail = undefined;
+    montrerDetail(c, FILM || distanceCarre(c) < DETAIL_M[0]);
+    g.nb = arbres.length;
     ancrer(groupe, cx, cy);
     groupeArbres.add(groupe);
+}
+
+function montrerDetail(c, oui) {
+    const g = c.veg;
+    if (g.detail === oui) return;
+    g.detail = oui;
+    for (const mm of g.pres) mm.visible = oui;
+    for (const mm of g.loin) mm.visible = !oui;
+}
+
+/** De la voiture au carré (0 dedans), en mètres. */
+function distanceCarre(c) {
+    const v = voiture, x = v.vue ? v.x : v.attendu?.x, y = v.vue ? v.y : v.attendu?.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return Infinity;
+    const dx = Math.max(c.i * CARRE_M - x, 0, x - (c.i + 1) * CARRE_M);
+    const dy = Math.max(c.j * CARRE_M - y, 0, y - (c.j + 1) * CARRE_M);
+    return Math.hypot(dx, dy);
+}
+
+/** À chaque image : le détail aux carrés proches de la voiture, la boule aux autres. */
+export function majDetailArbres() {
+    if (FILM) return;
+    for (const c of carres.values()) {
+        if (!c.veg.mesh) continue;
+        const d = distanceCarre(c);
+        if (d < DETAIL_M[0]) montrerDetail(c, true);
+        else if (d > DETAIL_M[1]) montrerDetail(c, false);
+    }
 }
 
 export function defaireVegetation(c) {
@@ -211,8 +260,9 @@ export function defaireVegetation(c) {
     if (!g.mesh) return;
     groupeArbres.remove(g.mesh);
     ancres.delete(g.mesh);
-    for (const maillage of g.mesh.children) maillage.dispose();
+    for (const maillage of g.maillages) maillage.dispose();
     g.mesh = null;
+    g.maillages = g.loin = g.pres = null;
 }
 
 const groupeArbres = new THREE.Group();

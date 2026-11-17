@@ -12,6 +12,7 @@ import { statsPrecharge, majPrecharge, majSol, majManquees } from '../sol/sol.js
 import { limites } from '../route/limitations.js';
 import { signaux, majSignalisation } from '../route/signalisation.js';
 import { budgetConstruction, durees, dureesArbres, majCarres } from '../carres/selection.js';
+import { majDetailArbres } from '../carres/arbres.js';
 import { majCamera } from './camera.js';
 import { rendre } from './maquette.js';
 import { majVoiture } from '../route/voiture.js';
@@ -60,6 +61,7 @@ export function boucle(maintenant) {
     majVoiture(dt, maintenant);
     majCamera(dt, maintenant);
     majCarres(maintenant);
+    majDetailArbres();
     majSignalisation();
     majSol(maintenant);
     majPrecharge(maintenant);

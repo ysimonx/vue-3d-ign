@@ -519,6 +519,14 @@ messages de commit et dans les commentaires des modules.
 
 ### Modifié
 
+- **Les arbres de la vue en voiture, plus vrais de près** (18 novembre 2026) :
+  à moins de 150 m de la voiture, un houppier est fait de cinq touffes
+  bosselées qui se chevauchent, toujours translucides, et l'on voit au travers
+  le fût prolongé et cinq branches ; les conifères y sont en colonne, comme
+  des cyprès. Plus loin, la boule et le cône d'avant, où l'on ne voit pas la
+  différence : le détail se décide par carré de 500 m. À Gordes, voiture
+  arrêtée, la vue dessine 3,4 M triangles au lieu de 1,3 M (6,3 M si tous les
+  arbres étaient détaillés). Les fûts passent de 60 à 85 % d'opacité.
 - **Le code des pages et du serveur, rangé** (24 octobre 2026) : la page de
   la scène et la vue en voiture ne sont plus deux fichiers de 10 700 et 3 800
   lignes, mais leur HTML, une feuille de style chacune (`static/css/`) et des
