@@ -23,7 +23,8 @@
 // recul) la relève, au-dessus des immeubles d'une ville, et son `champ`
 // (angle de vue vertical, 55° dans la page) resserré grossit une montagne à
 // l'horizon : à 32°, la Sainte-Victoire vue de Rousset, à 6,8 km, est 1,7
-// fois plus haute à l'écran. Le cartouche de la
+// fois plus haute à l'écran ; son `lacet` (degrés, à droite si positif) la
+// tourne autour de la voiture, vers une montagne qui longe la route. Le cartouche de la
 // page dit la distance qui reste jusqu'à l'arrivée de l'itinéraire entier, et
 // non du tronçon.
 //
@@ -201,6 +202,7 @@ async function tourner(troncon, n) {
             // La caméra du tronçon, plus haute ou plus reculée, tenue comme au doigt.
             const c = V.camVue;
             c.tangage = o.camera.tangage || 0;
+            c.lacet = o.camera.lacet || 0;
             if (o.camera.recul) c.recul = o.camera.recul;
             if (o.camera.champ && V.camera.fov !== o.camera.champ) {
                 V.camera.fov = o.camera.champ;

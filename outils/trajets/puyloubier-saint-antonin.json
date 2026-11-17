@@ -1,0 +1,60 @@
+{
+  "titre": "Au pied de la Sainte‑Victoire",
+  "sousTitre": "la D17, de Puyloubier à Saint‑Antonin‑sur‑Bayon\nla vue en voiture de Vue 3D IGN",
+  "depart": {
+    "lat": 43.525,
+    "lon": 5.676,
+    "nom": "Puyloubier"
+  },
+  "arrivee": {
+    "lat": 43.51865,
+    "lon": 5.58283,
+    "nom": "Saint-Antonin-sur-Bayon"
+  },
+  "heure": "14:00",
+  "troncons": [
+    {
+      "de": 1300,
+      "vers": 3200,
+      "vitesse": 70,
+      "duree": 11,
+      "arret": 2,
+      "titre": true,
+      "camera": {
+        "tangage": -6,
+        "recul": 32,
+        "champ": 50,
+        "lacet": 20
+      },
+      "legende": "La D17 au pied de la Sainte‑Victoire. La vue suit la voiture comme un GPS, ici en conduite simulée"
+    },
+    {
+      "de": 4800,
+      "vers": 5800,
+      "vitesse": 70,
+      "duree": 9,
+      "camera": {
+        "tangage": -6,
+        "recul": 32,
+        "champ": 44,
+        "lacet": 22
+      },
+      "legende": "Relief, photo aérienne, arbres du LiDAR HD : tout vient des données ouvertes de l’IGN"
+    },
+    {
+      "de": 6650,
+      "vers": 7400,
+      "vitesse": 60,
+      "duree": 8,
+      "fin": 5,
+      "camera": {
+        "tangage": -10,
+        "recul": 32,
+        "champ": 54,
+        "lacet": 28
+      },
+      "legende": "La croix de Provence, au sommet de la montagne que Cézanne a peinte plus de quatre‑vingts fois"
+    }
+  ],
+  "credits": "Trajet simulé sur la BD TOPO · relief RGE ALTI · photographies aériennes · arbres du LiDAR HD"
+}

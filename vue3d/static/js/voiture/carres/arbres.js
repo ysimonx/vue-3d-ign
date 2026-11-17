@@ -142,13 +142,17 @@ export function construireVegetation(c) {
     const cx = (c.i + 0.5) * CARRE_M, cy = (c.j + 0.5) * CARRE_M;
     const [ox, oy] = d.origine;
     const arbres = d.arbres, ports = d.ports.map(n => PORTS_ARBRES[n] || PORTS_ARBRES.feuillu);
+    // Film : les conifères en touffes, en colonne comme des cyprès ; en cônes
+    // translucides, ceux qui frôlaient la caméra faisaient des triangles verts
+    // géants devant la montagne (D17 à Puyloubier, D56 vers Rousset).
+    const forme = p => (FILM && p.forme === 'cone' ? 'colonne' : p.forme);
     let nBoules = 0, nCones = 0, nFuts = 0, nRamures = 0;
     for (const a of arbres) {
         const p = ports[a[4]];
-        if (p.forme === 'cone') nCones++; else nBoules++;
+        if (forme(p) === 'cone') nCones++; else nBoules++;
         if (a[2] >= HAUTEUR_MIN_TRONC * 10 && p.tronc >= 0.1) {
             nFuts++;
-            if (p.forme !== 'cone') nRamures++;
+            if (forme(p) !== 'cone') nRamures++;
         }
     }
     const groupe = new THREE.Group();
@@ -171,12 +175,12 @@ export function construireVegetation(c) {
         const bas = h < HAUTEUR_MIN_TRONC ? 0 : h * p.tronc;
         const al = alea(x, y);
         teinte.copy(p.base).lerp(p.cime, 0.25 + 0.5 * al).multiplyScalar(0.92 + 0.12 * alea(y, x));
-        if (p.forme === 'cone') {
+        if (forme(p) === 'cone') {
             pos.set(lx, sol + bas - 0.3, lz); ech.set(r, h - bas + 0.3, r);
             cones.setMatrixAt(ic, m.compose(pos, q, ech));
             cones.setColorAt(ic++, teinte);
         } else {
-            const largeur = p.forme === 'colonne' ? r * 0.65 : r;
+            const largeur = forme(p) === 'colonne' ? r * 0.65 : r;
             pos.set(lx, sol + (bas + h) / 2, lz); ech.set(largeur, Math.max((h - bas) / 2, 0.4), largeur);
             boules.setMatrixAt(ib, m.compose(pos, FILM ? tour.setFromAxisAngle(AXE_Y, 2 * Math.PI * alea(y, x + 0.5)) : q, ech));
             boules.setColorAt(ib++, teinte);
