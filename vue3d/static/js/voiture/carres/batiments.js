@@ -86,8 +86,9 @@ export const uniformsBati = { uVoiture: { value: new THREE.Vector3() }, uRayon: 
  * Courbure (comme courber) et ajourage, en tramage, dans le cône qui va de
  * la caméra à la voiture ; `proche` ([début, fin] en mètres) efface en plus
  * ce qui frôle la caméra : basse, elle passait dans la canopée de Gordes.
+ * Sans `cone`, seul `proche` ajoure.
  */
-export function ajourer(materiau, cle, proche = null) {
+export function ajourer(materiau, cle, proche = null, cone = true) {
     materiau.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniformsBati);
     shader.vertexShader = shader.vertexShader
@@ -105,7 +106,7 @@ export function ajourer(materiau, cle, proche = null) {
         .replace('#include <common>', '#include <common>\nvarying vec3 vMonde;\nuniform vec3 uVoiture;\nuniform float uRayon;')
         .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n'
             + 'float ajour = 0.0;\n'
-            + 'if (uRayon > 0.0) {\n'
+            + (cone ? 'if (uRayon > 0.0) {\n' : 'if (false) {\n')
             + '  vec3 axe = uVoiture - cameraPosition;\n'
             + '  float l = length(axe);\n'
             + '  vec3 dir = axe / l;\n'

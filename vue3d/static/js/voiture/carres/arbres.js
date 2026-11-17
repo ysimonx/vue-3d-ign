@@ -29,21 +29,46 @@ const PORTS_ARBRES = {
     arbuste:    { base: 0x6a8e44, cime: 0xa2c46e, tronc: 0, forme: 'boule' },
 };
 for (const p of Object.values(PORTS_ARBRES)) { p.base = new THREE.Color(p.base); p.cime = new THREE.Color(p.cime); }
+// arbres=pleins, pour les films (outils/film-trajet.mjs), où le nombre de
+// faces compte moins que l'allure : voir plus bas.
+const PLEINS = PARAMS.get('arbres') === 'pleins';
 // Peu de faces : jusqu'à 9 000 arbres par carré à Gordes (garrigue comprise).
-const GEO_BOULE = new THREE.IcosahedronGeometry(1, 0);                         // 20 faces
+// Pleins, un houppier bosselé (80 faces, chaque sommet écarté de ±20 % selon
+// sa position, le dessous aplati), tourné au hasard : lisses, à 20 faces et
+// tous orientés pareil, ils faisaient des baudruches au bout d'un bâton.
+function houppierBossele() {
+    const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        // Arrondi : un sommet partagé par plusieurs faces reçoit le même écart.
+        const k = 0.8 + 0.4 * alea(Math.round(v.x * 1000) + 0.37 * Math.round(v.z * 1000), Math.round(v.y * 1000));
+        v.multiplyScalar(k);
+        if (v.y < 0) v.y *= 0.7;
+        p.setXYZ(i, v.x, v.y, v.z);
+    }
+    g.computeVertexNormals();
+    return g;
+}
+const GEO_BOULE = PLEINS ? houppierBossele() : new THREE.IcosahedronGeometry(1, 0);   // 80 ou 20 faces
+const AXE_Y = new THREE.Vector3(0, 1, 0);
 const GEO_CONE = new THREE.ConeGeometry(1, 1, 7, 1, true).translate(0, 0.5, 0);  // 7 faces
 const GEO_FUT = new THREE.CylinderGeometry(0.6, 1, 1, 5, 1, true).translate(0, 0.5, 0);
 // Translucides, à la demande de Yannick : opaques, les houppiers cachaient
 // la route et les façades derrière eux. Moins que dans la scène (30 %), où
 // le bâti est le sujet : vus de la route, à 30 %, ils ne se lisaient plus.
 // depthWrite reste, sinon les faces d'un même houppier se mêleraient.
-const OPACITE_FEUILLAGE = 0.45, OPACITE_FUT = 0.6;
-// Effacés à moins de 15 m de la caméra, estompés jusqu'à 35 m.
-const ARBRES_PROCHES_M = [15, 35];
+// Pleins : translucides et tramés dans le cône de la caméra à la voiture, les
+// arbres qui bordent la route n'étaient plus qu'un voile flou à l'écran d'un
+// film (Rousset, caméra reculée à 95 m).
+const OPACITE_FEUILLAGE = PLEINS ? 0.9 : 0.45, OPACITE_FUT = PLEINS ? 1 : 0.6;
+// Effacés à moins de 15 m de la caméra, estompés jusqu'à 35 m. Pleins, à
+// 6 et 14 m : la caméra d'un film, à 40 m de la voiture, tramait sinon les
+// arbres du bas de l'image.
+const ARBRES_PROCHES_M = PLEINS ? [6, 14] : [15, 35];
 const MAT_FEUILLAGE = ajourer(new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true,
-    transparent: true, opacity: OPACITE_FEUILLAGE }), 'feuillage', ARBRES_PROCHES_M);
+    transparent: true, opacity: OPACITE_FEUILLAGE }), 'feuillage', ARBRES_PROCHES_M, !PLEINS);
 const MAT_FUT = ajourer(new THREE.MeshLambertMaterial({ color: 0x6b5240, transparent: true, opacity: OPACITE_FUT }),
-    'fut', ARBRES_PROCHES_M);
+    'fut', ARBRES_PROCHES_M, !PLEINS);
 
 export async function chargerVegetation(c) {
     const g = c.veg;
@@ -93,6 +118,7 @@ export function construireVegetation(c) {
     const cones = new THREE.InstancedMesh(GEO_CONE, MAT_FEUILLAGE, Math.max(nCones, 1));
     const futs = new THREE.InstancedMesh(GEO_FUT, MAT_FUT, Math.max(nFuts, 1));
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), ech = new THREE.Vector3();
+    const tour = new THREE.Quaternion();
     const teinte = new THREE.Color();
     let ib = 0, ic = 0, it = 0;
     for (const a of arbres) {
@@ -111,7 +137,7 @@ export function construireVegetation(c) {
         } else {
             const largeur = p.forme === 'colonne' ? r * 0.65 : r;
             pos.set(lx, sol + (bas + h) / 2, lz); ech.set(largeur, Math.max((h - bas) / 2, 0.4), largeur);
-            boules.setMatrixAt(ib, m.compose(pos, q, ech));
+            boules.setMatrixAt(ib, m.compose(pos, PLEINS ? tour.setFromAxisAngle(AXE_Y, 2 * Math.PI * alea(y, x + 0.5)) : q, ech));
             boules.setColorAt(ib++, teinte);
         }
         if (h >= HAUTEUR_MIN_TRONC && p.tronc >= 0.1) {
