@@ -20,7 +20,10 @@
 // `duree` secondes ; ou jusqu'à l'arrivée, un `panoramique` éventuel (la vue
 // tourne autour de la voiture arrêtée, vers `cap`) tenu `tenue` secondes, et
 // pour le dernier le carton de fin, tenu `fin` secondes ; `camera` (tangage,
-// recul) la relève, au-dessus des immeubles d'une ville. Le cartouche de la
+// recul) la relève, au-dessus des immeubles d'une ville, et son `champ`
+// (angle de vue vertical, 55° dans la page) resserré grossit une montagne à
+// l'horizon : à 32°, la Sainte-Victoire vue de Rousset, à 6,8 km, est 1,7
+// fois plus haute à l'écran. Le cartouche de la
 // page dit la distance qui reste jusqu'à l'arrivée de l'itinéraire entier, et
 // non du tronçon.
 //
@@ -45,7 +48,8 @@ const FPS = Number(process.env.FPS || 30);
 const FONDU_S = 0.5;                    // entre deux tronçons
 const ELAN_S = 2.5;                     // un tronçon après le premier commence lancé
 const sortie = sortieDemandee || `docs/demo/demo-trajet-${path.basename(cheminPlan, '.json')}-${cadre}.mp4`;
-const SITE = 'vue-3d-ign.kysoe.com', DEPOT = 'github.com/ysimonx/vue-3d-ign', LINKEDIN = 'linkedin.com/in/ysimon';
+// Le film montre la vue en voiture : « Essayez-la » mène à elle, pas à l'accueil.
+const SITE = 'vue-3d-ign.kysoe.com/voiture', DEPOT = 'github.com/ysimonx/vue-3d-ign', LINKEDIN = 'linkedin.com/in/ysimon';
 
 // --- Les itinéraires de la Géoplateforme --------------------------------------------------------
 const itineraires = new Map();
@@ -194,6 +198,10 @@ async function tourner(troncon, n) {
             const c = V.camVue;
             c.tangage = o.camera.tangage || 0;
             if (o.camera.recul) c.recul = o.camera.recul;
+            if (o.camera.champ && V.camera.fov !== o.camera.champ) {
+                V.camera.fov = o.camera.champ;
+                V.camera.updateProjectionMatrix();
+            }
             c.dernierGeste = performance.now();
         }
         if (o.pano) {
