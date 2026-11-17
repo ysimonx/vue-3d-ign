@@ -132,9 +132,11 @@ async function tourner(troncon, n) {
     // bout même, la page se calait sur la route voisine la plus proche (à
     // Saint-Antonin, une route empierrée, 190 m de détour).
     const [la, lo] = route.pointA(de), [va, vo] = route.pointA(arrivant ? route.longueur - 15 : sVers);
-    // arbres=pleins : à l'écran d'un film, les arbres translucides et tramés
-    // de la conduite faisaient un voile flou le long de la route.
-    const adresse = `${SERVEUR}/voiture?simu=1&attente=1&arbres=pleins&lat=${la.toFixed(6)}&lon=${lo.toFixed(6)}`
+    // Les arbres du film (carres/arbres.js : touffes, ramure, sans tramage) ;
+    // ARBRES= (vide) garde ceux de la conduite, pour comparer.
+    const arbres = process.env.ARBRES ?? 'film';
+    const adresse = `${SERVEUR}/voiture?simu=1&attente=1${arbres ? `&arbres=${arbres}` : ''}`
+        + `&lat=${la.toFixed(6)}&lon=${lo.toFixed(6)}`
         + `&vers=${va.toFixed(6)},${vo.toFixed(6)}&versnom=${encodeURIComponent(route.nom)}`
         + `&vitesse=${troncon.vitesse}&heure=${encodeURIComponent(troncon.heure || plan.heure || '14:00')}`;
     const page = await navigateur.newPage();
