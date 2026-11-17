@@ -12,7 +12,7 @@ import { statsPrecharge, majPrecharge, majSol, majManquees } from '../sol/sol.js
 import { limites } from '../route/limitations.js';
 import { signaux, majSignalisation } from '../route/signalisation.js';
 import { budgetConstruction, durees, dureesArbres, majCarres } from '../carres/selection.js';
-import { majDetailArbres } from '../carres/arbres.js';
+import { majDetailArbres, seuilDetailArbres } from '../carres/arbres.js';
 import { majCamera } from './camera.js';
 import { rendre } from './maquette.js';
 import { majVoiture } from '../route/voiture.js';
@@ -61,7 +61,7 @@ export function boucle(maintenant) {
     majVoiture(dt, maintenant);
     majCamera(dt, maintenant);
     majCarres(maintenant);
-    majDetailArbres();
+    majDetailArbres(dt, maintenant);
     majSignalisation();
     majSol(maintenant);
     majPrecharge(maintenant);
@@ -80,4 +80,4 @@ export function boucle(maintenant) {
 window.__voiture = { voiture, carres, tuilesSol, aretes, camVue, camera, renderer, durees, dureesArbres, statsCache, simu,
                      get itineraire() { return itineraire; }, partir: partirSimu, limites, signaux,
                      manquees, statsPrecharge, diagnostic: etatDiagnostic, signaler, blocsBornes,
-                     get budget() { return budgetConstruction; } };
+                     get budget() { return budgetConstruction; }, get detailArbres() { return seuilDetailArbres(); } };

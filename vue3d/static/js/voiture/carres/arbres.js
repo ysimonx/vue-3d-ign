@@ -91,10 +91,19 @@ const GEO_BOULE = new THREE.IcosahedronGeometry(1, 0);
 const AXE_Y = new THREE.Vector3(0, 1, 0);
 const GEO_CONE = new THREE.ConeGeometry(1, 1, 7, 1, true).translate(0, 0.5, 0);
 const GEO_FUT = new THREE.CylinderGeometry(0.6, 1, 1, 5, 1, true).translate(0, 0.5, 0);
-// Un carré passe au détail quand la voiture s'en approche à moins de
-// DETAIL_M[0] mètres, et le quitte au-delà de DETAIL_M[1] : l'écart évite
-// qu'il bascule sans cesse quand la voiture longe le seuil.
-const DETAIL_M = [150, 250];
+// Un carré passe au détail quand la voiture s'en approche à moins du seuil,
+// et le quitte à 100 m au-delà : l'écart évite qu'il bascule sans cesse
+// quand la voiture longe le seuil. À Gordes (jusqu'à 9 000 arbres par carré),
+// voiture arrêtée : 2,23 M triangles pour le seul carré de la voiture,
+// 3,38 M à 150 m, 4,22 M à 300 m, 6,33 M tout détaillé, 1,33 M sans détail.
+// Le seuil suit les images par seconde, comme la résolution (interface/
+// boucle.js) : un cran plus bas quand une image prend plus de 33 ms en
+// moyenne sur trois secondes, avant que la résolution ne baisse (40 ms) ;
+// un cran plus haut après dix secondes sous 20 ms. Entre les deux, il tient :
+// sinon il monterait et descendrait sans fin. -1 : aucun carré détaillé.
+const CRANS_DETAIL_M = [-1, 60, 150, 300];
+let cranDetail = 2;
+const detailMesure = { somme: 0, n: 0, debut: 0, aise: 0 };
 // Translucides, à la demande de Yannick : opaques, les houppiers cachaient
 // la route et les façades derrière eux. Moins que dans la scène (30 %), où
 // le bâti est le sujet : vus de la route, à 30 %, ils ne se lisaient plus.
@@ -221,7 +230,7 @@ export function construireVegetation(c) {
     g.loin = [boules, cones].filter(Boolean);
     g.pres = [touffes, ramures];
     g.detail = undefined;
-    montrerDetail(c, FILM || distanceCarre(c) < DETAIL_M[0]);
+    montrerDetail(c, FILM || distanceCarre(c) < CRANS_DETAIL_M[cranDetail]);
     g.nb = arbres.length;
     ancrer(groupe, cx, cy);
     groupeArbres.add(groupe);
@@ -244,14 +253,38 @@ function distanceCarre(c) {
     return Math.hypot(dx, dy);
 }
 
+/** Le cran du détail, d'après la durée moyenne d'une image sur trois secondes. */
+function adapterDetail(dt, maintenant) {
+    const m = detailMesure;
+    if (!m.debut) m.debut = maintenant;
+    m.somme += dt; m.n++;
+    if (maintenant - m.debut < 3000) return;
+    const moyenne = m.somme / m.n * 1000;
+    if (moyenne > 33) {
+        cranDetail = Math.max(cranDetail - 1, 0);
+        m.aise = 0;
+    } else if (moyenne < 20) {
+        m.aise += maintenant - m.debut;
+        if (m.aise >= 10000) { cranDetail = Math.min(cranDetail + 1, CRANS_DETAIL_M.length - 1); m.aise = 0; }
+    } else {
+        m.aise = 0;
+    }
+    m.somme = 0; m.n = 0; m.debut = maintenant;
+}
+
+/** Pour les essais : le seuil du détail en mètres (-1 : aucun). */
+export const seuilDetailArbres = () => CRANS_DETAIL_M[cranDetail];
+
 /** À chaque image : le détail aux carrés proches de la voiture, la boule aux autres. */
-export function majDetailArbres() {
+export function majDetailArbres(dt, maintenant) {
     if (FILM) return;
+    adapterDetail(dt, maintenant);
+    const seuil = CRANS_DETAIL_M[cranDetail];
     for (const c of carres.values()) {
         if (!c.veg.mesh) continue;
         const d = distanceCarre(c);
-        if (d < DETAIL_M[0]) montrerDetail(c, true);
-        else if (d > DETAIL_M[1]) montrerDetail(c, false);
+        if (d < seuil) montrerDetail(c, true);
+        else if (d > seuil + 100) montrerDetail(c, false);
     }
 }
 

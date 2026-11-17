@@ -520,7 +520,9 @@ messages de commit et dans les commentaires des modules.
 ### Modifié
 
 - **Les arbres de la vue en voiture, plus vrais de près** (18 novembre 2026) :
-  à moins de 150 m de la voiture, un houppier est fait de cinq touffes
+  près de la voiture (à 150 m au départ, puis de 0 à 300 m selon la fluidité
+  de la vue : moins de détail sous 30 images par seconde, avant que la
+  résolution ne baisse, plus au-dessus de 50), un houppier est fait de cinq touffes
   bosselées qui se chevauchent, toujours translucides, et l'on voit au travers
   le fût prolongé et cinq branches ; les conifères y sont en colonne, comme
   des cyprès. Plus loin, la boule et le cône d'avant, où l'on ne voit pas la
