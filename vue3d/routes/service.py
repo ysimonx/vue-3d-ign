@@ -88,11 +88,18 @@ def blueprint(cache, stock, quota_tuiles, quota_reserve=None):
         l'orthophoto : la page y lit les détecteurs à demander, dans
         l'ordre."""
         lecteur = cache.lire_vehicules
-        reponse = jsonify({"ok": True, "vehicules": {
-            "mode": lecteur.mode if lecteur else MODE_PAR_DEFAUT,
-            "detecteurs": list(lecteur.detecteurs) if lecteur else []},
-            "panneaux": {"actif": bool(cache.lire_panneaux),
-                         "source": REGISTRE_LICENCE if cache.lire_panneaux else None}})
+        vehicules = {"mode": lecteur.mode if lecteur else MODE_PAR_DEFAUT,
+                     "detecteurs": list(lecteur.detecteurs) if lecteur else []}
+        # L'essai des réseaux au démarrage (Lecteur.essayer) : le script de
+        # mise en ligne l'attend, la page des visites l'affiche. Son état
+        # seulement : le message d'une erreur, qui peut nommer des chemins
+        # du serveur, reste au journal.
+        essai = getattr(lecteur, "essai", None)
+        if isinstance(essai, dict):
+            vehicules["essai"] = {cle: essai.get(cle) for cle in ("etat", "secondes")}
+        reponse = jsonify({"ok": True, "vehicules": vehicules,
+                           "panneaux": {"actif": bool(cache.lire_panneaux),
+                                        "source": REGISTRE_LICENCE if cache.lire_panneaux else None}})
         reponse.headers["Cache-Control"] = "no-store"
         return reponse
 

@@ -202,6 +202,39 @@ def test_des_reseaux_que_le_processus_n_ouvre_pas_arretent_le_demarrage(monkeypa
         vehicules.charger("yolo", str(tmp_path), a_part=True)
 
 
+class _SessionEssai:
+    def __init__(self, erreur=None):
+        self.erreur, self.formes = erreur, []
+
+    def get_inputs(self):
+        return [types.SimpleNamespace(name="images")]
+
+    def run(self, sorties, entrees):
+        self.formes.append(entrees["images"].shape)
+        if self.erreur:
+            raise self.erreur
+        return [np.zeros((1, 0, 6), dtype=np.float32)]
+
+
+def test_l_essai_passe_une_tuile_noire_a_chaque_reseau():
+    """Une détection lue en cache ne passe par aucun réseau : au démarrage,
+    une inférence à vide montre tout de suite un moteur en panne."""
+    sessions = {"rtmdet": _SessionEssai(), "yolo": _SessionEssai()}
+    lecteur = Lecteur("tous", sessions, fils=1)
+    assert lecteur.essai == {"etat": "pas fait"}
+    lecteur.essayer()
+    assert lecteur.essai["etat"] == "ok" and lecteur.essai["secondes"] >= 0
+    assert [s.formes for s in sessions.values()] == [[(1, 3, COTE, COTE)]] * 2
+
+
+def test_un_essai_en_echec_le_dit_sans_lever():
+    lecteur = Lecteur("yolo", {"yolo": _SessionEssai(RuntimeError("processus d'inférence perdu"))}, fils=1)
+    essai = lecteur.essai
+    lecteur.essayer()
+    assert lecteur.essai is essai               # changé sur place : le Cache en garde une copie
+    assert essai["etat"] == "echec" and "perdu" in essai["erreur"]
+
+
 def test_le_mode_tous_demande_le_detecteur_rapide_d_abord():
     assert vehicules.MODES["tous"] == ("rtmdet", "yolo")
     assert set(vehicules.MODES) == {"aucun", "rtmdet", "yolo", "tous"}

@@ -619,7 +619,9 @@ messages de commit et dans les commentaires des modules.
   dans un processus à part, né par spawn : mêmes couches à l'octet (69
   piscines, 232 et 364 véhicules à Gordes en zone de 1 000 m), 10 à 20 % de
   temps en plus ; s'il meurt, seule la détection en cours échoue, et le
-  suivant naît à l'appel d'après.
+  suivant naît à l'appel d'après. Au démarrage, une inférence à vide essaie
+  chaque réseau (19 novembre) : `/api/sante` en dit l'état, que la mise en
+  ligne attend.
 - **Des scènes refusées à la chaîne, « réponse illisible »** (18 novembre
   2026) : le WFS de l'IGN sert, à une requête sur 6 à 40, la page des
   compteurs de son serveur Java au lieu des objets demandés, en 200 (10 sur

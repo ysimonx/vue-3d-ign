@@ -262,6 +262,10 @@ autoriser_bassin(chauffer=not (os.environ.get("FLASK_DEBUG") == "1"
 # une trace d'erreur sur la ligne commune laissait croire que les panneaux
 # étaient en cause quand c'était le réseau des véhicules qui manquait.
 lire_vehicules = lecteur_vehicules()
+if lire_vehicules:
+    # Une inférence à vide, à côté du démarrage : /api/sante en dit le
+    # résultat (vehicules.Lecteur.essayer).
+    threading.Thread(target=lire_vehicules.essayer, name="essai-detecteurs", daemon=True).start()
 lire_panneaux = lecteur_panneaux()
 osm = lecteur_osm()
 app = creer_app(lire_vehicules=lire_vehicules, lire_panneaux=lire_panneaux, osm=osm)

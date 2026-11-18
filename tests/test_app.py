@@ -640,3 +640,14 @@ def test_les_bornes_d_un_bloc_pour_la_voiture(tmp_path):
     nord = int(lambert93(5.6, 44.5)[1] // bornes.BLOC_M)
     r = client.get(f"/api/bornes-bloc?i={bi}&j={nord}")
     assert r.status_code == 503 and r.headers["Retry-After"] == "30"
+
+
+def test_la_sante_dit_l_essai_des_detecteurs_sans_son_message(tmp_path):
+    """L'état de l'essai au démarrage, que le script de mise en ligne
+    attend ; pas le message d'erreur, qui peut nommer des chemins du
+    serveur : /api/sante est publique."""
+    lecteur = types.SimpleNamespace(mode="rtmdet", detecteurs=("rtmdet",), essai={
+        "etat": "echec", "secondes": 1.2, "erreur": "/Users/quelqu-un/modeles : processus perdu"})
+    client = module_app.creer_app(str(tmp_path), lire_vehicules=lecteur).test_client()
+    assert client.get("/api/sante").get_json()["vehicules"] == {
+        "mode": "rtmdet", "detecteurs": ["rtmdet"], "essai": {"etat": "echec", "secondes": 1.2}}

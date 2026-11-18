@@ -79,6 +79,7 @@ import logging
 import math
 import os
 import threading
+import time
 import types
 
 import numpy as np
@@ -877,6 +878,35 @@ class Lecteur:
         self.sessions = sessions
         self.detecteurs = tuple(sessions)
         self.fils = fils_inference(sessions) if fils is None else fils
+        # Le résultat de `essayer`, que /api/sante publie. Changé sur place,
+        # jamais réaffecté : scene.Cache en tient une copie (_qui_cede).
+        self.essai = {"etat": "pas fait"}
+
+    def essayer(self):
+        """Une tuile noire passée à chaque réseau, comme une détection : au
+        démarrage du service (vue3d/app.py), qui l'appelle dans un fil à part,
+        et dont le script de mise en ligne attend le résultat sur /api/sante.
+
+        Une détection lue en cache ne passe par aucun réseau : la panne du 12
+        au 18 novembre 2026 (voir charger) n'apparaissait qu'à la première
+        inférence, et a duré une semaine sans que rien ne la signale. Une
+        inférence à vide la montre dès le démarrage ; elle compile aussi les
+        réseaux, que la première détection trouve prêts.
+        """
+        debut = time.monotonic()
+        self.essai.update(etat="en cours", erreur=None)
+        try:
+            for session in self.sessions.values():
+                entree = session.get_inputs()[0].name
+                session.run(None, {entree: np.zeros((1, 3, COTE, COTE), dtype=np.float32)})
+        except Exception as exc:
+            self.essai.update(etat="echec", erreur=str(exc)[:300],
+                              secondes=round(time.monotonic() - debut, 1))
+            journal.error("Essai des détecteurs en échec : %s", exc)
+        else:
+            self.essai.update(etat="ok", secondes=round(time.monotonic() - debut, 1))
+            journal.info("Essai des détecteurs réussi en %.1f s (%s)", self.essai["secondes"],
+                         ", ".join(self.sessions))
 
     @staticmethod
     def _orthophoto(west, south, east, north):
