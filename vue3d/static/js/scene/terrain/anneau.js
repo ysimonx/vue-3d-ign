@@ -124,25 +124,49 @@ function deplacerAnneau() {
     sphereEnglobante(mesh.geometry);
 }
 
-/** Drape le fond actif sur l'anneau, par projection zénithale. */
+// Un fond composé n'est posé qu'une fois toutes ses tuiles arrivées : en zone
+// de 1 000 m, 225 au zoom 16 pour l'anneau. Il restait sombre, entre la scène
+// et l'horizon déjà photographié, de 1,3 à 3,9 s sous Chrome et de 4,0 à
+// 7,9 s sous Firefox à Notre-Dame (Mac, depuis le réseau du serveur), plus
+// loin du serveur plus longtemps. Il reçoit donc d'abord une esquisse,
+// ANNEAU_ESQUISSE zooms plus bas : neuf tuiles, 768 pixels de côté. Lue avant
+// le zoom plein, et non en même temps : mêlée à ses 225 tuiles, elle arrivait
+// 1,3 à 1,7 s après l'anneau ; seule, 0 à 0,4 s après (serveur local).
+const ANNEAU_ESQUISSE = 3;
+
+/** Drape le fond actif sur l'anneau, par projection zénithale : l'esquisse, puis le zoom plein. */
 export async function poserFondAnneau() {
     if (!anneauRelief) return;
     const generation = ++generationAnneau;
     const { mesh, bornes } = anneauRelief;
     if (!fondActif) { mesh.material = MAT_TERRAIN; return; }
     const lonLat = [toLonLat(bornes.minX, -bornes.minZ), toLonLat(bornes.maxX, -bornes.maxZ)];
-    const { texture, bornes: tb } = await composerTuiles(FONDS[fondActif],
-        (horizonActif ? ANNEAU_ZOOM_HORIZON : ANNEAU_ZOOM) - ZOOM_EN_MOINS,
-        { o: lonLat[0][0], n: lonLat[0][1], e: lonLat[1][0], s: lonLat[1][1] });
+    const emprise = { o: lonLat[0][0], n: lonLat[0][1], e: lonLat[1][0], s: lonLat[1][1] };
+    const zoom = (horizonActif ? ANNEAU_ZOOM_HORIZON : ANNEAU_ZOOM) - ZOOM_EN_MOINS;
+    // Le serveur ne sert pas sous le zoom 9 (tuiles.TUILES_ZOOM).
+    if (zoom - ANNEAU_ESQUISSE >= 9) {
+        habillerAnneau(await composerTuiles(FONDS[fondActif], zoom - ANNEAU_ESQUISSE, emprise), generation);
+        if (generation !== generationAnneau) return;
+    }
+    habillerAnneau(await composerTuiles(FONDS[fondActif], zoom, emprise), generation);
+}
+
+/** Pose un fond composé (composerTuiles) sur l'anneau, sauf si un autre fond a été choisi depuis. */
+function habillerAnneau({ texture, bornes: tb }, generation) {
     // Un autre fond a été choisi pendant le chargement : il gagne.
     if (generation !== generationAnneau) { texture.dispose(); return; }
+    const { mesh } = anneauRelief;
     const pos = mesh.geometry.attributes.position;
-    const uv = new Float32Array(pos.count * 2);
+    // Réécrits en place à chaque fond : un attribut remplacé laisserait son
+    // tampon au GPU.
+    let attribut = mesh.geometry.attributes.uv;
+    if (!attribut) mesh.geometry.setAttribute('uv', attribut = new THREE.BufferAttribute(new Float32Array(pos.count * 2), 2));
+    const uv = attribut.array;
     for (let k = 0; k < pos.count; k++) {
         uv[k * 2] = (pos.getX(k) - tb.minX) / (tb.maxX - tb.minX);
         uv[k * 2 + 1] = 1 - (pos.getZ(k) - tb.minZ) / (tb.maxZ - tb.minZ);
     }
-    mesh.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    attribut.needsUpdate = true;
     const ancien = mesh.material;
     mesh.material = new THREE.MeshStandardMaterial({ map: texture, roughness: 1, metalness: 0 });
     if (ancien !== MAT_TERRAIN) { ancien.map?.dispose(); ancien.dispose(); }

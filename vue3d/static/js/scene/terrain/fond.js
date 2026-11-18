@@ -154,6 +154,14 @@ function poserPlanDeFond() {
 // Tuiles d'un fond composé (sol, anneau) chargées à la fois : autant que
 // l'horizon (HORIZON_PARALLELE), voir composerTuiles.
 const COMPOSITION_PARALLELE = 12;
+// Une tuile qui n'est pas arrivée en TUILE_DELAI_MS est relue par le serveur,
+// comme une tuile refusée : une seule tuile pendue retenait tout le fond
+// composé. 675 tuiles au zoom 16 lues à l'IGN, douze à la fois comme ici,
+// autour de Notre-Dame, de Fourvière et du Vieux-Port le 18 novembre 2026 :
+// médiane 0,2 s, 99 % sous 2 s, 2,3 s au plus, et une à 66 s. Dans la page,
+// l'anneau de Notre-Dame a attendu ainsi 66 s au lieu de 4 : ses requêtes au
+// serveur étaient finies en 5 s, l'IGN tenait la dernière image.
+const TUILE_DELAI_MS = 8000;
 
 export async function composerTuiles(url, zoom, b) {
     const [x0, y0] = versTuile(b.o, b.n, zoom);
@@ -166,7 +174,8 @@ export async function composerTuiles(url, zoom, b) {
     // Un refus se fait relire par le serveur : la Géoplateforme en oppose de
     // loin en loin à une tuile qui existe (un 404 au zoom 16 à Gordes, 200
     // cinq fois de suite ensuite), et le trou restait dans la texture.
-    const charger = u => chargerImage(u).catch(() => relireTuile(u));
+    // Une tuile pendue de même (TUILE_DELAI_MS).
+    const charger = u => chargerImage(u, true, TUILE_DELAI_MS).catch(() => relireTuile(u));
     const restantes = [];
     for (let x = x0; x <= x1; x++) {
         for (let y = y0; y <= y1; y++) restantes.push([x, y]);

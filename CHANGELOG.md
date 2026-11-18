@@ -608,6 +608,14 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Le sol autour de la scène ne reste plus sombre** (18 novembre 2026) :
+  l'anneau de relief n'était photographié qu'une fois ses 225 tuiles
+  arrivées (zone de 1 000 m), soit 3 à 4 s de sol gris à Notre-Dame, et une
+  minute quand l'IGN tardait à servir une seule d'entre elles (une tuile sur
+  675 mesurées a mis 66 s). Il reçoit d'abord une esquisse de neuf tuiles,
+  posée avec lui, que la photo détaillée remplace ensuite ; et une tuile
+  qui n'est pas arrivée en 8 s est relue par le serveur, comme une tuile
+  refusée.
 - **Les nuages LiDAR HD ne figent plus le service** (10 novembre 2026) : trois
   fils au plus lisent un nuage à la fois, carrés proches et zones entières
   réunis. Un nuage de plus reçoit un 503 tout de suite, et la page le

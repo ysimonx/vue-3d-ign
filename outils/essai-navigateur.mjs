@@ -27,7 +27,11 @@ const erreurs = [];
 // une erreur que si le serveur ne l'a pas rattrapé en la relisant. Clé
 // « couche/z/x/y », par ce que le navigateur en a vu.
 const COUCHES_TUILES = { 'ORTHOIMAGERY.ORTHOPHOTOS': 'ortho', 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2': 'plan' };
-const tuiles = { refusees: new Map(), relues: new Set(), absentes: new Set(), stock: 0, redirigees: 0 };
+// Une tuile que l'IGN tarde à servir, la page l'abandonne et la redemande au
+// serveur (TUILE_DELAI_MS, scene/terrain/fond.js) : son abandon n'est une
+// erreur que si la relecture n'a pas été demandée.
+const tuiles = { refusees: new Map(), relues: new Set(), absentes: new Set(), stock: 0, redirigees: 0,
+                 abandonnees: new Set(), relancees: new Set() };
 function cleTuile(url) {
   const u = new URL(url);
   const api = u.pathname.match(/\/api\/tuile\/(\w+)\/(\d+)\/(\d+)\/(\d+)$/);
@@ -49,8 +53,14 @@ page.on('console', m => {
 // Une fois la page quittée pour le lieu cherché, ses requêtes en cours sont
 // interrompues : c'est attendu.
 let quittee = false;
+page.on('request', r => {
+  const t = cleTuile(r.url());
+  if (t && t.api && t.relire) tuiles.relancees.add(t.cle);
+});
 page.on('requestfailed', r => {
   if (quittee && r.failure()?.errorText === 'net::ERR_ABORTED') return;
+  const t = cleTuile(r.url());
+  if (t && !t.api && r.failure()?.errorText === 'net::ERR_ABORTED') { tuiles.abandonnees.add(t.cle); return; }
   erreurs.push('échec requête: ' + r.url().slice(0, 100) + ' ' + (r.failure()?.errorText || ''));
 });
 page.on('response', r => {
@@ -269,8 +279,11 @@ try {
 const perdues = [...tuiles.refusees].filter(([cle]) => !tuiles.relues.has(cle) && !tuiles.absentes.has(cle));
 console.log(`tuiles : ${tuiles.redirigees} redirigées vers l'IGN, ${tuiles.stock} servies du stock, `
             + `${tuiles.refusees.size} refusées par l'IGN, ${tuiles.relues.size} relues par le serveur, `
-            + `${tuiles.absentes.size} absentes`);
+            + `${tuiles.absentes.size} absentes, ${tuiles.abandonnees.size} abandonnées (trop lentes)`);
 for (const [cle, code] of perdues) erreurs.push(`tuile ${cle} : refusée par l'IGN (${code}), non relue`);
+for (const cle of tuiles.abandonnees) {
+  if (!tuiles.relancees.has(cle)) erreurs.push(`tuile ${cle} : abandonnée, relecture jamais demandée`);
+}
 console.log('ERREURS :', erreurs.length ? '\n  ' + erreurs.join('\n  ') : 'aucune');
 await navigateur.close();
 process.exit(erreurs.length ? 1 : 0);

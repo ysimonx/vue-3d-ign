@@ -22,14 +22,24 @@ export const URL_SOLAIRE = `api/solaire?${REQUETE}`;
 /**
  * `anonyme` gouverne crossOrigin : nécessaire pour les tuiles d'un autre
  * domaine, dont on lit le canvas, mais à éviter pour nos propres URL, qui
- * portent le cookie de session.
+ * portent le cookie de session. Avec `delaiMs`, une image qui n'est pas
+ * arrivée à temps est abandonnée, et la promesse rejetée.
  */
-export function chargerImage(url, anonyme = true) {
+export function chargerImage(url, anonyme = true, delaiMs = 0) {
     return new Promise((ok, ko) => {
         const img = new Image();
+        let minuterie = 0;
+        const fin = () => { clearTimeout(minuterie); img.onload = img.onerror = null; };
         if (anonyme) img.crossOrigin = 'anonymous';
-        img.onload = () => ok(img);
-        img.onerror = ko;
+        img.onload = () => { fin(); ok(img); };
+        img.onerror = e => { fin(); ko(e); };
+        if (delaiMs) {
+            minuterie = setTimeout(() => {
+                fin();
+                img.src = '';            // la requête est abandonnée
+                ko(new Error(`image non arrivée en ${delaiMs} ms : ${url}`));
+            }, delaiMs);
+        }
         img.src = url;
     });
 }
