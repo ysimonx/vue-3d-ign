@@ -17,9 +17,10 @@ import { poserSurLeRelief } from '../terrain/relief.js';
 import { OUVRAGES, groupeOuvrages, ouvragesEnVolume } from '../couches/ouvrages.js';
 import { NUAGE, pointsNuage } from '../couches/nuage.js';
 import { TEX_ECORCE } from './textures.js';
-import { geometrieRamure } from '../../commun/ramure.js';
+import { geometrieTouffes, geometrieRamure } from '../../commun/ramure.js';
+import { alea } from '../../commun/regles.js';
 import {
-    aUnTronc, gabaritTronc, gabaritHouppier, nouveauTampon, facesHouppier, sommetsHouppier, ajouterHouppier,
+    aUnTronc, formeDe, gabaritTronc, gabaritHouppier, nouveauTampon, facesHouppier, sommetsHouppier, ajouterHouppier,
     facesHouppierSimple, sommetsHouppierSimple, ajouterHouppierSimple,
 } from './formes.js';
 
@@ -77,18 +78,91 @@ export const GEO_TRONC = (() => {
     g.setAttribute('color', new THREE.BufferAttribute(c, 4));
     return g;
 })();
-// La ramure (commun/ramure.js), le fût prolongé et cinq branches, se voit au
-// travers du houppier des arbres proches de la caméra : à moins de
-// DISTANCE_RAMURE, et pas quand la vue rame. Calée sur le houppier mesuré
-// (gabaritHouppier) : de sa base à son sommet, étirée sur son ellipse et
-// tournée sur son axe. Comme le tronc, dessinée avant le feuillage sans
-// écrire sa profondeur, et sans ombre portée : l'ombre reste celle du
-// houppier. 60 faces par arbre : 1,3 million pour les 21 700 arbres de Gordes
-// en zone de 1 000 m si tous la portaient, d'où la distance.
+// De près, l'arbre de la vue en voiture (commun/ramure.js) : le houppier en
+// cinq touffes bosselées, en pointe si son profil mesuré est effilé (formeDe),
+// et la ramure, le fût prolongé et cinq branches, qui se voit au travers.
+// Seulement dans les tuiles à moins de DISTANCE_TOUFFES de la caméra, et pas
+// quand la vue rame (montrerVegetation) : à l'ouverture, la caméra en est
+// plus loin (cadrage.js, 321 m en zone de 350 m), et les houppiers mesurés
+// restent seuls. Calés sur le houppier mesuré (gabaritHouppier) : de sa base
+// à son sommet, étirés sur son ellipse et tournés sur son axe.
+//
+// Le houppier mesuré reste dans ces tuiles, sous MAT_OMBRE_SEULE : il n'est
+// plus dessiné, mais porte toujours l'ombre et répond au survol ;
+// l'ensoleillement des toits le lit sans passer par son matériau (couches/
+// solaire.js). Carte d'ombre relue à Gordes, 11 tuiles sur 48 en touffes :
+// la même au bit près qu'avec les houppiers mesurés partout. Les touffes et
+// la ramure ne portent pas d'ombre ; elles reçoivent celle des bâtiments, et
+// celle de leur propre houppier mesuré n'y fait pas de taches (soleil du 21
+// juin à 14 h, comparé sans ombre reçue).
+//
+// Touffes 100 faces, ramure 60, en plus des 180 du houppier mesuré, qui
+// passent toujours le calcul des sommets : 3,5 millions de faces pour les
+// 21 700 arbres de Gordes en zone de 1 000 m s'ils les portaient tous, d'où
+// la distance. Gordes en zone de 1 000 m, caméra à 90 m d'un point à 12 m du
+// sol, sous Metal en Retina, GPU attendu à chaque image :
+//
+//   sans touffes   1,67 M triangles   2,9 ms
+//   100 m          1,92               3,0
+//   150 m          1,99               2,9
+//   200 m          2,18               2,8
+//
+// La durée ne bouge pas ; 150 m couvre ce que la caméra voit de près, et les
+// machines lentes s'en passent dès que la vue rame en mouvement.
+const GEO_TOUFFES = degrade(geometrieTouffes());
+const GEO_POINTES = degrade(geometrieTouffes(true));
 const GEO_RAMURE = geometrieRamure();
+const MAT_TOUFFES = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, transparent: true, opacity: 0.30, roughness: 0.95, flatShading: true });
 const MAT_RAMURE = new THREE.MeshStandardMaterial({
     color: 0x5b4535, roughness: 1, flatShading: true, transparent: true, opacity: 0.7, depthWrite: false });
-const DISTANCE_RAMURE = 150;
+const DISTANCE_TOUFFES = 150;
+// Ses sommets sortent tous du champ, derrière le plan lointain : aucun pixel.
+// L'ombre, elle, est dessinée par la carte d'ombre avec son propre matériau
+// de profondeur, qui ne prend du matériau de l'objet que sa face (side) et sa
+// visibilité, les mêmes que MAT_FEUILLAGE.
+const MAT_OMBRE_SEULE = new THREE.ShaderMaterial({
+    vertexShader: 'void main() { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); }',
+    fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }',
+    side: MAT_FEUILLAGE.side, depthWrite: false, colorWrite: false });
+
+/**
+ * Les touffes sombres en bas, claires en haut, comme le houppier mesuré
+ * (ajouterHouppier) : un facteur par sommet, que la couleur de l'arbre
+ * (setColorAt) multiplie. De 0,78 à 1,2 : la base et la cime des ports
+ * rapportées à leur milieu (feuillu : 0,75 à 0,84 et 1,16 à 1,26).
+ */
+function degrade(g) {
+    const p = g.attributes.position, c = new Float32Array(3 * p.count);
+    for (let i = 0; i < p.count; i++) c.fill(0.78 + 0.42 * Math.min(Math.max((p.getY(i) + 1) / 2, 0), 1), 3 * i, 3 * i + 3);
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    return g;
+}
+
+/**
+ * Pose d'un arbre vu de près dans `objet` : centré sur son houppier, de sa
+ * base à son sommet, étiré sur son ellipse et tourné sur son axe ; resserré
+ * à `largeur` (la ramure d'un houppier en pointe). `tour` s'ajoute à l'axe.
+ */
+function poserPres(objet, el, sol, largeur = 1, tour = 0) {
+    const { a, b, axe, hBase, h } = gabaritHouppier(el);
+    const demi = Math.max((h - hBase) / 2, 0.2);
+    // axe_deg est compté depuis l'est vers le nord, comme dans ajouterHouppier.
+    objet.rotation.set(0, axe + tour, 0);
+    objet.position.set(el.x, sol + hBase + demi, -el.y);
+    objet.scale.set(a * largeur, demi, b * largeur);
+    objet.updateMatrix();
+}
+
+/**
+ * Tour des touffes d'un houppier, tiré une fois par arbre : un demi-tour au
+ * plus s'il est allongé, l'ellipse reste celle mesurée ; n'importe lequel
+ * s'il est presque rond, sinon tous ceux sans axe mesuré se ressembleraient.
+ */
+function tourTouffes(el) {
+    const t = alea(el.lat, el.lon);
+    return (el.allongement || 1) < 1.2 ? 2 * Math.PI * t : (t < 0.5 ? 0 : Math.PI);
+}
 
 /**
  * Hauteur de la toiture du bâtiment visé, en mètres.
@@ -177,17 +251,31 @@ function construireVegetation() {
         repris.add(m);
         return m;
     };
-    // La ramure d'une tuile : un maillage instancié, posé par placerVegetation.
-    const ajouterRamure = (cle, arbres) => {
-        if (!arbres.length) return;
-        const garde = reprendre(cle, arbres);
-        const mesh = garde || new THREE.InstancedMesh(GEO_RAMURE, MAT_RAMURE, arbres.length);
-        if (!garde) {
+    // Les arbres vus de près d'une tuile : un maillage instancié par forme,
+    // posé par placerVegetation, montré par montrerVegetation.
+    const ajouterPres = (genre, cle, arbres) => {
+        if (!arbres.length) return null;
+        const garde = reprendre(`${genre} ${cle}`, arbres);
+        if (garde) { groupeVegetation.add(garde); return garde; }
+        const mesh = genre === 'ramure' ? new THREE.InstancedMesh(GEO_RAMURE, MAT_RAMURE, arbres.length)
+            : new THREE.InstancedMesh(genre === 'pointes' ? GEO_POINTES : GEO_TOUFFES, MAT_TOUFFES, arbres.length);
+        mesh.visible = false;
+        mesh.userData = { genre, cle: `${genre} ${cle}`, elements: arbres };
+        if (genre === 'ramure') {
+            // Avant le feuillage, qui écrit sa profondeur et la cacherait.
             mesh.renderOrder = -1;
-            mesh.visible = false;
-            mesh.userData = { genre: 'ramure', cle, elements: arbres };
+        } else {
+            // Leur teinte : le milieu de la palette du port, nuancé par arbre
+            // comme le houppier mesuré ; degrade() l'assombrit en bas.
+            const couleur = new THREE.Color();
+            arbres.forEach((el, n) => {
+                const { port, teinte } = gabaritHouppier(el);
+                mesh.setColorAt(n, couleur.copy(port.base).lerp(port.cime, 0.5).multiplyScalar(teinte));
+            });
+            mesh.receiveShadow = true;
         }
         groupeVegetation.add(mesh);
+        return mesh;
     };
     const dessines = vegetationDessinee();
     // Les éléments de chaque tuile, dans leur ordre : un élément ne change
@@ -202,9 +290,15 @@ function construireVegetation() {
         tuile.elements.push(el);
     }
     for (const [cle, { genre, elements }] of tuiles) {
-        if (genre === 'houppier') ajouterRamure(cle.replace('houppier', 'ramure'), elements.filter(aUnTronc));
+        // Les maillages vus de près de la tuile, qui remplacent ses houppiers
+        // mesurés près de la caméra.
+        const pres = genre !== 'houppier' ? null : [
+            ajouterPres('ramure', cle, elements.filter(aUnTronc)),
+            ajouterPres('touffes', cle, elements.filter(el => formeDe(el) !== 'en pointe')),
+            ajouterPres('pointes', cle, elements.filter(el => formeDe(el) === 'en pointe')),
+        ].filter(Boolean);
         const garde = reprendre(cle, elements);
-        if (garde) { groupeVegetation.add(garde); continue; }
+        if (garde) { garde.userData.pres = pres; groupeVegetation.add(garde); continue; }
         // Des éléments en moins : leurs faces sont recopiées de l'ancien
         // maillage. Sinon, tout est reconstruit.
         let geometrie = avant.has(cle) && vegetationExtraite(avant.get(cle), elements);
@@ -220,7 +314,7 @@ function construireVegetation() {
         const mesh = new THREE.Mesh(geometrie, genre === 'houppier' ? MAT_FEUILLAGE : MAT_MASSE);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        mesh.userData = { vegetation: true, genre, cle, elements };
+        mesh.userData = { vegetation: true, genre, cle, elements, pres };
         groupeVegetation.add(mesh);
     }
     // Troncs : un maillage instancié, posé par placerVegetation (gabaritTronc).
@@ -237,10 +331,10 @@ function construireVegetation() {
         groupeVegetation.add(mesh);
     }
     // Les maillages remplacés rendent leur mémoire au GPU ; la géométrie des
-    // troncs est partagée.
+    // maillages instanciés est partagée, seules leurs instances partent.
     for (const m of avant.values()) {
-        if (m.geometry !== GEO_TRONC && m.geometry !== GEO_RAMURE) m.geometry.dispose();
-        else if (m.userData.genre === 'ramure') m.dispose();
+        if (m.isInstancedMesh) m.dispose();
+        else m.geometry.dispose();
     }
     // Les maillages repris sont déjà posés : tout changement du sol les a
     // reposés (appliquerExageration). Les reposer refaisait 11,6 millions de
@@ -325,15 +419,13 @@ function placerVegetation(maillages = groupeVegetation.children) {
     for (const mesh of maillages) {
         const elements = mesh.userData.elements || [];
         const sols = Float32Array.from(elements, el => ySol(el.lon, el.lat) - ENFONCEMENT);
-        if (mesh.userData.genre === 'ramure') {
+        const genre = mesh.userData.genre;
+        if (genre === 'ramure' || genre === 'touffes' || genre === 'pointes') {
             elements.forEach((el, n) => {
-                const { a, b, axe, hBase, h } = gabaritHouppier(el);
-                const demi = Math.max((h - hBase) / 2, 0.2);
-                // axe_deg est compté depuis l'est vers le nord, comme dans ajouterHouppier.
-                dummy.rotation.set(0, axe, 0);
-                dummy.position.set(el.x, sols[n] + hBase + demi, -el.y);
-                dummy.scale.set(a, demi, b);
-                dummy.updateMatrix();
+                // La ramure d'un houppier en pointe, resserrée : ses branches
+                // sortaient du cône des touffes.
+                if (genre === 'ramure') poserPres(dummy, el, sols[n], formeDe(el) === 'en pointe' ? 0.6 : 1);
+                else poserPres(dummy, el, sols[n], 1, tourTouffes(el));
                 mesh.setMatrixAt(n, dummy.matrix);
             });
             mesh.instanceMatrix.needsUpdate = true;
@@ -429,7 +521,8 @@ function majVegetationSimple(details) {
             const tampon = nouveauTampon(elements.length * facesHouppierSimple(),
                                          elements.length * sommetsHouppierSimple());
             elements.forEach((el, n) => { tampon.element(n); ajouterHouppierSimple(tampon, el, 0); });
-            m = new THREE.Mesh(tampon.geometrie(), d.material);
+            // Pas d.material : près de la caméra, c'est MAT_OMBRE_SEULE.
+            m = new THREE.Mesh(tampon.geometrie(), d.userData.genre === 'houppier' ? MAT_FEUILLAGE : MAT_MASSE);
             m.castShadow = true;
             m.receiveShadow = true;
             m.userData = { genre: d.userData.genre, elements, source: d, poseSource: null };
@@ -467,17 +560,18 @@ export function montrerVegetation(enMouvement, toutSimple) {
     }
     const simples = groupeVegSimple.children;
     groupeVegSimple.visible = enMouvementVisible;
-    for (const m of groupeVegetation.children) {
-        if (m.userData.genre !== 'ramure') continue;
-        const s = m.boundingSphere;
-        m.visible = !toutSimple && !!s && camera.position.distanceTo(s.center) - s.radius < DISTANCE_RAMURE;
-    }
     details.forEach((d, i) => {
         const s = d.geometry.boundingSphere;
-        const loin = enMouvementVisible
-            && (toutSimple || camera.position.distanceTo(s.center) - s.radius > DISTANCE_DETAIL);
+        const distance = camera.position.distanceTo(s.center) - s.radius;
+        const loin = enMouvementVisible && (toutSimple || distance > DISTANCE_DETAIL);
         d.visible = !loin;
         if (enMouvementVisible) simples[i].visible = loin;
+        // Près de la caméra, les touffes et la ramure à la place du houppier
+        // mesuré, qui garde son ombre (MAT_OMBRE_SEULE).
+        if (!d.userData.pres) return;
+        const pres = !toutSimple && distance < DISTANCE_TOUFFES;
+        d.material = pres ? MAT_OMBRE_SEULE : MAT_FEUILLAGE;
+        for (const m of d.userData.pres) m.visible = pres;
     });
     return construites;
 }

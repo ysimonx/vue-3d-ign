@@ -519,12 +519,16 @@ messages de commit et dans les commentaires des modules.
 
 ### Modifié
 
-- **Des branches dans les arbres proches de la vue 3D** (18 novembre 2026) :
-  à moins de 150 m de la caméra, le fût se prolonge dans le houppier et cinq
-  branches montent vers son bord, au travers du feuillage. Calées sur le
-  houppier mesuré (sa base, son sommet, son ellipse et son axe), sans ombre
-  portée ; cachées quand la vue rame. La même ramure que la vue en voiture
-  (commun/ramure.js).
+- **Les arbres de la vue 3D, plus vrais de près** (18 novembre 2026) : à
+  moins de 150 m de la caméra, le houppier est fait de cinq touffes bosselées
+  qui se chevauchent, en pointe pour un sapin ou un cyprès, et l'on voit au
+  travers le fût prolongé et cinq branches, comme dans la vue en voiture
+  (commun/ramure.js). Calés sur le houppier mesuré : sa base, son sommet, son
+  ellipse et son axe. Le houppier mesuré reste invisible derrière eux : il
+  porte toujours l'ombre, la même au bit près, sert à l'ensoleillement des
+  toits et répond au survol. À l'ouverture, la caméra est plus loin : rien
+  ne change avant de s'approcher. Les touffes s'effacent quand la vue rame
+  en mouvement. À Gordes, de près, 2,0 M triangles au lieu de 1,7 M.
 - **Les arbres de la vue en voiture, plus vrais de près** (18 novembre 2026) :
   près de la voiture (à 150 m au départ, puis de 0 à 300 m selon la fluidité
   de la vue : moins de détail sous 30 images par seconde, avant que la

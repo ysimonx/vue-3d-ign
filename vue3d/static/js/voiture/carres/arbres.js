@@ -10,7 +10,7 @@ import { NIVEAU_PROCHE, preparerAltitudes, altitudeL93 } from '../sol/altitudes.
 import { voiture } from '../socle/etat.js';
 import { CARRE_M, VEGETATION_VERSION, carres } from './grille.js';
 import { ajourer } from './batiments.js';
-import { reunir, geometrieRamure } from '../../commun/ramure.js';
+import { geometrieTouffes, geometrieRamure } from '../../commun/ramure.js';
 
 // Ceux de la scène (vue3d/houppiers.py), découpés sur le MNH du LiDAR HD
 // carré par carré (/api/vegetation) : 1 à 5 s de lecture par carré au
@@ -38,27 +38,12 @@ for (const p of Object.values(PORTS_ARBRES)) { p.base = new THREE.Color(p.base);
 // cinq branches) se voit au travers ; l'arbre est tourné au hasard. Les
 // films (arbres=film, outils/film-trajet.mjs) les veulent toutes ainsi.
 const FILM = PARAMS.get('arbres') === 'film';
-/** Une touffe : un icosaèdre dont chaque sommet s'écarte de ±20 % selon sa position. */
-function touffe(cx, cy, cz, r, graine) {
-    const g = new THREE.IcosahedronGeometry(1, 0), p = g.attributes.position, v = new THREE.Vector3();
-    for (let i = 0; i < p.count; i++) {
-        v.fromBufferAttribute(p, i);
-        // Arrondi : un sommet partagé par plusieurs faces reçoit le même écart.
-        const k = 0.8 + 0.4 * alea(Math.round(v.x * 1000) + graine, Math.round(v.y * 1000) + 0.37 * Math.round(v.z * 1000));
-        p.setXYZ(i, cx + v.x * r * k, cy + v.y * r * k, cz + v.z * r * k);
-    }
-    return g;
-}
-// Dans le repère du houppier, la sphère unité que chaque arbre étire à sa
-// largeur et à sa hauteur : une touffe au sommet, quatre autour, plus bas.
-const TOUFFES = [[0, 0.3, 0, 0.62], [0.45, -0.2, 0.12, 0.55], [-0.38, -0.15, 0.32, 0.55],
-                 [-0.12, -0.22, -0.46, 0.55], [0.28, 0.05, -0.32, 0.5]];
 // Le détail selon la distance : près de la voiture, les touffes (100 faces)
 // et la ramure (60) ; plus loin, la boule de 20 faces et le cône de 7, où
 // l'on ne voit plus la différence. Toutes en touffes, voiture arrêtée à
 // Gordes (jusqu'à 9 000 arbres par carré, garrigue comprise), la vue
 // dessinait 7,96 M triangles au lieu de 1,33 M.
-const GEO_TOUFFES = reunir(TOUFFES.map(([x, y, z, r], i) => touffe(x, y, z, r, 17 * i)));
+const GEO_TOUFFES = geometrieTouffes();
 const GEO_RAMURE = geometrieRamure();
 const GEO_BOULE = new THREE.IcosahedronGeometry(1, 0);
 const AXE_Y = new THREE.Vector3(0, 1, 0);
