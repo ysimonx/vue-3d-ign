@@ -54,8 +54,8 @@ export let ARTEFACT = null;
 export let ERREUR_SCENE = null;
 const attente = document.getElementById('attente');
 attente.hidden = false;
-attente.innerHTML = 'Construction de la scène…<br><small>quelques secondes la première fois, '
-    + 'instantané ensuite</small>';
+attente.innerHTML = '<div>Construction de la scène…<br><small>quelques secondes la première fois, '
+    + 'instantané ensuite</small></div>';
 // La demande partie avant three.js (DEMANDE_SCENE, en tête de page), si elle
 // vise bien cette scène.
 const demandeScene = window.DEMANDE_SCENE && window.DEMANDE_SCENE.url === URL_VUE3D
@@ -142,11 +142,11 @@ function attendreNouvelEssai(message, secondes) {
         const fin = Date.now() + secondes * 1000;
         const afficher = () => {
             const reste = Math.max(0, Math.ceil((fin - Date.now()) / 1000));
-            attente.innerHTML = 'Scène indisponible pour l\'instant<br><small>' + echapper(message)
-                + `</small><br><small>Nouvel essai dans ${reste} s…</small>`;
+            attente.innerHTML = '<div>Scène indisponible pour l\'instant<br><small>' + echapper(message)
+                + `</small><br><small>Nouvel essai dans ${reste} s…</small></div>`;
             if (reste > 0) return;
             clearInterval(minuterie);
-            attente.innerHTML = 'Construction de la scène…<br><small>nouvel essai</small>';
+            attente.innerHTML = '<div>Construction de la scène…<br><small>nouvel essai</small></div>';
             ok();
         };
         const minuterie = setInterval(afficher, 1000);
@@ -167,8 +167,9 @@ export const chargementArtefact = obtenirScene()
     .then(a => { ARTEFACT = a; attente.hidden = true; return a; })
     .catch(err => {
         ERREUR_SCENE = err.message;
-        attente.innerHTML = 'Scène indisponible<br><small>' + echapper(err.message) + '</small>'
-            + (err instanceof ScenePasDisponible ? '<br><small>Recharger la page pour réessayer.</small>' : '');
+        attente.innerHTML = '<div>Scène indisponible<br><small>' + echapper(err.message) + '</small>'
+            + (err instanceof ScenePasDisponible ? '<br><small>Recharger la page pour réessayer.</small>' : '')
+            + '</div>';
         return null;
     });
 // Suivi de la construction : pendant l'attente, le serveur dit à quelle étape

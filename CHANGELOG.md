@@ -608,6 +608,17 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Des scènes refusées à la chaîne, « réponse illisible »** (18 novembre
+  2026) : le WFS de l'IGN sert, à une requête sur 6 à 40, la page des
+  compteurs de son serveur Java au lieu des objets demandés, en 200 (10 sur
+  121 à Haguenau, sur trois couches BD TOPO). Le service la prenait pour une
+  réponse et la scène échouait : 116 couches illisibles dans le journal ce
+  jour-là, contre 1 à 6 les jours d'avant. Reconnue à son type, cette page
+  est désormais rejouée comme un délai dépassé : 30 lectures sur 30 des
+  routes de Haguenau réussies, 4 pages de compteurs écartées en chemin. Le
+  message d'une scène indisponible s'affichait aussi en trois colonnes, son
+  compte à rebours sous les boutons de droite : il revient en lignes, au
+  centre.
 - **Le sol sans photo, une ouverture sur quatre** (18 novembre 2026) : le
   sol de la scène, ou l'anneau autour, restait d'un gris uni, sans photo,
   jusqu'au rechargement de la page. Un défaut de three.js r160 : quand le

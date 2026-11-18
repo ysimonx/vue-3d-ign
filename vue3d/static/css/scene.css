@@ -152,7 +152,14 @@ button.lien-ext:disabled { color:var(--muted); cursor:wait; }
 .zone { display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:11px; color:var(--muted); }
 .zone select { flex:1; background:#161a1e; color:#e8eaed; border:1px solid #3a4148;
                border-radius:4px; padding:3px 4px; font-size:12px; }
-#attente { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+/* Chaque message tient dans un <div> (socle/chargement.js) : posés à nu,
+   son texte et ses <small> devenaient des éléments du flex, rangés côte à
+   côte (« Scène indisponible », sa cause et le compte à rebours en trois
+   colonnes, le dernier sous les boutons de droite). La colonne garde un
+   message sans <div> lisible. Les marges latérales tiennent le texte hors
+   de #nav-vue (right 26 px). */
+#attente { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+           justify-content:center; padding:0 96px;
            z-index:4; pointer-events:none; color:#e8eaed; font-size:13px; text-align:center;
            line-height:1.6; text-shadow:0 1px 3px #000; }
 #attente[hidden] { display:none; }

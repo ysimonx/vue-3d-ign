@@ -520,8 +520,8 @@
         const attente = document.getElementById('attente');
         attente.hidden = false;
         attente.innerHTML = etat === 'granted' ? 'Localisation…'
-            : 'Votre position ?<br><small>Autorisez la géolocalisation pour arriver là où vous êtes ; '
-              + 'sinon, la tour Eiffel</small>';
+            : '<div>Votre position ?<br><small>Autorisez la géolocalisation pour arriver là où vous êtes ; '
+              + 'sinon, la tour Eiffel</small></div>';
         return new Promise(fini => {
             let tardive = false;
             const minuterie = setTimeout(() => { tardive = true; fini({ raison: 'sans-reponse' }); },

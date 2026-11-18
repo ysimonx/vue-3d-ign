@@ -75,6 +75,51 @@ def test_un_refus_persistant_finit_par_remonter(monkeypatch):
     assert len(appels) == geopf.GEOPF_ESSAIS
 
 
+class _PageDeMesures(_Reponse):
+    """Ce que le WFS a servi en 200 à une requête sur 6 à 40 le 18 novembre
+    2026 : les compteurs Prometheus de son serveur Java."""
+    def __init__(self):
+        super().__init__(200)
+        self.headers = {"Content-Type": "text/plain; version=0.0.4; charset=utf-8"}
+        self.text = "# HELP jvm_threads_current Current thread count of a JVM\n"
+
+
+def test_une_page_de_mesures_servie_en_200_est_retentee(monkeypatch):
+    appels = []
+
+    def get(url, timeout):
+        appels.append(url)
+        if len(appels) == 1:
+            return _PageDeMesures()
+        reponse = _Reponse(200)
+        reponse.headers = {"Content-Type": "application/json;charset=UTF-8"}
+        return reponse
+
+    monkeypatch.setattr(geopf.requests, "get", get)
+    monkeypatch.setattr(geopf.time, "sleep", lambda s: None)
+    reponse = geopf.get_avec_reprise("http://x")
+    assert reponse.headers["Content-Type"].startswith("application/json")
+    assert len(appels) == 2
+
+
+def test_une_page_de_mesures_persistante_finit_par_remonter(monkeypatch):
+    appels = []
+    monkeypatch.setattr(geopf.requests, "get",
+                        lambda url, timeout: appels.append(url) or _PageDeMesures())
+    monkeypatch.setattr(geopf.time, "sleep", lambda s: None)
+    with pytest.raises(requests.RequestException, match="page de mesures"):
+        geopf.get_avec_reprise("http://x")
+    assert len(appels) == geopf.GEOPF_ESSAIS
+
+
+def test_un_texte_brut_ordinaire_n_est_pas_une_page_de_mesures():
+    """Seul le format de Prometheus est rejoué : un autre texte brut est
+    rendu à l'appelant, qui en juge."""
+    reponse = _Reponse(200)
+    reponse.headers = {"Content-Type": "text/plain; charset=utf-8"}
+    assert not geopf._page_de_mesures(reponse)
+
+
 def test_en_parallele_rend_les_resultats_dans_l_ordre():
     """Lancées ensemble (la barrière ne s'ouvre qu'à trois), rendues dans
     l'ordre où on les a données, pas dans celui où elles finissent."""

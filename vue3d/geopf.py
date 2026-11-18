@@ -234,6 +234,23 @@ def en_parallele(*lectures):
         bassin.shutdown(wait=False, cancel_futures=True)
 
 
+def _page_de_mesures(reponse):
+    """La réponse est la page des compteurs d'un serveur Java (exportateur
+    JMX de Prometheus : fils, mémoire, requêtes de Tomcat), pas celle qu'on a
+    demandée.
+
+    Le WFS de la Géoplateforme la sert en 200, au lieu de la réponse, à une
+    requête sur 6 à 40 le 18 novembre 2026 (10 sur 121, mesuré à Haguenau sur
+    trois couches BD TOPO ; 0 sur 20 au WMS) : 116 couches illisibles dans le
+    journal ce jour-là, de 1 à 6 les jours d'avant, et des scènes refusées à
+    la chaîne. Rejouée à l'identique, la même requête rend son GeoJSON.
+    Reconnue à son type, celui du format texte de Prometheus.
+    """
+    # Les doublures des tests n'ont pas toutes d'en-têtes.
+    type_ = getattr(reponse, "headers", {}).get("Content-Type", "")
+    return type_.startswith("text/plain") and "version=0.0.4" in type_
+
+
 def get_avec_reprise(url, timeout=30, essais=GEOPF_ESSAIS, attente=GEOPF_ATTENTE_S,
                      headers=None):
     """GET sur la Géoplateforme, en réessayant les incidents de transport.
@@ -261,6 +278,13 @@ def get_avec_reprise(url, timeout=30, essais=GEOPF_ESSAIS, attente=GEOPF_ATTENTE
         except requests.RequestException as exc:
             dernier = exc
         else:
+            if reponse.ok and _page_de_mesures(reponse):
+                # Un incident de transport comme un autre : rejouée telle
+                # quelle, la requête répond normalement (voir _page_de_mesures).
+                dernier = requests.RequestException(
+                    f"page de mesures du serveur au lieu de la réponse sur {url[:80]}",
+                    response=reponse)
+                continue
             if reponse.ok:
                 return reponse
             # La réponse jointe : une tuile WMTS hors couverture répond 404,
