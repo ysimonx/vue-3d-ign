@@ -40,6 +40,26 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 host.appendChild(renderer.domElement);
+// Le compteur d'images avancé AVANT chaque rendu. three.js r160 met à jour
+// les géométries de la scène (projectObject) avec le numéro de l'image
+// précédente, puis l'avance, puis dessine la carte d'ombre avec le nouveau :
+// une géométrie mise à jour par la carte d'ombre d'une image passe pour à
+// jour à l'image suivante. Un attribut posé entre les deux — les uv du
+// terrain et de l'anneau quand le fond arrive — n'est donc pas envoyé au GPU
+// si cette image-là ne redessine pas l'ombre (figerOmbres, pendant
+// l'orbite) ; le lien du maillage à ses tampons est pourtant noté à jour
+// (WebGLBindingStates saute un attribut sans tampon), et le terrain lit pour
+// toujours des uv vides : un seul pixel de la photo, un sol uni sans photo.
+// Une ouverture sur quatre environ en production (18 novembre 2026), sol de
+// la scène ou anneau ; reproduit à coup sûr en enchaînant ces trois temps,
+// et corrigé par ce compteur.
+{
+    const rendre = renderer.render.bind(renderer);
+    renderer.render = (scene, camera) => {
+        renderer.info.render.frame++;
+        rendre(scene, camera);
+    };
+}
 // Demandée tout de suite, GPU au repos : three.js la garde ensuite. Le
 // premier appel (gl.getParameter) attend que le GPU ait fini tout ce qu'on
 // lui a confié, et c'est l'orthophoto, arrivée juste après la scène, qui la

@@ -608,6 +608,13 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Le sol sans photo, une ouverture sur quatre** (18 novembre 2026) : le
+  sol de la scène, ou l'anneau autour, restait d'un gris uni, sans photo,
+  jusqu'au rechargement de la page. Un défaut de three.js r160 : quand le
+  fond arrivait juste après une image qui avait redessiné l'ombre, et avant
+  une image qui ne la redessinait pas (l'orbite du démarrage), ses
+  coordonnées de texture n'étaient jamais envoyées à la carte graphique. La
+  page avance désormais le compteur d'images de three.js avant chaque rendu.
 - **Les tuiles de fond gardées par le serveur** (18 novembre 2026) : une
   tuile que le serveur renvoie vers l'IGN, il la lit aussi lui-même en tâche
   de fond et la garde 90 jours, jusqu'au zoom 16 (l'anneau et l'horizon des
