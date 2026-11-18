@@ -1,6 +1,7 @@
 """Tuiles WMTS gardées par le serveur (vue3d/tuiles.py), sans réseau."""
 import math
 import os
+import threading
 
 import pytest
 import requests
@@ -184,12 +185,37 @@ def _url(couche="ortho", tuile=GORDES):
     return f"/api/tuile/{couche}/{z}/{x}/{y}"
 
 
-def test_hors_stock_la_tuile_est_redirigee_vers_l_ign(tmp_path):
+def test_hors_stock_la_tuile_est_redirigee_vers_l_ign_et_mise_en_reserve(tmp_path):
     lues = []
     client = _client(tmp_path, lambda *t: lues.append(t) or JPEG)
     r = client.get(_url())
     assert r.status_code == 302 and r.headers["Location"] == tuiles.url_ign("ortho", *GORDES)
-    assert r.headers["Cache-Control"] == "no-store" and lues == []
+    assert r.headers["Cache-Control"] == "no-store"
+    # Lue en tâche de fond, puis servie du stock au visiteur suivant.
+    assert client.application.extensions["vue3d_tuiles"].attendre_reserve()
+    assert lues == [("ortho", *GORDES)]
+    r = client.get(_url())
+    assert r.status_code == 200 and r.data == JPEG and len(lues) == 1
+
+
+def test_les_zooms_de_la_voiture_ne_sont_pas_mis_en_reserve(tmp_path):
+    lues = []
+    client = _client(tmp_path, lambda *t: lues.append(t) or JPEG)
+    assert client.get(_url(tuile=_tuile(43.9116, 5.2003, 17))).status_code == 302
+    assert client.application.extensions["vue3d_tuiles"].attendre_reserve() and lues == []
+
+
+def test_les_reserves_d_un_visiteur_sont_bornees(tmp_path):
+    lues = []
+    client = _client(tmp_path, lambda *t: lues.append(t) or JPEG, reserves=2)
+    z, x, y = GORDES
+    # Les tuiles de la voiture, jamais mises en réserve, ne comptent pas.
+    for k in range(3):
+        assert client.get(_url(tuile=(17, 2 * x + k, 2 * y))).status_code == 302
+    for k in range(3):
+        assert client.get(_url(tuile=(z, x + k, y))).status_code == 302
+    assert client.application.extensions["vue3d_tuiles"].attendre_reserve()
+    assert sorted(lues) == [("ortho", z, x, y), ("ortho", z, x + 1, y)]
 
 
 def test_une_tuile_refusee_est_relue_gardee_puis_servie_du_stock(tmp_path):
@@ -254,3 +280,71 @@ def test_sans_quota_de_scenes_les_relectures_ne_sont_pas_bornees(tmp_path):
     z, x, y = GORDES
     for k in range(5):
         assert client.get(_url(tuile=(z, x + k, y)) + "?relire=1").status_code == 200
+
+
+# --- La réserve et le stock sur un disque externe -----------------------------
+
+def test_la_reserve_lit_chaque_tuile_une_fois(tmp_path):
+    lues = []
+    stock, _ = _stock(tmp_path, lambda *t: lues.append(t) or JPEG)
+    z, x, y = GORDES
+    for k in range(20):
+        stock.reserver("ortho", z, x + k % 5, y)
+    assert stock.attendre_reserve()
+    assert sorted(lues) == [("ortho", z, x + k, y) for k in range(5)]
+    assert all(stock.present("ortho", z, x + k, y) for k in range(5))
+    # Gardées : plus jamais relues.
+    assert stock.reserver("ortho", z, x, y) and stock.attendre_reserve() and len(lues) == 5
+
+
+def test_une_panne_de_l_ign_vide_la_reserve(tmp_path):
+    lues, pret = [], threading.Event()
+
+    def lire(*t):
+        lues.append(t)
+        pret.wait(5)                    # tout est en file avant le premier échec
+        raise requests.RequestException("HTTP 502")
+
+    stock, _ = _stock(tmp_path, lire)
+    z, x, y = GORDES
+    assert all(stock.reserver("ortho", z, x + k, y) for k in range(10))
+    pret.set()
+    assert stock.attendre_reserve()
+    # Au plus une lecture par fil (un fil qui n'a pas encore pris sa tuile
+    # trouve la file vidée), puis plus rien.
+    assert 1 <= len(lues) <= tuiles.TUILES_RESERVE_FILS
+    assert not any(stock.present("ortho", z, x + k, y) for k in range(10))
+
+
+def test_sans_son_dossier_le_stock_ne_garde_rien_et_ne_le_cree_pas(tmp_path):
+    dossier = tmp_path / "disque" / "vue3d-tuiles"
+    lues = []
+    stock = Stock(str(dossier), lire=lambda *t: lues.append(t) or JPEG, creer=False)
+    assert not stock.disponible()
+    # Relue : servie de mémoire.
+    assert stock.relire("ortho", *GORDES) == JPEG
+    # Pas de réserve.
+    assert not stock.reserver("ortho", *GORDES) and len(lues) == 1
+    assert not (tmp_path / "disque").exists()
+    # Le disque revient : le stock reprend.
+    dossier.mkdir(parents=True)
+    assert stock.disponible() and stock.relire("ortho", *GORDES) == str(dossier / "ortho" / "16" / str(GORDES[1]) / f"{GORDES[2]}.jpg")
+
+
+def test_la_route_sert_une_tuile_relue_sans_stock(tmp_path):
+    client = _client(tmp_path, lambda *t: JPEG, dossier_tuiles=str(tmp_path / "absent"))
+    r = client.get(_url() + "?relire=1")
+    assert r.status_code == 200 and r.data == JPEG and r.mimetype == "image/jpeg"
+    assert client.get(_url()).status_code == 302
+    assert client.application.extensions["vue3d_tuiles"].attendre_reserve()
+    assert not (tmp_path / "absent").exists()
+
+
+def test_vue3d_tuiles_place_le_stock_hors_du_cache(tmp_path, monkeypatch):
+    disque = tmp_path / "disque"
+    disque.mkdir()
+    monkeypatch.setenv("VUE3D_TUILES", str(disque))
+    client = _client(tmp_path / "cache", lambda *t: JPEG)
+    assert client.get(_url() + "?relire=1").status_code == 200
+    z, x, y = GORDES
+    assert (disque / "ortho" / str(z) / str(x) / f"{y}.jpg").read_bytes() == JPEG

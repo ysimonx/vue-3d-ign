@@ -52,7 +52,7 @@ from .signalisation import SIGNALISATION_VERSION, BlocsSignaux, fetch_signalisat
 from .signalisation import rectangle_bloc as rectangle_signaux
 from .solaire import fetch_solaire
 from .toits import autoriser_bassin
-from .tuiles import TUILES_RELECTURES_PAR_HEURE, Stock, fetch_tuile
+from .tuiles import TUILES_RELECTURES_PAR_HEURE, TUILES_RESERVEES_PAR_HEURE, Stock, fetch_tuile
 from .vehicules import fetch_mer
 from .vehicules import lecteur as lecteur_vehicules
 from .vitesses import VITESSES_VERSION, BlocsOsm, fetch_vitesses
@@ -126,7 +126,8 @@ class Quota:
 def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=None,
               lire_ouvrages=fetch_ouvrages, lire_vehicules=None, lire_panneaux=None,
               lire_nuage=fetch_nuage, lire_dpe=fetch_dpe, lire_dvf=fetch_dvf, lire_mer=fetch_mer,
-              lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None,
+              lire_tuile=fetch_tuile, quota=None, proxy=None, relectures=None, reserves=None,
+              dossier_tuiles=None,
               lire_bornes=fetch_bornes, lire_carre=fetch_carre, quota_carres=None,
               lire_vegetation=fetch_vegetation, lire_vitesses=None, lire_signalisation=None,
               lire_solaire=fetch_solaire, osm=None, lire_eoliennes=None):
@@ -147,6 +148,11 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     None : de VUE3D_QUOTA et VUE3D_PROXY, 0 en leur absence.
     `relectures` : tuiles relues par heure et par adresse IP, 0 sans limite ;
     None : TUILES_RELECTURES_PAR_HEURE si le service a un quota de scènes.
+    `reserves` : de même, les tuiles mises en réserve ;
+    TUILES_RESERVEES_PAR_HEURE.
+    `dossier_tuiles` : le stock des tuiles, ailleurs que dans le cache (un
+    disque externe) ; il doit exister, le service ne le crée pas. None : de
+    VUE3D_TUILES, sinon `tuiles` dans le dossier du cache.
     `lire_carre`, `lire_vegetation`, `lire_vitesses`, `lire_signalisation` :
     (i, j) -> dict d'un carré de la voiture, bâtiments et routes, arbres
     (vue3d/carres.py), limitations de vitesse (vue3d/vitesses.py) ou stops,
@@ -182,11 +188,24 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
                   lire_nuage=lire_nuage, lire_dpe=lire_dpe, lire_dvf=lire_dvf,
                   lire_mer=lire_mer, lire_bornes=lire_bornes, lire_solaire=lire_solaire)
     # Hors du dossier des versions de scène : une tuile ne dépend pas de
-    # SCENE_VERSION.
-    stock = Stock(os.path.join(cache.dossier, "tuiles"), lire=lire_tuile)
+    # SCENE_VERSION. Sur un disque externe, le dossier n'est jamais créé ici
+    # (tuiles.Stock, `creer`).
+    dossier_tuiles = dossier_tuiles or os.environ.get("VUE3D_TUILES")
+    if dossier_tuiles:
+        stock = Stock(os.path.abspath(dossier_tuiles), lire=lire_tuile, creer=False)
+        if not stock.disponible():
+            app.logger.warning("Stock des tuiles %s absent : les tuiles ne sont pas gardées "
+                               "tant qu'il manque", stock.dossier)
+    else:
+        stock = Stock(os.path.join(cache.dossier, "tuiles"), lire=lire_tuile)
     if relectures is None:
         relectures = TUILES_RELECTURES_PAR_HEURE if quota else 0
     quota_tuiles = Quota(relectures) if relectures else None
+    if reserves is None:
+        reserves = TUILES_RESERVEES_PAR_HEURE if quota else 0
+    quota_reserve = Quota(reserves) if reserves else None
+    # Pour les essais, qui attendent la réserve (Stock.attendre_reserve).
+    app.extensions["vue3d_tuiles"] = stock
     carres = Carres(cache.dossier, lire=lire_carre)
     vegetations = Carres(cache.dossier, lire=lire_vegetation, couche="vegetation-",
                          version=VEGETATION_VERSION)
@@ -222,7 +241,7 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     app.register_blueprint(routes_voiture.blueprint(
         carres, vegetations, vitesses, signalisation, quota_carres, blocs_bornes, quota_blocs,
         signalements, quota_signalements))
-    app.register_blueprint(routes_service.blueprint(cache, stock, quota_tuiles))
+    app.register_blueprint(routes_service.blueprint(cache, stock, quota_tuiles, quota_reserve))
     return app
 
 

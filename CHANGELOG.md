@@ -608,6 +608,15 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Les tuiles de fond gardées par le serveur** (18 novembre 2026) : une
+  tuile que le serveur renvoie vers l'IGN, il la lit aussi lui-même en tâche
+  de fond et la garde 90 jours, jusqu'au zoom 16 (l'anneau et l'horizon des
+  scènes). Le visiteur suivant la reçoit du serveur, sans attendre l'IGN :
+  à Notre-Dame, l'anneau complet arrive 0,2 à 0,7 s après la scène, contre
+  4 à 16 s ; la première visite en a fait garder 469 (10 Mo) en 80 s. Le
+  stock peut être placé hors du cache, sur un disque externe
+  (`VUE3D_TUILES`) : le service ne crée jamais ce dossier, et sans lui
+  sert les tuiles sans les garder.
 - **Le sol autour de la scène ne reste plus sombre** (18 novembre 2026) :
   l'anneau de relief n'était photographié qu'une fois ses 225 tuiles
   arrivées (zone de 1 000 m), soit 3 à 4 s de sol gris à Notre-Dame, et une

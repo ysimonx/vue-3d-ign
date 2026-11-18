@@ -71,7 +71,7 @@ vue3d/
   geopf.py      GET avec reprise sur la Géoplateforme ; 8 places pour tout le service, lectures groupées abandonnées au premier échec
   avis.py       👍 et 👎 des visiteurs sur le rendu d'une scène, comptés pour tous, un par adresse IP : journal cache/avis/avis.jsonl où tout s'ajoute (le dernier avis d'une adresse compte), captures et mot des 👎 ; lus dans la page privée des visites, hors du dépôt
   signalements.py  le bouton ⚠ de la vue en voiture : capture de l'écran et état du sol gardés dans cache/signalements/ (<id>.json, <id>.jpg), bornés en taille, en nombre et par adresse
-  tuiles.py     tuiles WMTS de la page (ortho, plan) : stock servi, sinon redirection vers l'IGN ; une tuile refusée au navigateur est relue ici et gardée 90 jours (cache/tuiles/)
+  tuiles.py     tuiles WMTS de la page (ortho, plan) : stock servi, sinon redirection vers l'IGN et lecture en réserve, en tâche de fond, jusqu'au zoom 16 ; une tuile refusée au navigateur est relue ici ; gardées 90 jours (cache/tuiles/, ou VUE3D_TUILES : un disque externe, jamais créé par le service)
   static/index.html   la page de la scène : son HTML, et deux scripts en ligne qui partent avant tout (tiroir, demande de la scène)
   static/css/scene.css   sa feuille de style
   static/js/scene/    ses modules ES (three.js r160), chargés par main.js dans l'ordre de leurs effets : socle/, terrain/, batiments/, couches/ (une couche par module), vegetation/, export/, interface/, geometrie/

@@ -15,10 +15,11 @@ présente sur disque, il la sert ; sinon, il redirige vers l'IGN, et le
 navigateur la lit là-bas comme avant — seules les tuiles en stock passent par
 le serveur, et par la connexion qui le relie. Refusée au navigateur, la page la
 redemande avec `?relire=1` : le serveur la lit lui-même, avec les reprises de
-`geopf.get_avec_reprise`, la garde et la rend. Le stock ne contient donc que
-des tuiles refusées au moins une fois à un visiteur, lues par le serveur à
-l'IGN — jamais une image venue d'un navigateur, qu'on ne saurait vérifier :
-l'IGN ne donne ni ETag ni date de modification.
+`geopf.get_avec_reprise`, la garde et la rend. Une tuile qu'il redirige, il la
+met aussi en réserve : lue par lui en tâche de fond et gardée, pour le
+visiteur suivant (TUILES_RESERVE_ZOOM_MAX). Le stock ne contient donc que des
+tuiles lues par le serveur à l'IGN — jamais une image venue d'un navigateur,
+qu'on ne saurait vérifier : l'IGN ne donne ni ETag ni date de modification.
 
 Une tuile gardée se périme (TUILES_AGE_MAX_S) : l'IGN renouvelle
 l'orthophoto, et sans ETag on ne peut pas lui demander si la sienne a changé.
@@ -85,6 +86,32 @@ TUILES_ABSENTE_S = 86400
 # octobre 2026 ; 1 000 en laissent passer quatre, et bornent ce qu'une seule
 # adresse fait lire à l'IGN et écrire sur le disque (~15 Mo).
 TUILES_RELECTURES_PAR_HEURE = 1000
+# Mise en réserve : une tuile que le serveur redirige vers l'IGN, il la lit
+# aussi lui-même, en tâche de fond, et la garde ; le visiteur suivant la reçoit
+# d'ici. L'IGN en tient parfois une très longtemps : 675 tuiles au zoom 16
+# lues le 18 novembre 2026, douze à la fois comme la page, ont mis 0,2 s en
+# médiane et 2,3 s au plus, sauf une, 66 s ; l'anneau de Notre-Dame l'a
+# attendue. Le lendemain d'une visite, ses tuiles viennent du stock.
+#
+# Jusqu'au zoom 16 : l'anneau (16) et l'horizon (9 à 15) d'une scène, que la
+# page compose d'un bloc ou tuile à tuile. Pas les zooms 17 et 18, du sol de
+# la scène quand son orthophoto publiée manque, et de la vue en voiture, qui
+# en lit le long de chaque trajet et garde les siennes dans le navigateur.
+TUILES_RESERVE_ZOOM_MAX = 16
+# Lectures de réserve à la fois : avec les TUILES_RELECTURES_SIMULTANEES, les
+# tuiles tiennent au plus 4 des 8 places de la Géoplateforme, et en laissent 4
+# aux scènes, qui ne gagnent rien au-delà (vue3d/geopf.py).
+TUILES_RESERVE_FILS = 2
+# Tuiles en attente de lecture, au plus ; au-delà, une tuile redirigée n'est
+# pas mise en réserve (elle le sera à sa prochaine demande). Une visite neuve
+# en demande 440 jusqu'au zoom 16 sans bouger la caméra (Notre-Dame, zone de
+# 1 000 m) : une dizaine de visites d'avance.
+TUILES_RESERVE_FILE = 5000
+# Tuiles mises en réserve par heure et par adresse IP, quand le service a un
+# quota de scènes : vingt visites neuves, autant que de scènes neuves
+# (VUE3D_QUOTA = 20 en production). Borne ce qu'une adresse fait lire à l'IGN
+# et écrire sur le disque (~200 Mo par heure).
+TUILES_RESERVEES_PAR_HEURE = 10000
 
 
 class TuileAbsente(Exception):
@@ -151,17 +178,27 @@ class Stock:
             doublure pour les tests.
         horloge: secondes, pour l'âge des fichiers (leur instant d'écriture).
         chrono: secondes monotones, pour les absences et la purge.
+        creer: crée `dossier` à la première tuile gardée. Faux pour un
+            dossier sur un disque externe (VUE3D_TUILES) : disque absent, le
+            créer l'écrirait sur le disque interne, sous /Volumes, et macOS
+            monterait ensuite le disque sous un autre nom. Sans son dossier,
+            le stock ne garde rien : une tuile relue est servie de mémoire.
     """
 
-    def __init__(self, dossier, lire=fetch_tuile, horloge=time.time, chrono=time.monotonic):
+    def __init__(self, dossier, lire=fetch_tuile, horloge=time.time, chrono=time.monotonic, creer=True):
         self.dossier = dossier
         self.lire = lire
         self.horloge = horloge
         self.chrono = chrono
+        self.creer = creer
         self._relectures = threading.BoundedSemaphore(TUILES_RELECTURES_SIMULTANEES)
         self._absentes = {}         # (couche, z, x, y) -> instant où elle a été dite absente
         self._verrou = threading.Lock()
         self._derniere_purge = None
+        self._reserve = {}          # (couche, z, x, y) en attente de lecture, dans l'ordre
+        self._en_lecture = set()    # celles qu'un fil de la réserve lit
+        self._lecteurs = 0          # fils de la réserve en vie
+        self._reserve_vide = threading.Condition(self._verrou)
 
     def chemin(self, couche, z, x, y):
         return os.path.join(self.dossier, couche, str(z), str(x), f"{y}.{COUCHES[couche][2]}")
@@ -189,8 +226,13 @@ class Stock:
             del self._absentes[(couche, z, x, y)]
             return False
 
+    def disponible(self):
+        """Le stock peut-il garder une tuile : son dossier existe, ou il peut le créer ?"""
+        return self.creer or os.path.isdir(self.dossier)
+
     def relire(self, couche, z, x, y):
-        """Lit la tuile à l'IGN, la garde, et rend son chemin.
+        """Lit la tuile à l'IGN, la garde, et rend son chemin ; ses octets si
+        le stock n'est pas disponible.
 
         Raises:
             TuilesOccupees si TUILES_RELECTURES_SIMULTANEES sont en cours ;
@@ -200,13 +242,23 @@ class Stock:
         if not self._relectures.acquire(blocking=False):
             raise TuilesOccupees()
         try:
-            octets = self.lire(couche, z, x, y)
+            octets = self._lire(couche, z, x, y)
+        finally:
+            self._relectures.release()
+        return self._garder(couche, z, x, y, octets) or octets
+
+    def _lire(self, couche, z, x, y):
+        try:
+            return self.lire(couche, z, x, y)
         except TuileAbsente:
             with self._verrou:
                 self._absentes[(couche, z, x, y)] = self.chrono()
             raise
-        finally:
-            self._relectures.release()
+
+    def _garder(self, couche, z, x, y, octets):
+        """Écrit la tuile au stock et rend son chemin ; None s'il n'est pas disponible."""
+        if not self.disponible():
+            return None
         chemin = self.chemin(couche, z, x, y)
         os.makedirs(os.path.dirname(chemin), exist_ok=True)
         # D'un bloc : un fichier temporaire, renommé une fois complet. Une
@@ -216,6 +268,59 @@ class Stock:
             f.write(octets)
         os.replace(tmp, chemin)
         return chemin
+
+    def reserver(self, couche, z, x, y):
+        """Met en réserve une tuile redirigée vers l'IGN : TUILES_RESERVE_FILS
+        fils la liront et la garderont. Rend vrai si elle a été mise en
+        attente : zoom au plus TUILES_RESERVE_ZOOM_MAX, stock disponible,
+        file pas pleine, pas déjà en attente."""
+        if z > TUILES_RESERVE_ZOOM_MAX or not self.disponible():
+            return False
+        cle = (couche, z, x, y)
+        with self._verrou:
+            if (cle in self._reserve or cle in self._en_lecture
+                    or len(self._reserve) >= TUILES_RESERVE_FILE):
+                return False
+            self._reserve[cle] = None
+            if self._lecteurs < TUILES_RESERVE_FILS:
+                self._lecteurs += 1
+                threading.Thread(target=self._lire_reserve, name="reserve-tuiles", daemon=True).start()
+        return True
+
+    def _lire_reserve(self):
+        """Fil de la réserve : lit les tuiles en attente une à une, et
+        s'arrête quand il n'y en a plus. Une lecture en échec n'est pas
+        reprise, et vide la file : l'IGN est en panne ou nous refuse, ce
+        n'est pas le moment de lui en demander d'autres. Chaque tuile sera
+        remise en réserve à sa prochaine demande."""
+        while True:
+            with self._verrou:
+                if not self._reserve:
+                    self._lecteurs -= 1
+                    self._reserve_vide.notify_all()
+                    return
+                cle = next(iter(self._reserve))
+                del self._reserve[cle]
+                self._en_lecture.add(cle)
+            try:
+                if not (self.present(*cle) or self.absente(*cle)):
+                    self._garder(*cle, self._lire(*cle))
+            except TuileAbsente:
+                pass
+            except Exception as exc:          # une tuile manquée, pas le service
+                with self._verrou:
+                    abandonnees = len(self._reserve)
+                    self._reserve.clear()
+                journal.info("Tuile %s non mise en réserve (%s) : %d autre(s) abandonnée(s)",
+                             "/".join(map(str, cle)), exc, abandonnees)
+            finally:
+                with self._verrou:
+                    self._en_lecture.discard(cle)
+
+    def attendre_reserve(self, delai_s=10):
+        """Attend que la réserve soit lue (pour les essais) ; rend vrai si c'est le cas."""
+        with self._reserve_vide:
+            return self._reserve_vide.wait_for(lambda: not self._lecteurs, delai_s)
 
     def purger(self):
         """Efface les tuiles plus vieilles que TUILES_AGE_MAX_S et les
