@@ -608,6 +608,18 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Véhicules, piscines et navires « indisponibles » depuis le 12 novembre**
+  (18 novembre 2026) : sur le Mac qui sert le site, chaque détection tuait
+  le processus du service (SIGABRT), et avec lui toutes les requêtes en
+  cours, scènes comprises — 1 383 fois en une semaine, aucune couche
+  détectée. Un worker de gunicorn est un fork sans exec : Metal n'y joint
+  pas son compilateur, et MetalPerformanceShaders arrête le processus dès
+  qu'un réseau a une fonction à compiler, ce qu'a sans doute redemandé le
+  redémarrage du 12 novembre. Sur CoreML, les réseaux tournent désormais
+  dans un processus à part, né par spawn : mêmes couches à l'octet (69
+  piscines, 232 et 364 véhicules à Gordes en zone de 1 000 m), 10 à 20 % de
+  temps en plus ; s'il meurt, seule la détection en cours échoue, et le
+  suivant naît à l'appel d'après.
 - **Des scènes refusées à la chaîne, « réponse illisible »** (18 novembre
   2026) : le WFS de l'IGN sert, à une requête sur 6 à 40, la page des
   compteurs de son serveur Java au lieu des objets demandés, en 200 (10 sur

@@ -78,6 +78,8 @@ import itertools
 import logging
 import math
 import os
+import threading
+import types
 
 import numpy as np
 from shapely.geometry import Point, Polygon, shape
@@ -418,8 +420,140 @@ def moteur_demande(disponibles, valeur=None):
     return moteur
 
 
-def charger(mode, dossier, moteur=None):
+# Sur CoreML, le service fait tourner les réseaux dans un processus à part,
+# né par « spawn » (fork puis exec), jamais dans le sien. Un worker de
+# gunicorn est un fork sans exec de son maître : Metal n'y joint pas son
+# compilateur (MTLCompilerService, « Connection init failed at lookup with
+# error 3 »), et MetalPerformanceShaders arrête le processus dès qu'un
+# réseau a une fonction à compiler. Du 12 novembre 2026 (redémarrage du Mac,
+# qui a sans doute vidé le cache de Metal) au 18, chaque détection a ainsi
+# tué le worker, et avec lui toutes les requêtes en cours : 1 383 SIGABRT au
+# journal, aucune couche détectée. Reproduit hors du service : un enfant né
+# d'un fork meurt à sa première inférence, qu'il soit lancé par launchd ou
+# par un terminal ; né d'un fork puis d'un exec, il réussit.
+#
+# Les sorties sont les mêmes à l'octet : même réseau, mêmes options, mêmes
+# entrées, seulement transmises par un tube. Un processus d'inférence qui
+# meurt ne prend plus que la détection en cours (503, que la page réessaie) ;
+# le suivant naît à l'appel d'après.
+
+
+def _bassin_spawn(specs):
+    """Un processus d'inférence, né par spawn, qui ouvre les sessions de
+    `specs` à sa naissance."""
+    import multiprocessing
+    return concurrent.futures.ProcessPoolExecutor(
+        max_workers=1, mp_context=multiprocessing.get_context("spawn"),
+        initializer=_ouvrir_sessions, initargs=(os.getpid(), specs))
+
+
+# Les sessions du processus d'inférence, dans ce processus-là seulement.
+_SESSIONS_A_PART = {}
+
+
+def _session(onnxruntime, chemin, fournisseurs, arene):
+    options = onnxruntime.SessionOptions()
+    # Au processeur, sans l'arène d'onnxruntime, qui garde tout ce
+    # qu'elle a pris : après les quatre appels simultanés de
+    # FILS_INFERENCE, une session de yolo tenait encore 1 130 Mo dans le
+    # conteneur (464 Mo à un appel, avant eux) ; sans elle, 350 Mo, pour
+    # le même temps (232 et 242 ms par tuile, médianes alternées) et les
+    # mêmes sorties. CoreML ne la remplit guère : inchangé.
+    #
+    # intra_op_num_threads reste celui d'onnxruntime, exprès : dans le
+    # conteneur (Linux, dix cœurs), les sorties de yolo changent avec lui
+    # (écart de 1e-3 sur les boîtes à 1 à 9 fils, ou 11, contre 10 par
+    # défaut), et les couches avec. Sur macOS, elles n'en dépendent pas.
+    options.enable_cpu_mem_arena = arene
+    return onnxruntime.InferenceSession(chemin, options, providers=fournisseurs)
+
+
+def _ouvrir_sessions(service, specs):
+    """Initialiseur du processus d'inférence : il s'arrête avec le service
+    (toits._veiller_parent), et ouvre ses sessions."""
+    import onnxruntime
+    from .toits import _veiller_parent
+    _veiller_parent(service)
+    for nom, spec in specs.items():
+        _SESSIONS_A_PART[nom] = _session(onnxruntime, *spec)
+
+
+def _decrire_sessions():
+    return {nom: ([e.name for e in s.get_inputs()], s.get_providers())
+            for nom, s in _SESSIONS_A_PART.items()}
+
+
+def _executer(nom, sorties, entrees):
+    return _SESSIONS_A_PART[nom].run(sorties, entrees)
+
+
+class ProcessusInference:
+    """Le processus à part qui tient les sessions, relancé s'il meurt.
+
+    Un seul pour tous les réseaux : CoreML ne sert qu'une tuile à la fois sur
+    le GPU (FILS_INFERENCE), et chaque processus garde ses réseaux compilés.
+    Sûr entre fils. `nouveau_bassin` : (specs) -> un exécuteur, celui d'un
+    processus né par spawn par défaut ; un autre pour les tests.
+    """
+
+    def __init__(self, specs, nouveau_bassin=None):
+        self._specs = specs
+        self._nouveau_bassin = nouveau_bassin or _bassin_spawn
+        self._verrou = threading.Lock()
+        self._bassin = None
+        # Noms des entrées et moteurs pris, par session : demandés une fois,
+        # ce qui ouvre les sessions, et arrête le démarrage si elles ne
+        # s'ouvrent pas.
+        self.descriptions = self.appeler(_decrire_sessions)
+
+    def appeler(self, fonction, *args):
+        """`fonction(*args)` dans le processus d'inférence, né au besoin.
+
+        Raises:
+            RuntimeError si le processus meurt pendant l'appel : le suivant
+            en fait naître un autre.
+        """
+        with self._verrou:
+            if self._bassin is None:
+                self._bassin = self._nouveau_bassin(self._specs)
+            bassin = self._bassin
+        try:
+            return bassin.submit(fonction, *args).result()
+        except concurrent.futures.BrokenExecutor as exc:      # BrokenProcessPool
+            with self._verrou:
+                if self._bassin is bassin:
+                    self._bassin = None
+            bassin.shutdown(wait=False, cancel_futures=True)
+            journal.warning("Processus d'inférence perdu : relancé à l'appel suivant (%s)", exc)
+            raise RuntimeError(f"processus d'inférence perdu ({exc})") from exc
+
+
+class SessionAPart:
+    """Une session de `ProcessusInference`, avec ce que ce module demande à
+    une session d'onnxruntime : `get_inputs`, `get_providers` et `run`."""
+
+    def __init__(self, processus, nom):
+        self._processus = processus
+        self.nom = nom
+        self._entrees, self._fournisseurs = processus.descriptions[nom]
+
+    def get_inputs(self):
+        return [types.SimpleNamespace(name=nom) for nom in self._entrees]
+
+    def get_providers(self):
+        return list(self._fournisseurs)
+
+    def run(self, sorties, entrees):
+        return self._processus.appeler(_executer, self.nom, sorties, entrees)
+
+
+def charger(mode, dossier, moteur=None, a_part=False):
     """Sessions d'inférence des détecteurs du mode, par nom.
+
+    `a_part` : sur CoreML, les sessions tournent dans un processus né par
+    spawn (`ProcessusInference`) ; c'est ce que fait le service, dont les
+    workers gunicorn sont des forks. Ailleurs, et au processeur, dans ce
+    processus.
 
     Raises:
         VehiculesMalConfigures si onnxruntime ou un réseau manque, ou si
@@ -434,7 +568,7 @@ def charger(mode, dossier, moteur=None):
             f"VUE3D_VEHICULES={mode} demande onnxruntime, absent de cette installation "
             "(requirements-vehicules.txt, ou l'argument de construction de l'image).") from exc
     moteur = moteur_demande(onnxruntime.get_available_providers(), moteur)
-    sessions = {}
+    specs = {}
     for nom in MODES[mode]:
         chemin = os.path.join(dossier, DETECTEURS[nom]["fichier"])
         if not os.path.exists(chemin):
@@ -442,28 +576,27 @@ def charger(mode, dossier, moteur=None):
                 f"VUE3D_VEHICULES={mode} demande {chemin}, introuvable : "
                 f"outils/preparer_modeles.sh {nom} {dossier} l'exporte (sans Docker), "
                 "ou VUE3D_VEHICULES=aucun démarre sans détecteur")
-        options = onnxruntime.SessionOptions()
-        # Au processeur, sans l'arène d'onnxruntime, qui garde tout ce
-        # qu'elle a pris : après les quatre appels simultanés de
-        # FILS_INFERENCE, une session de yolo tenait encore 1 130 Mo dans le
-        # conteneur (464 Mo à un appel, avant eux) ; sans elle, 350 Mo, pour
-        # le même temps (232 et 242 ms par tuile, médianes alternées) et les
-        # mêmes sorties. CoreML ne la remplit guère : inchangé.
-        #
-        # intra_op_num_threads reste celui d'onnxruntime, exprès : dans le
-        # conteneur (Linux, dix cœurs), les sorties de yolo changent avec lui
-        # (écart de 1e-3 sur les boîtes à 1 à 9 fils, ou 11, contre 10 par
-        # défaut), et les couches avec. Sur macOS, elles n'en dépendent pas.
-        options.enable_cpu_mem_arena = moteur != "processeur"
-        sessions[nom] = onnxruntime.InferenceSession(chemin, options, providers=MOTEURS[moteur])
+        specs[nom] = (chemin, MOTEURS[moteur], moteur != "processeur")
+    if a_part and moteur == "coreml":
+        try:
+            processus = ProcessusInference(specs)
+        except RuntimeError as exc:
+            raise VehiculesMalConfigures(
+                f"le processus d'inférence n'a pas ouvert les réseaux ({exc}) : "
+                "VUE3D_MOTEUR=processeur s'en passe.") from exc
+        sessions = {nom: SessionAPart(processus, nom) for nom in specs}
+    else:
+        sessions = {nom: _session(onnxruntime, *spec) for nom, spec in specs.items()}
+    for nom, session in sessions.items():
         # Un moteur qui ne s'initialise pas, onnxruntime le remplace par le
         # processeur sans lever. Cinq fois plus lent, ce repli passerait pour
         # une panne : il arrête le démarrage, et l'erreur dit comment le
         # demander.
-        if moteur == "coreml" and MOTEURS["coreml"][0][0] not in sessions[nom].get_providers():
+        if moteur == "coreml" and MOTEURS["coreml"][0][0] not in session.get_providers():
             raise VehiculesMalConfigures(
-                f"CoreML n'a pas pris {chemin} : VUE3D_MOTEUR=processeur s'en passe.")
-    journal.info("Moteur d'inférence : %s", moteur)
+                f"CoreML n'a pas pris {specs[nom][0]} : VUE3D_MOTEUR=processeur s'en passe.")
+    journal.info("Moteur d'inférence : %s%s", moteur,
+                 ", dans un processus à part" if a_part and moteur == "coreml" else "")
     return sessions
 
 
@@ -803,7 +936,9 @@ def lecteur(mode=None, dossier=None):
     mode = mode_demande(mode)
     if not MODES[mode]:
         return None
-    sessions = charger(mode, dossier or os.environ.get("VUE3D_MODELES", "/modeles"))
+    # À part : lecteur() est l'appel du service (vue3d/app.py), dont les
+    # workers gunicorn sont des forks (charger).
+    sessions = charger(mode, dossier or os.environ.get("VUE3D_MODELES", "/modeles"), a_part=True)
     journal.info("Véhicules et piscines : mode %s (%s)", mode, ", ".join(sessions))
     return Lecteur(mode, sessions)
 

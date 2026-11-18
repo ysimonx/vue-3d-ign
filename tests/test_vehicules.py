@@ -5,9 +5,11 @@ Aucun réseau de neurones n'est chargé : les sessions d'inférence sont des
 doublures qui rendent des boîtes écrites à la main, dans la disposition de
 chaque export.
 """
+import concurrent.futures
 import math
 import sys
 import types
+from concurrent.futures.process import BrokenProcessPool
 
 import numpy as np
 import pytest
@@ -83,6 +85,12 @@ def _faux_onnxruntime(monkeypatch, tmp_path, pris):
         def get_providers(self):
             return pris
 
+        def get_inputs(self):
+            return [types.SimpleNamespace(name="images")]
+
+        def run(self, sorties, entrees):
+            return [entrees["images"] * 2]
+
     monkeypatch.setitem(sys.modules, "onnxruntime", types.SimpleNamespace(
         InferenceSession=Session, SessionOptions=Options,
         get_available_providers=lambda: ["CoreMLExecutionProvider", "CPUExecutionProvider"]))
@@ -119,6 +127,79 @@ def test_un_repli_muet_sur_le_processeur_arrete_le_demarrage(monkeypatch, tmp_pa
     with pytest.raises(VehiculesMalConfigures, match="VUE3D_MOTEUR=processeur"):
         vehicules.charger("yolo", str(tmp_path))
     assert list(vehicules.charger("yolo", str(tmp_path), "processeur")) == ["yolo"]
+
+
+def _processus_en_fil(specs):
+    """Le processus d'inférence en doublure : un fil, qui ouvre les sessions
+    de `specs` avec l'onnxruntime du moment (celui de _faux_onnxruntime)."""
+    import onnxruntime
+    for nom, spec in specs.items():
+        vehicules._SESSIONS_A_PART[nom] = vehicules._session(onnxruntime, *spec)
+    return concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+
+def test_a_part_les_sessions_coreml_tournent_dans_le_processus_d_inference(monkeypatch, tmp_path):
+    """Le service (lecteur) les met à part : un worker gunicorn, fork sans
+    exec, meurt à la première compilation de Metal (SIGABRT)."""
+    monkeypatch.delenv("VUE3D_MOTEUR", raising=False)
+    _faux_onnxruntime(monkeypatch, tmp_path, ["CoreMLExecutionProvider", "CPUExecutionProvider"])
+    monkeypatch.setattr(vehicules, "_SESSIONS_A_PART", {})
+    monkeypatch.setattr(vehicules, "_bassin_spawn", _processus_en_fil)
+    session = vehicules.charger("yolo", str(tmp_path), a_part=True)["yolo"]
+    assert isinstance(session, vehicules.SessionAPart)
+    assert session.get_inputs()[0].name == "images"
+    assert session.get_providers()[0] == "CoreMLExecutionProvider"
+    assert session.run(None, {"images": np.array([1.5])})[0].tolist() == [3.0]
+    assert vehicules.fils_inference({"yolo": session}) == vehicules.FILS_INFERENCE["coreml"]
+    # Au processeur, rien à compiler : la session reste dans le processus.
+    reste = vehicules.charger("yolo", str(tmp_path), "processeur", a_part=True)["yolo"]
+    assert not isinstance(reste, vehicules.SessionAPart)
+
+
+class _ProcessusQuiMeurt(concurrent.futures.ThreadPoolExecutor):
+    """Un processus d'inférence qui meurt à l'appel numéro `mort`."""
+
+    def __init__(self, mort):
+        super().__init__(max_workers=1)
+        self.appels, self.mort = 0, mort
+
+    def submit(self, fonction, *args):
+        self.appels += 1
+        if self.appels == self.mort:
+            futur = concurrent.futures.Future()
+            futur.set_exception(BrokenProcessPool("processus tué"))
+            return futur
+        return super().submit(fonction, *args)
+
+
+def test_un_processus_d_inference_mort_ne_perd_que_l_appel_en_cours(monkeypatch):
+    """L'appel en cours lève (la couche répondra 503, que la page réessaie) ;
+    le suivant fait naître un autre processus."""
+    monkeypatch.setattr(vehicules, "_SESSIONS_A_PART",
+                        {"yolo": types.SimpleNamespace(
+                            get_inputs=lambda: [types.SimpleNamespace(name="images")],
+                            get_providers=lambda: ["CoreMLExecutionProvider"],
+                            run=lambda sorties, entrees: ["ok"])})
+    nes = []
+
+    def nouveau(specs):
+        # Le premier meurt à son deuxième appel, après la description.
+        nes.append(_ProcessusQuiMeurt(mort=2 if not nes else 0))
+        return nes[-1]
+
+    session = vehicules.SessionAPart(vehicules.ProcessusInference({"yolo": None}, nouveau), "yolo")
+    with pytest.raises(RuntimeError, match="processus d'inférence perdu"):
+        session.run(None, {})
+    assert session.run(None, {}) == ["ok"]
+    assert len(nes) == 2
+
+
+def test_des_reseaux_que_le_processus_n_ouvre_pas_arretent_le_demarrage(monkeypatch, tmp_path):
+    monkeypatch.delenv("VUE3D_MOTEUR", raising=False)
+    _faux_onnxruntime(monkeypatch, tmp_path, ["CoreMLExecutionProvider", "CPUExecutionProvider"])
+    monkeypatch.setattr(vehicules, "_bassin_spawn", lambda specs: _ProcessusQuiMeurt(mort=1))
+    with pytest.raises(VehiculesMalConfigures, match="VUE3D_MOTEUR=processeur"):
+        vehicules.charger("yolo", str(tmp_path), a_part=True)
 
 
 def test_le_mode_tous_demande_le_detecteur_rapide_d_abord():
