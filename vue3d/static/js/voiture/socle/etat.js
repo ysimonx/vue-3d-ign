@@ -32,6 +32,17 @@ export const VERS = (() => {
     const [x, y] = versLambert93(Number(m[2]), Number(m[1]));
     return { x, y, nom: PARAMS.get('versnom') || null };
 })();
+// `par=lat,lon;lat,lon` : les points où passer avant `vers`, dans l'ordre —
+// un trajet tracé sur une carte, une boucle qui revient près de son départ.
+// Chaque étape a son plus court chemin et sa bande de carrés : une boucle de
+// 4,7 km (novembre 2026) passait à 600 m de la droite qui joignait ses deux
+// premiers points, hors de la bande, et la page en faisait un détour de 5 km.
+export const PAR = (() => {
+    if (!VERS) return [];
+    return (PARAMS.get('par') || '').split(';')
+        .map(t => /^\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*$/.exec(t)).filter(Boolean)
+        .map(m => { const [x, y] = versLambert93(Number(m[2]), Number(m[1])); return { x, y }; });
+})();
 export const ITINERAIRE_BANDE_M = 400, ITINERAIRE_CHEMIN_MAX_M = 20000;
 export let itineraire = null;                   // { etapes: [{ a, sens }], fin: { a, s }, k, longueur }
 export function poserItineraire(it) { itineraire = it; }

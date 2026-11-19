@@ -28,6 +28,12 @@
 // page dit la distance qui reste jusqu'à l'arrivée de l'itinéraire entier, et
 // non du tronçon.
 //
+// Un trajet tracé sur une carte (une boucle, un aller-retour au fond d'une
+// impasse) : ses points de passage dans `par` ([{ lat, lon }], dans l'ordre),
+// demandés à l'IGN et passés à la page (`par=`) pour ceux qui tombent dans le
+// tronçon ; un tronçon de `de: 0` à "arrivee" le filme d'un seul tenant. Les
+// `liens` du carton de fin : "site", "depot", "linkedin" (les trois sans eux).
+//
 // Même horloge figée que film-voiture.mjs : la voiture roule à la vitesse
 // exacte du film, le réseau garde son temps réel.
 import puppeteer from 'puppeteer-core';
@@ -54,13 +60,18 @@ const SITE = 'vue-3d-ign.kysoe.com/voiture', DEPOT = 'github.com/ysimonx/vue-3d-
 
 // --- Les itinéraires de la Géoplateforme --------------------------------------------------------
 const itineraires = new Map();
-/** L'itinéraire en voiture de `depart` à `arrivee` ({ lat, lon, nom }) : sa longueur, et pointA(s). */
-async function itineraire(depart, arrivee) {
-    const cle = JSON.stringify([depart, arrivee]);
+/**
+ * L'itinéraire en voiture de `depart` à `arrivee` ({ lat, lon, nom }), par
+ * les points `par` ([{ lat, lon }], dans l'ordre) : sa longueur, pointA(s),
+ * et la distance de chaque point de passage depuis le départ (`parS`).
+ */
+async function itineraire(depart, arrivee, par = []) {
+    const cle = JSON.stringify([depart, arrivee, par]);
     if (itineraires.has(cle)) return itineraires.get(cle);
     const url = new URL('https://data.geopf.fr/navigation/itineraire');
     for (const [k, v] of Object.entries({ resource: 'bdtopo-osrm', profile: 'car', optimization: 'fastest',
-        geometryFormat: 'geojson', start: `${depart.lon},${depart.lat}`, end: `${arrivee.lon},${arrivee.lat}` })) {
+        geometryFormat: 'geojson', start: `${depart.lon},${depart.lat}`, end: `${arrivee.lon},${arrivee.lat}`,
+        ...(par.length ? { intermediates: par.map(p => `${p.lon},${p.lat}`).join('|') } : {}) })) {
         url.searchParams.set(k, v);
     }
     const route = await (await fetch(url)).json();
@@ -81,8 +92,13 @@ async function itineraire(depart, arrivee) {
         }
         return [coords[coords.length - 1][1], coords[coords.length - 1][0]];
     };
-    console.log(`itinéraire IGN vers ${arrivee.nom} : ${(longueur / 1000).toFixed(2)} km, ${Math.round(route.duration / 60)} min`);
-    const r = { longueur, pointA, nom: arrivee.nom };
+    // Les points de passage au bout de chaque portion, à l'échelle de notre
+    // longueur (celle de l'IGN diffère de quelques mètres).
+    const parS = [];
+    for (let i = 0, s = 0; i < route.portions.length - 1; i++) parS.push(s += route.portions[i].distance * longueur / route.distance);
+    console.log(`itinéraire IGN vers ${arrivee.nom} : ${(longueur / 1000).toFixed(2)} km, ${Math.round(route.duration / 60)} min`
+        + (parS.length ? `, par ${parS.map(s => Math.round(s) + ' m').join(', ')}` : ''));
+    const r = { longueur, pointA, parS, nom: arrivee.nom };
     itineraires.set(cle, r);
     return r;
 }
@@ -106,10 +122,11 @@ const STYLE = `
     .film-carte .credits { margin-top:${P * 1.1}px; font-size:${Math.round(P * 0.55)}px; opacity:.7; line-height:1.5; }
 `;
 const TITRE = `<h1>${echapper(plan.titre)}</h1><p>${echapper(plan.sousTitre || '')}</p>`;
+// `liens` du plan : ceux du carton, parmi les trois (un film pour un proche
+// n'a que faire du dépôt ni de LinkedIn).
+const LIENS = { site: ['Essayez-la', SITE], depot: ['Le code, libre (MIT)', DEPOT], linkedin: ['Yannick Simon', LINKEDIN] };
 const FIN = `<h1>Vue 3D IGN</h1><div class="liens">`
-    + `<div><b>Essayez-la</b><span>${SITE}</span></div>`
-    + `<div><b>Le code, libre (MIT)</b><span>${DEPOT}</span></div>`
-    + `<div><b>Yannick Simon</b><span>${LINKEDIN}</span></div></div>`
+    + (plan.liens || Object.keys(LIENS)).map(k => `<div><b>${LIENS[k][0]}</b><span>${LIENS[k][1]}</span></div>`).join('') + `</div>`
     + `<div class="credits">${echapper(plan.credits || '')}<br>Données © IGN · Licence Ouverte 2.0</div>`;
 const fondu = (t, debut, finS = Infinity) => Math.max(0, Math.min(1, (t - debut) / 0.5, (finS - t) / 0.5));
 
@@ -123,8 +140,8 @@ const travail = fs.mkdtempSync(path.join(os.tmpdir(), 'film-trajet-'));
 const erreurs = [];
 
 async function tourner(troncon, n) {
-    const route = troncon.route ? await itineraire(troncon.route.depart, troncon.route.arrivee)
-        : await itineraire(plan.depart, plan.arrivee);
+    const route = troncon.route ? await itineraire(troncon.route.depart, troncon.route.arrivee, troncon.route.par)
+        : await itineraire(plan.depart, plan.arrivee, plan.par);
     const arrivant = troncon.vers === 'arrivee', dernierFilm = n === plan.troncons.length - 1;
     const sVers = arrivant ? route.longueur : troncon.vers;
     // `de` négatif : compté depuis le bout de l'itinéraire, pour une arrivée.
@@ -136,8 +153,12 @@ async function tourner(troncon, n) {
     // Les arbres du film (carres/arbres.js : touffes, ramure, sans tramage) ;
     // ARBRES= (vide) garde ceux de la conduite, pour comparer.
     const arbres = process.env.ARBRES ?? 'film';
+    // Les points de passage du tronçon, à plus de 30 m de ses bouts : la
+    // page y passe, par le plus court chemin de l'un à l'autre.
+    const par = route.parS.filter(s => s > de + 30 && s < sVers - 30)
+        .map(s => route.pointA(s).map(v => v.toFixed(6)).join(',')).join(';');
     const adresse = `${SERVEUR}/voiture?simu=1&attente=1${arbres ? `&arbres=${arbres}` : ''}`
-        + `&lat=${la.toFixed(6)}&lon=${lo.toFixed(6)}`
+        + `&lat=${la.toFixed(6)}&lon=${lo.toFixed(6)}${par ? `&par=${par}` : ''}`
         + `&vers=${va.toFixed(6)},${vo.toFixed(6)}&versnom=${encodeURIComponent(route.nom)}`
         + `&vitesse=${troncon.vitesse}&heure=${encodeURIComponent(troncon.heure || plan.heure || '14:00')}`;
     const page = await navigateur.newPage();
@@ -243,13 +264,15 @@ async function tourner(troncon, n) {
     }
     const base = { apres, nom: route.nom, legende: 0, titre: 0, fin: 0, camera: troncon.camera || null };
     const arret = troncon.arret || 0, debutLegende = troncon.titre ? 5 : 0.6;
+    // Sans légende, pas de bandeau vide.
+    const legende = (t, debut, finS) => (troncon.legende ? fondu(t, debut, finS) : 0);
     // Un dernier tronçon sans arrivée finit en roulant, sous le carton de fin.
     const roule = arret + (troncon.duree || Infinity);
     const finRoulant = !arrivant && dernierFilm ? troncon.fin || 0 : 0;
     const total = roule + finRoulant;
     const habillage = t => ({ ...base,
         titre: troncon.titre ? fondu(t, 0.2, 4.6) : 0,
-        legende: fondu(t, debutLegende, roule - 0.7),
+        legende: legende(t, debutLegende, roule - 0.7),
         fin: finRoulant ? fondu(t, roule) : 0 });
 
     await page.evaluate(() => window.__manuel());
@@ -272,11 +295,13 @@ async function tourner(troncon, n) {
         const pano = troncon.panoramique;
         const debutFin = () => arrivee + (pano ? 0.5 + pano.duree + (pano.tenue ?? 0.8) : 1.5);
         const finLegende = () => (pano ? arrivee + 0.5 + pano.duree / 2 : debutFin() - 0.3);
+        // Deux minutes, plus le temps d'un long trajet à 15 km/h.
+        const limiteS = 120 + (sVers - de) / 4;
         for (;;) {
             const t = images / FPS;
             let o = habillage(t);
             if (arrivee !== null) {
-                o = { ...base, legende: fondu(t, -1, finLegende()), fin: dernierFilm ? fondu(t, debutFin()) : 0 };
+                o = { ...base, legende: legende(t, -1, finLegende()), fin: dernierFilm ? fondu(t, debutFin()) : 0 };
                 if (pano) {
                     const u = Math.min(Math.max((t - arrivee - 0.5) / pano.duree, 0), 1);
                     o.pano = { cap: pano.cap, tangage: pano.tangage || 0, recul: pano.recul, u: u * u * (3 - 2 * u) };
@@ -285,7 +310,7 @@ async function tourner(troncon, n) {
             const etat = await filmer(o);
             if (etat.arrive && arrivee === null) arrivee = t;
             if (arrivee !== null && t >= debutFin() + (dernierFilm ? troncon.fin : 0)) break;
-            if (t > 120) { erreurs.push('arrivée non atteinte en 120 s'); break; }
+            if (t > limiteS) { erreurs.push(`arrivée non atteinte en ${Math.round(limiteS)} s`); break; }
         }
     }
     ffmpeg.stdin.end();

@@ -2,7 +2,7 @@
 
 import { PARAMS, VITESSE_SIMU_KMH, SIMU_LIMITE, HASARD_SIMU } from '../socle/parametres.js';
 import { depuisLambert93, convergence } from '../socle/lambert93.js';
-import { voiture, VERS, ITINERAIRE_BANDE_M, itineraire, poserItineraire } from '../socle/etat.js';
+import { voiture, VERS, PAR, ITINERAIRE_BANDE_M, itineraire, poserItineraire } from '../socle/etat.js';
 import { CARRE_M, carreDe } from '../carres/grille.js';
 import {
     pointArete, capDepuis, ecartCap, permise, carrePret, suiteProbable, caler,
@@ -49,23 +49,48 @@ function tasPrendre(tas) {
     return haut;
 }
 
-/** Les carrés de la bande entre départ et arrivée sont-ils tous lus ? */
+/** Le départ, les points de passage (`par`), l'arrivée. */
+const jalons = () => [voiture.attendu, ...PAR, VERS];
+
+/** Les carrés de la bande de chaque étape, d'un jalon au suivant, sont-ils tous lus ? */
 function carresItinerairePrets() {
-    const d = voiture.attendu, l = Math.hypot(VERS.x - d.x, VERS.y - d.y);
-    for (let t = 0; t <= l; t += CARRE_M / 2) {
-        const x = d.x + (VERS.x - d.x) * t / l, y = d.y + (VERS.y - d.y) * t / l;
-        for (const [ex, ey] of [[0, 0], [ITINERAIRE_BANDE_M, 0], [-ITINERAIRE_BANDE_M, 0], [0, ITINERAIRE_BANDE_M], [0, -ITINERAIRE_BANDE_M]]) {
-            const c = carreDe(x + ex, y + ey);
-            if (!c || !(c.etat === 'pret' || c.etat === 'hors')) return false;
+    const j = jalons();
+    for (let i = 0; i < j.length - 1; i++) {
+        const d = j[i], f = j[i + 1], l = Math.hypot(f.x - d.x, f.y - d.y) || 1;
+        for (let t = 0; t <= l; t += CARRE_M / 2) {
+            const x = d.x + (f.x - d.x) * t / l, y = d.y + (f.y - d.y) * t / l;
+            for (const [ex, ey] of [[0, 0], [ITINERAIRE_BANDE_M, 0], [-ITINERAIRE_BANDE_M, 0], [0, ITINERAIRE_BANDE_M], [0, -ITINERAIRE_BANDE_M]]) {
+                const c = carreDe(x + ex, y + ey);
+                if (!c || !(c.etat === 'pret' || c.etat === 'hors')) return false;
+            }
         }
     }
     return true;
 }
 
-/** Le plus court chemin, Dijkstra sur les nœuds du graphe ; null s'il n'y en a pas. */
+/** L'itinéraire, d'un jalon au suivant, mis bout à bout ; null s'il manque un morceau. */
 function calculerItineraire() {
-    const d = voiture.attendu, depart = caler(d.x, d.y, 40, null), arrivee = caler(VERS.x, VERS.y, 40, null);
-    if (!depart || !arrivee) return null;
+    const cales = jalons().map(p => caler(p.x, p.y, 40, null));
+    if (cales.some(c => !c)) return null;
+    const etapes = [];
+    for (let i = 0; i < cales.length - 1; i++) {
+        const morceau = plusCourt(cales[i], cales[i + 1]);
+        if (!morceau) return null;
+        // Un point de passage au milieu d'une arête : elle finit un morceau
+        // et commence le suivant. Prise à rebours (le fond d'une impasse),
+        // elle reste deux fois : la voiture va au bout, puis revient.
+        const der = etapes[etapes.length - 1];
+        if (der && der.a === morceau[0].a && der.sens === morceau[0].sens) morceau.shift();
+        etapes.push(...morceau);
+    }
+    let longueur = 0;
+    for (const e of etapes) longueur += e.a.L;
+    const arrivee = cales[cales.length - 1];
+    return { etapes, depart: cales[0], fin: { a: arrivee.a, s: arrivee.s }, k: 0, longueur };
+}
+
+/** Le plus court chemin de `depart` à `arrivee` (calés), Dijkstra sur les nœuds du graphe : ses étapes, ou null. */
+function plusCourt(depart, arrivee) {
     const poids = b => (POIDS_IMPORTANCE[b.importance] || 2) * (simu.evitees.has(b) ? 5 : 1);
     const dist = new Map(), prec = new Map(), tas = [];
     const pousser = (n, c, p) => {
@@ -100,9 +125,7 @@ function calculerItineraire() {
         etapes.unshift({ a: p.a, sens: p.sens });
         n = p.de;
     }
-    let longueur = 0;
-    for (const e of etapes) longueur += e.a.L;
-    return { etapes, depart, fin: { a: a2, s: arrivee.s }, k: 0, longueur };
+    return etapes;
 }
 
 export const simu = { a: null, s: 0, sens: 1, dernier: -Infinity, etat: { capEntree: null }, v: 0, k: 0, arrive: false,

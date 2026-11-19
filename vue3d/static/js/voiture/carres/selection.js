@@ -1,7 +1,7 @@
 // Les carrés voulus le long de la route, et leur chargement.
 
 import { RAD } from '../socle/parametres.js';
-import { voiture, VERS, ITINERAIRE_BANDE_M, itineraire } from '../socle/etat.js';
+import { voiture, VERS, PAR, ITINERAIRE_BANDE_M, itineraire } from '../socle/etat.js';
 import { CARRE_M, carres, carre } from './grille.js';
 import { retirerRoutes, pointDuChemin } from '../route/graphe.js';
 import {
@@ -42,10 +42,15 @@ function carresVoulus(autour = AUTOUR_M, couloir = COULOIR_M, devant = Infinity,
     const v = voiture;
     const x = v.vue ? v.x : v.attendu.x, y = v.vue ? v.y : v.attendu.y;
     ajouter(x, y, autour, 0);
-    // En attendant l'itinéraire : la bande entre départ et arrivée.
+    // En attendant l'itinéraire : la bande de chaque étape, d'un point de
+    // passage au suivant jusqu'à l'arrivée.
     if (VERS && !itineraire && devant === Infinity) {
-        const l = Math.hypot(VERS.x - x, VERS.y - y);
-        for (let t = 0; t <= l; t += CARRE_M / 2) ajouter(x + (VERS.x - x) * t / l, y + (VERS.y - y) * t / l, ITINERAIRE_BANDE_M, t);
+        const jalons = [{ x, y }, ...PAR, VERS];
+        for (let i = 0, t0 = 0; i < jalons.length - 1; i++) {
+            const d = jalons[i], f = jalons[i + 1], l = Math.hypot(f.x - d.x, f.y - d.y) || 1;
+            for (let t = 0; t <= l; t += CARRE_M / 2) ajouter(d.x + (f.x - d.x) * t / l, d.y + (f.y - d.y) * t / l, ITINERAIRE_BANDE_M, t0 + t);
+            t0 += l;
+        }
     }
     const ch = v.chemin;
     if (ch) {

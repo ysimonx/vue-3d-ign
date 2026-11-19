@@ -337,8 +337,13 @@ export function caler(x, y, precision, cap) {
     }
     // Sur l'itinéraire, son sens : à l'arrêt, sans cap, la voiture se
     // calait dans l'autre, et la route prévue repartait au hasard.
+    // Une arête prise deux fois, à l'aller et au retour (le fond d'une
+    // impasse, sur un trajet par `par`) : son passage à venir, dans le sens
+    // du cap s'il y en a un ; le premier calait le retour à contresens.
     if (meilleur && itineraire) {
-        const e = itineraire.etapes.find(e => e.a === meilleur.a);
+        const aVenir = (e, i) => i >= itineraire.k && e.a === meilleur.a;
+        const e = (cap != null && itineraire.etapes.find((e, i) => aVenir(e, i) && e.sens === meilleur.sens))
+            || itineraire.etapes.find(aVenir) || itineraire.etapes.find(e => e.a === meilleur.a);
         if (e) meilleur.sens = e.sens;
     }
     return meilleur;

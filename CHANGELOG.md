@@ -15,6 +15,15 @@ messages de commit et dans les commentaires des modules.
 
 ### Ajouté
 
+- **Des points de passage dans la conduite simulée** (18 novembre 2026) :
+  `par=lat,lon;lat,lon` mène la voiture de `/voiture?simu=1` par ces points,
+  dans l'ordre, avant `vers` ; chaque étape a son plus court chemin et ses
+  carrés lus d'avance. Un trajet tracé sur une carte se filme ainsi d'un seul
+  tenant (`outils/film-trajet.mjs`, `par` du plan) : une boucle de 4,7 km
+  avec un aller-retour au fond d'une impasse suit l'itinéraire de l'IGN à
+  0 m près, là où la page, sans eux, faisait un détour de 5 km. Une
+  rue prise à l'aller et au retour garde le sens du passage à venir : la
+  voiture se calait sur celui de l'aller.
 - **Un don sur Tipeee, et les exports BIM à portée de la vue** (17 novembre
   2026) : en bas à droite de la vue, au-dessus des crédits, « Soutenez ce
   projet » et le logo de Tipeee mènent à la page de l'auteur ; le README y
