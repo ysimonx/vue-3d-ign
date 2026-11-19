@@ -8,7 +8,7 @@ export const CARRE_M = 500;
 // Les versions des carrés (carres.CARRES_VERSION, VEGETATION_VERSION,
 // vitesses.VITESSES_VERSION, signalisation.SIGNALISATION_VERSION), dans leur
 // adresse : le navigateur garde un carré une semaine.
-export const CARRES_VERSION = 3, VEGETATION_VERSION = 2;
+export const CARRES_VERSION = 3, VEGETATION_VERSION = 3;
 export const VITESSES_VERSION = 1;
 export const SIGNALISATION_VERSION = 1;
 export const carres = new Map();

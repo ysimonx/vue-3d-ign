@@ -110,8 +110,8 @@ SENS = {"Double sens": "2", "Sens direct": "+", "Sens inverse": "-"}
 
 
 # Version de la couche de végétation, dans son propre dossier. 2 : sans les
-# houppiers des ponts.
-VEGETATION_VERSION = 2
+# houppiers des ponts. 3 : les troncs hors des chaussées (TRONC_BORD_M).
+VEGETATION_VERSION = 3
 # Marge de lecture autour du carré : un houppier dont le sommet y tombe est
 # lu en entier (RAYON_MAX_VEGETATION_M = 9 m, et la fenêtre de lissage).
 VEGETATION_MARGE_M = 15
@@ -138,6 +138,26 @@ DEBORD_DISTANCE_M = 2.0
 PONT_MARGE_M = 3.0
 # Largeur d'un pont sans largeur de chaussée : celle d'une route à deux voies.
 LARGEUR_PONT_M = 5.5
+# Un tronc sur la chaussée : la page plante le fût sous le sommet du houppier,
+# et ce sommet tombe sur la route quand la cime d'un arbre du bord la
+# surplombe (route de Valbrillant, route du Coteau Rouge à Châteauneuf-le-
+# Rouge), ou quand l'axe BD TOPO s'écarte de l'asphalte (D56C : 2 m) — des
+# troncs au milieu de la voie, signalés de la Tesla le 19 novembre 2026. Ce
+# jour-là, sur les 4,56 M d'arbres des 1 758 carrés en cache, 79 544 (1,7 %)
+# avaient leur sommet sur la chaussée dessinée par la page, à 0,8 m de son
+# bord en médiane (1,9 m au 9e décile), et 77 728 de plus à moins de 1 m de
+# ce bord. L'arbre est poussé hors du ruban, à TRONC_BORD_M de son bord : sa
+# cime déborde encore au-dessus de la route, comme sur la photo. 1 m : le
+# plus gros fût de la page a 0,6 m de rayon (static/js/voiture/carres/arbres.js).
+TRONC_BORD_M = 1.0
+# Largeur d'une chaussée sans largeur BD TOPO : celle de son ruban dans la page
+# (LARGEUR_PAR_NATURE, static/js/voiture/carres/routes.js), 3 m sinon.
+LARGEUR_PAR_NATURE = {"Type autoroutier": 7, "Route à 1 chaussée": 3, "Route à 2 chaussées": 5.5,
+                      "Rond-point": 4, "Bretelle": 4, "Route empierrée": 3, "Chemin": 2.5}
+LARGEUR_CHAUSSEE_M = 3
+# Ce que la page ne dessine pas au sol (routes.js) : les tronçons fictifs et
+# les bacs.
+NATURES_SANS_RUBAN = ("Bac ou liaison maritime",)
 # Ports des arbres, ceux de la page (PORTS, static/js/scene/vegetation/formes.js),
 # dans l'ordre des codes transmis.
 PORTS = ("feuillu", "chene_vert", "pin", "conifere", "peuplier", "arbuste")
@@ -266,14 +286,20 @@ def _lineaire(f):
     return g.get("type") == "LineString" and len(g.get("coordinates") or []) >= 2
 
 
+def _carrossable(f):
+    """Un tronçon que la voiture prend : ni sentier, ni galerie, ni projet."""
+    p = f.get("properties") or {}
+    return not (p.get("etat_de_l_objet") in ETATS_ECARTES or p.get("nature") in NATURES_ECARTEES
+                or p.get("acces_vehicule_leger") == ACCES_ECARTE or not _lineaire(f))
+
+
 def routes_du_carre(geojson, i, j):
     """Les tronçons carrossables qui touchent le carré, au format compact."""
     x0, y0, _, _ = emprise_carre(i, j)
     sortie = []
     for f in geojson.get("features", []):
         p = f.get("properties") or {}
-        if (p.get("etat_de_l_objet") in ETATS_ECARTES or p.get("nature") in NATURES_ECARTEES
-                or p.get("acces_vehicule_leger") == ACCES_ECARTE or not _lineaire(f)):
+        if not _carrossable(f):
             continue
         ligne = _ligne(f["geometry"]["coordinates"], x0, y0)
         importance = p.get("importance")
@@ -419,14 +445,52 @@ def sur_un_pont(houppiers, routes):
     return set(dedans.tolist())
 
 
+def hors_des_chaussees(houppiers, routes):
+    """Les houppiers dont le sommet tombe sur la chaussée d'une route au sol,
+    ou à moins de TRONC_BORD_M de son bord, poussés au plus près hors de
+    là : {indice: (lon, lat)}. Ne comptent que les rubans que la page dessine
+    au sol, à leur largeur. `routes` en GeoJSON WGS84 de la BD TOPO."""
+    if not houppiers:
+        return {}
+    echelle = np.array([111320 * math.cos(math.radians(houppiers[0]["lat"])), 111320])
+    en_metres = lambda c: c * echelle
+    rubans = []
+    for f in (routes or {}).get("features", []):
+        p = f.get("properties") or {}
+        if (not _carrossable(f) or p.get("fictif") or p.get("nature") in NATURES_SANS_RUBAN
+                or _niveau(p) != 0):
+            continue
+        largeur = _nombre(p.get("largeur_de_chaussee"))
+        if not largeur or largeur <= 0:
+            largeur = LARGEUR_PAR_NATURE.get(p.get("nature"), LARGEUR_CHAUSSEE_M)
+        rubans.append(shapely.transform(shape(f["geometry"]), en_metres).buffer(largeur / 2 + TRONC_BORD_M))
+    if not rubans:
+        return {}
+    chaussee = shapely.union_all(rubans)
+    shapely.prepare(chaussee)
+    points = shapely.transform(shapely.points([[h["lon"], h["lat"]] for h in houppiers]), en_metres)
+    bord = chaussee.boundary
+    pousses = {}
+    for k in np.flatnonzero(shapely.contains(chaussee, points)).tolist():
+        # Le point du bord le plus proche : au-delà de toutes les chaussées,
+        # celle d'un carrefour comprise.
+        x, y = shapely.get_coordinates(shapely.shortest_line(points[k], bord))[1]
+        pousses[k] = (x / echelle[0], y / echelle[1])
+    return pousses
+
+
 def arbres_du_carre(houppiers, i, j, batiments=None, routes=None):
     """Les houppiers dont le sommet tombe dans le carré : [x, y, h, r, port],
     x et y en décimètres depuis son coin sud-ouest, h et r en décimètres, port
     un indice de PORTS. Les masses de sursol (murs, véhicules) n'en sont pas,
     ni les bords de toit (debords_de_toit), quand `batiments` est donné, ni
-    les morceaux de pont (sur_un_pont), quand `routes` l'est."""
+    les morceaux de pont (sur_un_pont), quand `routes` l'est ; un arbre dont
+    le sommet tombe sur une chaussée est poussé hors d'elle
+    (hors_des_chaussees), et reste au carré de son sommet même s'il en sort
+    alors de quelques mètres."""
     x0, y0, x1, y1 = emprise_carre(i, j)
     debords = debords_de_toit(houppiers, batiments) | sur_un_pont(houppiers, routes)
+    pousses = hors_des_chaussees(houppiers, routes)
     sortie = []
     for k, h in enumerate(houppiers):
         if k in debords:
@@ -434,6 +498,8 @@ def arbres_du_carre(houppiers, i, j, batiments=None, routes=None):
         x, y = lambert93(h["lon"], h["lat"])
         if not (x0 <= x < x1 and y0 <= y < y1):
             continue
+        if k in pousses:
+            x, y = lambert93(*pousses[k])
         sortie.append([round((x - x0) * 10), round((y - y0) * 10), round(h["h"] * 10),
                        round(h["r"] * 10), PORTS.index(port(h))])
     return sortie

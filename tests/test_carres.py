@@ -348,6 +348,41 @@ def test_les_bords_de_toit_ne_sont_pas_des_arbres():
     assert len(carres.arbres_du_carre(houppiers, I, J)) == 4
 
 
+def test_un_tronc_sur_la_chaussee_est_pousse_au_bord():
+    """Le sommet d'un arbre du bord qui surplombe la route tombe sur la
+    chaussée : l'arbre va à 1 m au-delà du ruban, du côté le plus proche, sur
+    une route à sa largeur BD TOPO ou à celle de sa nature ; les tunnels, les
+    tronçons fictifs et les sentiers n'ont pas de ruban."""
+    def lonlat(dx, dy):
+        return list(carres.wgs84(X0 + dx, Y0 + dy))
+
+    def troncon(dy, **props):
+        return _route("T", [lonlat(0, dy) + [440], lonlat(300, dy) + [440]], **props)
+
+    routes = {"features": [troncon(100),                                   # 5,5 m : bord à 2,75 m
+                           troncon(200, largeur_de_chaussee=None),          # 1 chaussée : 3 m
+                           troncon(300, position_par_rapport_au_sol="-1"),  # tunnel
+                           troncon(350, fictif=True),
+                           troncon(400, nature="Sentier")]}
+
+    def houppier(dx, dy):
+        lon, lat = lonlat(dx, dy)
+        return {"lon": lon, "lat": lat, "h": 14, "r": 3, "profil": None}
+
+    houppiers = [houppier(50, 101), houppier(80, 99.5), houppier(120, 104), houppier(150, 200.4),
+                 houppier(50, 300), houppier(50, 350), houppier(50, 400), houppier(50, 150)]
+    assert sorted(carres.hors_des_chaussees(houppiers, routes)) == [0, 1, 3]
+    arbres = carres.arbres_du_carre(houppiers, I, J, routes=routes)
+    # En décimètres, à 1 dm près : les mètres de la poussée sont ceux d'une
+    # projection locale, à 0,2 % de ceux du Lambert-93 (3,742 m pour 3,75).
+    attendus = [(500, 1037.5), (800, 962.5), (1200, 1040),   # 2,75 + 1 m de l'axe ; 4 m : déjà dehors
+                (1500, 2025),                                # 1,5 + 1 m
+                (500, 3000), (500, 3500), (500, 4000), (500, 1500)]
+    assert len(arbres) == len(attendus)
+    for a, (x, y) in zip(arbres, attendus):
+        assert abs(a[0] - x) <= 1 and abs(a[1] - y) <= 1, (a, x, y)
+
+
 def test_un_troncon_fictif_le_dit():
     ligne = [[X0, Y0, 1], [X0 + 5, Y0, 1]]
     fictif, reel = carres.routes_du_carre({"features": [_route("F", ligne, fictif=True), _route("R", ligne)]}, I, J)

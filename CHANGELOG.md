@@ -617,6 +617,15 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Des arbres au milieu de la route, dans la vue en voiture** (19 novembre
+  2026, signalés de la Tesla route de Valbrillant, sur la D56C et la D56B,
+  vers Rousset, et sur un chemin en forêt) : le tronc est planté sous le sommet du houppier, et ce sommet
+  tombe sur la chaussée quand la cime d'un arbre du bord la surplombe, ou
+  quand l'axe BD TOPO s'écarte de l'asphalte (2 m sur la D56C). 1,7 % des
+  arbres en cache avaient ainsi leur tronc sur la chaussée dessinée. Un tel
+  arbre est désormais poussé hors du ruban, à 1 m de son bord, du côté le
+  plus proche ; sa cime déborde encore au-dessus de la route. Arbres de la
+  voiture en version 3 : chaque carré est relu à son prochain passage.
 - **Audit de sécurité** (19 novembre 2026), chaque attaque rejouée dans
   `tests/test_securite.py` ou au navigateur :
   - un nom OpenStreetMap en HTML (partie de monument, éolienne : nom,
