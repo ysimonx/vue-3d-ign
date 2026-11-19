@@ -23,6 +23,7 @@ import {
     aUnTronc, formeDe, gabaritTronc, gabaritHouppier, nouveauTampon, facesHouppier, sommetsHouppier, ajouterHouppier,
     facesHouppierSimple, sommetsHouppierSimple, ajouterHouppierSimple,
 } from './formes.js';
+import { echapper } from '../socle/chargement.js';
 
 // La BD TOPO dit OÙ est la végétation mais jamais sa hauteur : `zone_de_vegetation`
 // n'expose que la nature et la géométrie. La hauteur vient du MNH LiDAR HD, une
@@ -661,7 +662,7 @@ async function chargerVegetation() {
     const essences = {};
     for (const a of arbres) if (a.essence && !/^N[CR]$/.test(a.essence)) essences[a.essence] = (essences[a.essence] || 0) + 1;
     const listeEssences = Object.entries(essences).sort((u, v) => v[1] - u[1])
-        .map(([e, n]) => `${e} (${n})`).join(', ');
+        .map(([e, n]) => `${echapper(e)} (${n})`).join(', ');
     const nbOrtho = arbres.filter(a => !a.nature).length;
 
     note.innerHTML =

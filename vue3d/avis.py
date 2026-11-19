@@ -131,7 +131,7 @@ class Avis:
         """
         try:
             donnees = json.loads(corps)
-        except (UnicodeDecodeError, ValueError) as exc:
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
             raise AvisInvalide(f"JSON illisible : {exc}") from exc
         if not isinstance(donnees, dict):
             raise AvisInvalide("objet {\"avis\": …} attendu")

@@ -19,6 +19,7 @@ import {
 } from './eau.js';
 import { MAT_ROUTE } from './routes.js';
 import { enMetres } from './constructions.js';
+import { echapper } from '../socle/chargement.js';
 
 // Une couche à part (/api/ouvrages, vue3d/ouvrages.py), demandée une fois la
 // scène affichée, comme les monuments OSM : rien de ce qu'elle décrit n'entre
@@ -246,7 +247,7 @@ function construireOuvrages() {
             const stations = stationsLeLong(m.ligne, OUVRAGE_PAS);
             if (stations.length < 2) continue;
             const mesh = maillagePose(prismeLeLong(stations, MUR_EPAISSEUR, sommet(0), auSol), MAT_MUR, 0);
-            mesh.userData = { infobulle: `<b>${m.nom || m.detail || m.nature}</b>`
+            mesh.userData = { infobulle: `<b>${echapper(m.nom || m.detail || m.nature)}</b>`
                 + `<br>haut de ${enMetres(m.h)} <i>(altitude BD TOPO de son sommet, moins le relief)</i>` };
             ouvragesSurvol.push(mesh);
         }
@@ -260,8 +261,8 @@ function construireOuvrages() {
                 tris = dalle(p.contour, p.trous || [], TABLIER_EPAISSEUR);
             }
             const mesh = maillagePose(tris, MAT_TABLIER, TABLIER_PLANCHER);
-            mesh.userData = { infobulle: `<b>${p.nom || p.detail || p.nature}</b>`
-                + ((p.nom || p.detail) ? `<br>${p.nature}` : '')
+            mesh.userData = { infobulle: `<b>${echapper(p.nom || p.detail || p.nature)}</b>`
+                + ((p.nom || p.detail) ? `<br>${echapper(p.nature)}` : '')
                 + `<br>tablier jusqu'à ${enMetres(p.h)} du sol <i>(altitude BD TOPO, moins le relief)</i>`
                 + (p.ligne ? `<br>large de ${enMetres(p.largeur_m)} `
                              + (p.largeur_mesuree ? '<i>(chaussée BD TOPO)</i>' : '<i>(convention)</i>') : '')

@@ -142,14 +142,14 @@ def test_la_route_des_avis(tmp_path):
     r = client.get(URL, environ_base=VISITEUR_A)
     assert r.status_code == 200 and r.headers["Cache-Control"] == "no-store"
     assert r.get_json() == {"pour": 0, "contre": 0, "mien": 0}
-    assert client.post(URL, data=corps(avis=1), environ_base=VISITEUR_A).status_code == 404
+    assert client.post(URL, content_type="application/json", data=corps(avis=1), environ_base=VISITEUR_A).status_code == 404
     construite(tmp_path)
-    r = client.post(URL, data=corps(avis=-1, vue=VUE, capture=CAPTURE), environ_base=VISITEUR_A)
+    r = client.post(URL, content_type="application/json", data=corps(avis=-1, vue=VUE, capture=CAPTURE), environ_base=VISITEUR_A)
     assert r.status_code == 201 and r.headers["Cache-Control"] == "no-store"
     assert {k: v for k, v in r.get_json().items() if k != "id"} == {"pour": 0, "contre": 1, "mien": -1}
-    assert client.post(URL, data=corps(sur=r.get_json()["id"], mot="Arbres sur la route."),
+    assert client.post(URL, content_type="application/json", data=corps(sur=r.get_json()["id"], mot="Arbres sur la route."),
                        environ_base=VISITEUR_A).status_code == 201
-    client.post(URL, data=corps(avis=1), environ_base=VISITEUR_B)
+    client.post(URL, content_type="application/json", data=corps(avis=1), environ_base=VISITEUR_B)
     assert client.get(URL, environ_base=VISITEUR_B).get_json() == {"pour": 1, "contre": 1, "mien": 1}
     # La même scène, le point écrit autrement.
     assert client.get("/api/avis?lat=43.91161&lon=5.20029&zone=1010").get_json()["pour"] == 1
@@ -157,9 +157,9 @@ def test_la_route_des_avis(tmp_path):
     assert ligne["scene"] == GORDES and ligne["adresse"] == "203.0.113.5"
     assert client.get("/api/avis?lat=43.9").status_code == 400
     assert client.get("/api/avis?lat=60&lon=5").status_code == 422
-    assert client.post(URL, data=corps(avis=3), environ_base=VISITEUR_A).status_code == 400
+    assert client.post(URL, content_type="application/json", data=corps(avis=3), environ_base=VISITEUR_A).status_code == 400
     trop = b"x" * (module_avis.AVIS_OCTETS_MAX + 1)
-    assert client.post(URL, data=trop, environ_base=VISITEUR_A).status_code == 413
+    assert client.post(URL, content_type="application/json", data=trop, environ_base=VISITEUR_A).status_code == 413
 
 
 def test_le_quota_des_avis(tmp_path, monkeypatch):
@@ -167,7 +167,7 @@ def test_le_quota_des_avis(tmp_path, monkeypatch):
     client = module_app.creer_app(str(tmp_path), quota=20).test_client()
     construite(tmp_path)
     for avis in (1, -1):
-        assert client.post(URL, data=corps(avis=avis), environ_base=VISITEUR_A).status_code == 201
-    r = client.post(URL, data=corps(avis=0), environ_base=VISITEUR_A)
+        assert client.post(URL, content_type="application/json", data=corps(avis=avis), environ_base=VISITEUR_A).status_code == 201
+    r = client.post(URL, content_type="application/json", data=corps(avis=0), environ_base=VISITEUR_A)
     assert r.status_code == 429 and r.headers["Retry-After"] == "600"
-    assert client.post(URL, data=corps(avis=1), environ_base=VISITEUR_B).status_code == 201
+    assert client.post(URL, content_type="application/json", data=corps(avis=1), environ_base=VISITEUR_B).status_code == 201

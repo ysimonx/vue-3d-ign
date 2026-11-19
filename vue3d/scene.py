@@ -314,8 +314,10 @@ def zone_normalisee(zone):
     if zone is None or zone == "":
         return None
     cote = float(zone)
-    if cote != cote:
-        raise ValueError("zone n'est pas un nombre")
+    # inf, -inf, 1e400 : round() levait OverflowError, une erreur 500 et sa
+    # trace au journal à chaque demande (audit du 19 novembre 2026).
+    if not math.isfinite(cote):
+        raise ValueError("zone n'est pas un nombre fini")
     cote = int(round(cote / ZONE_PAS_M) * ZONE_PAS_M)
     return min(max(cote, ZONE_MIN_M), ZONE_MAX_M)
 

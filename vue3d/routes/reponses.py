@@ -2,12 +2,40 @@
 revalidé à chaque demande."""
 
 import os
+import re
 
 from flask import current_app, jsonify, request
 
+# Un chemin du serveur dans le message d'une exception (« [Errno 28] No space
+# left on device: '/Users/…/cache/…' », un réseau de CoreML introuvable) :
+# remplacé par « … » avant de partir chez le visiteur ; le journal le garde
+# entier. Les adresses des services (https://data.geopf.fr/…) ne sont pas
+# des chemins : précédées de « : » ou d'un nom d'hôte, elles restent.
+CHEMIN_SERVEUR = re.compile(r"(?<![\w:/.-])/(?:Users|private|Volumes|opt|tmp|var|home|app|modeles|cache|donnees)"
+                            r"(?:/[^\s'\",;)]*)?")
+
 
 def erreur(code, message):
-    return jsonify({"erreur": message}), code
+    return jsonify({"erreur": CHEMIN_SERVEUR.sub("…", str(message))}), code
+
+
+def refus_intersite(json_attendu=False):
+    """La réponse d'erreur d'un POST qu'une page d'un autre site a fait
+    envoyer au navigateur de son visiteur ; None pour la page du service.
+
+    Sans cela, un site tiers faisait voter ses visiteurs (un avis par
+    adresse IP), et répartissait sur leurs adresses les envois que le quota
+    borne par adresse (audit du 19 novembre 2026). Sec-Fetch-Site, que les
+    navigateurs posent eux-mêmes, dit d'où vient la requête ; un JSON
+    déclaré (`json_attendu`) oblige de plus un autre site à une requête
+    préalable CORS, que le service ne permet pas.
+    """
+    site = request.headers.get("Sec-Fetch-Site")
+    if site and site not in ("same-origin", "none"):
+        return erreur(403, "Requête venue d'une autre page que celles du service : refusée.")
+    if json_attendu and request.mimetype != "application/json":
+        return erreur(415, "Corps JSON attendu (Content-Type: application/json).")
+    return None
 
 
 # Tout ce qui sort du dossier d'une scène est revalidé à chaque demande :

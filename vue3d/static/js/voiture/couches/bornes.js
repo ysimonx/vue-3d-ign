@@ -287,7 +287,9 @@ let fermetureBorne = null;
 function fermerBorne() { elBorne.hidden = true; clearTimeout(fermetureBorne); }
 elBorne.addEventListener('click', fermerBorne);
 const kW = v => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} kW`;
-const dateFr = d => (/^\d{4}-\d{2}-\d{2}/.test(d || '') ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : d);
+// Hors du format date, la valeur telle quelle, échappée : `date_maj` vient de
+// la base des IRVE sans contrôle, et passait en HTML (audit du 19 novembre 2026).
+const dateFr = d => (/^\d{4}-\d{2}-\d{2}/.test(d || '') ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : echapperHtml(d || ''));
 
 /** Qui l'exploite, combien de points, quelles prises, quel accès : la fiche de la page de la scène, et sa distance. */
 function ficheBorne(st) {

@@ -12,6 +12,7 @@ import { ANGLE_PLI_TOIT, anneauVersShape } from '../batiments/toits.js';
 import { ajouterCiblesSurvol, majCiblesSurvol } from '../interface/survol.js';
 import { poserSurLeRelief } from '../terrain/relief.js';
 import { MAT_PYLONE } from './lignes.js';
+import { echapper } from '../socle/chargement.js';
 
 // Citernes, châteaux d'eau, torchères, cheminées, antennes et mâts de la BD
 // TOPO (vue3d/constructions.py), dans la scène parce que le serveur les retire
@@ -103,8 +104,8 @@ function construireConstructions() {
         const mesh = new THREE.Mesh(toCreasedNormals(geo, ANGLE_PLI_TOIT),
                                     r.h == null ? MAT_INCONNU : MAT_RESERVOIR);
         mesh.castShadow = true; mesh.receiveShadow = true;
-        mesh.userData = { infobulle: `<b>${r.nom || r.nature || 'Réservoir'}</b>`
-            + (r.nom && r.nature ? `<br>${r.nature}` : '')
+        mesh.userData = { infobulle: `<b>${echapper(r.nom || r.nature || 'Réservoir')}</b>`
+            + (r.nom && r.nature ? `<br>${echapper(r.nature)}` : '')
             + (r.h == null
                 ? `<br><b>hauteur inconnue</b> : ni la BD TOPO ni le LiDAR ne la donnent`
                   + `<br>dessiné à ${h.toFixed(0)} m`
@@ -120,8 +121,8 @@ function construireConstructions() {
         mesh.castShadow = true;
         const [x, y] = toLocal(p.lon, p.lat);
         mesh.position.set(x, 0, -y);
-        mesh.userData = { infobulle: `<b>${p.nom || p.detail || p.nature}</b>`
-            + ((p.nom || p.detail) ? `<br>${p.nature}` : '')
+        mesh.userData = { infobulle: `<b>${echapper(p.nom || p.detail || p.nature)}</b>`
+            + ((p.nom || p.detail) ? `<br>${echapper(p.nature)}` : '')
             + `<br>${enMetres(p.h)} <i>(${source(p.source)})</i>`
             + (p.r != null ? `<br>emprise de ${enMetres(2 * p.r)} mesurée au LiDAR`
                            : `<br><i>le LiDAR ne la voit pas : largeur de convention</i>`) };

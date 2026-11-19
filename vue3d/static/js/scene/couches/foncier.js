@@ -143,7 +143,7 @@ function appliquerCouleurs() {
     }
 }
 
-const pastille = e => e ? `<span class="pastille" style="background:${enHexa(DPE_COULEURS[e])}">${e}</span>` : '—';
+const pastille = e => e ? `<span class="pastille" style="background:${enHexa(DPE_COULEURS[e])}">${echapper(e)}</span>` : '—';
 const nombreFr = v => v == null ? '—' : Math.round(v).toLocaleString('fr-FR');
 export const dateFr = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('fr-FR') : '—';
 export const dateLongue = d => d ? new Date(d + 'T12:00:00').toLocaleDateString(
@@ -152,13 +152,13 @@ export const dateLongue = d => d ? new Date(d + 'T12:00:00').toLocaleDateString(
 /** Barre des étiquettes : chaque part à la taille de son compte. */
 function barreEtiquettes(compte) {
     return '<div class="barre">' + Object.entries(compte).map(([e, n]) =>
-        `<span style="flex:${n};background:${enHexa(DPE_COULEURS[e])}" title="${n} DPE ${e}">${e}</span>`).join('')
+        `<span style="flex:${Number(n)};background:${enHexa(DPE_COULEURS[e])}" title="${n} DPE ${echapper(e)}">${echapper(e)}</span>`).join('')
         + '</div>';
 }
 
 /** Le nombre de logements d'un groupe de DPE, par type. */
 function typesDpe(types) {
-    return Object.entries(types).map(([t, n]) => `${n} ${t}${n > 1 && !/s$/.test(t) ? 's' : ''}`).join(', ');
+    return Object.entries(types).map(([t, n]) => `${n} ${echapper(t)}${n > 1 && !/s$/.test(t) ? 's' : ''}`).join(', ');
 }
 
 /** Les lignes de l'infobulle d'un bâtiment, quand les DPE ou les ventes sont affichés. */

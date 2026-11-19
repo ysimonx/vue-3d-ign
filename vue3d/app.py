@@ -161,6 +161,10 @@ def creer_app(dossier_cache=None, construire=construire_scene, lire_monuments=No
     `quota_carres` : carrés neufs par heure et par adresse IP, 0 sans limite ;
     None : CARRES_PAR_HEURE si le service a un quota de scènes."""
     app = Flask(__name__, static_folder=os.path.join(ICI, "static"), static_url_path="/static")
+    # Pas de redirection de « //api » vers « /api » : werkzeug la bâtissait sur
+    # l'en-tête Host, en http (audit du 19 novembre 2026). Avant les routes :
+    # une règle lit ce réglage quand elle est ajoutée.
+    app.url_map.merge_slashes = False
     proxy = entier_env("VUE3D_PROXY") if proxy is None else proxy
     if proxy:
         # Sans cela, derrière Caddy, tous les visiteurs auraient l'adresse

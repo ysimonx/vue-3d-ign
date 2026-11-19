@@ -42,7 +42,7 @@ from ..scene import (NOM_BORNES, NOM_DPE, NOM_DVF, NOM_EOLIENNES, NOM_MONUMENTS,
                      ReconstructionRefusee, SceneIncomplete, SolaireIndisponible, VehiculesDesactives,
                      VehiculesIndisponibles, nom_scene, point_normalise, zone_normalisee)
 from ..vehicules import MODE_PAR_DEFAUT
-from .reponses import erreur, servir_gzip
+from .reponses import erreur, refus_intersite, servir_gzip
 
 # Noms de couche pour dossier_scene : les fichiers, eux, dépendent du mode et
 # du détecteur.
@@ -359,6 +359,9 @@ def blueprint(cache, construire, quota, avis, quota_avis):
         """Le bouton « Reconstruire la scène » de la page : la scène et ses
         couches sont mises de côté, et la page, rechargée, les reconstruit
         d'après les données de l'IGN du moment (Cache.reconstruire)."""
+        refus = refus_intersite()
+        if refus:
+            return refus
         p = point()
         if p is None:
             return erreur(400, MESSAGE_POINT)
@@ -419,6 +422,9 @@ def blueprint(cache, construire, quota, avis, quota_avis):
     def donner_avis():
         """L'avis du visiteur sur le rendu de la scène, ou le mot de son 👎
         (vue3d/avis.py) ; une scène qui n'est pas construite n'en reçoit pas."""
+        refus = refus_intersite(json_attendu=True)
+        if refus:
+            return refus
         # Lu borné : un corps sans Content-Length serait lu jusqu'au bout.
         corps = request.stream.read(AVIS_OCTETS_MAX + 1)
         if len(corps) > AVIS_OCTETS_MAX:

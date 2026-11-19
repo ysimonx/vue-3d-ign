@@ -13,6 +13,7 @@ import {
     ESSAIS_MONUMENTS, ATTENTE_MONUMENTS_S, RETARD_ETAT_MONUMENTS_MS, etatCouche,
 } from '../interface/etat-couche.js';
 import { poserSurLeRelief } from '../terrain/relief.js';
+import { echapper } from '../socle/chargement.js';
 
 // Une couche à part (/api/eoliennes, vue3d/eoliennes.py), sur l'emprise de
 // l'anneau comme les lignes à haute tension : une éolienne de 150 m se voit de
@@ -191,16 +192,19 @@ const puissance = kw => kw >= 1000 ? `${String(Math.round(kw / 10) / 100).replac
 
 function infobulle(e) {
     const estimee = cle => e.estime.includes(cle) ? ' <i>(estimé)</i>' : '';
+    // Nom, référence, modèle, exploitant : des tags OpenStreetMap, que tout
+    // contributeur écrit. Échappés : un nom en HTML s'exécutait au survol
+    // (audit du 19 novembre 2026), et la scène le garde en cache pour toujours.
     const titre = e.nom || (e.ref ? `Éolienne ${e.ref}` : 'Éolienne');
-    return `<b>${titre}</b>` + (e.nom && e.ref && e.ref !== e.nom ? ` (${e.ref})` : '')
+    return `<b>${echapper(titre)}</b>` + (e.nom && e.ref && e.ref !== e.nom ? ` (${echapper(e.ref)})` : '')
         + (e.modele || e.puissance_kw != null
-            ? `<br>${[e.modele, e.puissance_kw != null ? puissance(e.puissance_kw) : null].filter(Boolean).join(' · ')}`
+            ? `<br>${[e.modele && echapper(e.modele), e.puissance_kw != null ? puissance(e.puissance_kw) : null].filter(Boolean).join(' · ')}`
             : '')
-        + (e.operateur ? `<br>exploitée par ${e.operateur}` : '')
+        + (e.operateur ? `<br>exploitée par ${echapper(e.operateur)}` : '')
         + `<br>moyeu à ${metres(e.h_moyeu)}${estimee('h_moyeu')}, rotor de ${metres(e.d_rotor)}${estimee('d_rotor')}`
         + `<br>${metres(e.h_total)} en bout de pale`
         + (e.estime.length ? '<br><i>estimé : d\'après la puissance ou la hauteur, faute de mesure dans OSM</i>' : '')
-        + `<br><i>OpenStreetMap, ${e.osm}</i>`;
+        + `<br><i>OpenStreetMap, ${echapper(e.osm)}</i>`;
 }
 
 /** Sol sous un point : terrain de la scène, sinon anneau, sinon null. */

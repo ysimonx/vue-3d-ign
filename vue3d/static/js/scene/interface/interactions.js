@@ -15,6 +15,7 @@ import {
     lienStreetView, lienRecentrer, lienRecentrerSur, lienYAller, centreAnneau,
 } from './fiche.js';
 import { ouvrirTiroir } from './tiroir.js';
+import { echapper } from '../socle/chargement.js';
 
 export const raycaster = new THREE.Raycaster();
 export const souris = new THREE.Vector2();
@@ -53,8 +54,8 @@ export function objetSous(touche) {
         const azimut = (Math.atan2(info.x, info.y) * 180 / Math.PI + 360) % 360;
         const essence = info.essence && !/^N[CR]$/.test(info.essence) ? info.essence : null;
         const html =
-            `<b>${info.classe === 'vegetation' ? (info.nature || 'Végétation (orthophoto)') : 'Sursol non bâti'}</b>` +
-            (essence ? `<br>essence BD Forêt : ${essence} · port ${portDe(info).nom}` : `<br>port ${portDe(info).nom}`) +
+            `<b>${info.classe === 'vegetation' ? echapper(info.nature || 'Végétation (orthophoto)') : 'Sursol non bâti'}</b>` +
+            (essence ? `<br>essence BD Forêt : ${echapper(essence)} · port ${portDe(info).nom}` : `<br>port ${portDe(info).nom}`) +
             `<br>hauteur ${info.h.toFixed(1)} m · rayon ${info.r.toFixed(1)} m · ${formeDe(info)}` +
             (info.allongement >= 1.5 ? ` · allongé ×${info.allongement.toFixed(1)}` : '') +
             `<br>${dist.toFixed(0)} m du point · azimut ${azimut.toFixed(0)}°` +
@@ -113,8 +114,8 @@ renderer.domElement.addEventListener('pointermove', e => {
 
     if (touche && touche.object.userData.pylone) {
         const u = touche.object.userData;
-        tip.innerHTML = `<b>Ligne ${u.tension || 'haute tension'}</b>`
-            + (u.gestionnaire ? `<br>${u.gestionnaire}` : '')
+        tip.innerHTML = `<b>Ligne ${echapper(u.tension || 'haute tension')}</b>`
+            + (u.gestionnaire ? `<br>${echapper(u.gestionnaire)}` : '')
             + `<br>pylône ${u.h.toFixed(1)} m `
             + (u.mesuree ? '<i>(BD TOPO)</i>' : '<i>(hauteur typique de la tension)</i>');
         placerTip(e, r);
@@ -138,19 +139,22 @@ renderer.domElement.addEventListener('pointermove', e => {
 function resumeBatiment(ud) {
     if (ud.nuage) {
         const n = ud.nuage;
-        return `<b>${ud.p.usage_1 || ud.p.nature || 'Bâtiment'}</b><br>en points du nuage LiDAR HD `
+        return `<b>${echapper(ud.p.usage_1 || ud.p.nature || 'Bâtiment')}</b><br>en points du nuage LiDAR HD `
             + (n.chevauche ? '<i>(étage d\'un ouvrage ajouré)</i>'
                            : `<i>(sol vu sous la structure, ${Math.round(100 * n.sous_structure)} % de l'emprise)</i>`);
     }
     if (ud.monument) {
         const m = ud.monument;
-        return `<b>${m.nom || ud.p.usage_1 || ud.p.nature || 'Monument'}</b>`
+        // Le nom est le tag `name` OpenStreetMap d'une partie de monument :
+        // tout contributeur l'écrit. En HTML, il s'exécutait au survol (audit
+        // du 19 novembre 2026).
+        return `<b>${echapper(m.nom || ud.p.usage_1 || ud.p.nature || 'Monument')}</b>`
             + `<br>partie OSM · ${m.h.toFixed(1).replace('.', ',')} m`
             + (m.estime ? ' <i>(hauteur estimée : OSM ne la donne pas)</i>' : '')
             + (m.toit ? ` · toit ${m.toit.forme === 'pyramide' ? 'en pyramide' : 'à deux pans'}` : '');
     }
     const { p, denivele, hMur } = ud;
-    return `<b>${p.usage_1 || p.nature || 'Bâtiment'}</b>` +
+    return `<b>${echapper(p.usage_1 || p.nature || 'Bâtiment')}</b>` +
         (ud.inconnue
             ? `<br><b>hauteur inconnue</b> : sous les arbres` +
               (ud.inconnue.part_verte != null

@@ -608,6 +608,21 @@ messages de commit et dans les commentaires des modules.
 
 ### Corrigé
 
+- **Audit de sécurité** (19 novembre 2026), chaque attaque rejouée dans
+  `tests/test_securite.py` ou au navigateur :
+  - un nom OpenStreetMap en HTML (partie de monument, éolienne : nom,
+    référence, modèle, exploitant) s'exécutait au survol de la scène ; les
+    toponymes BD TOPO, essences, attributs de la fiche, étiquettes DPE et la
+    date d'une borne de la voiture passaient aussi en HTML. Tous échappés
+    dans la page, ce qui vaut aussi pour les scènes déjà en cache ;
+  - un signalement de 3 Mo fait de tableaux imbriqués se réécrivait indenté
+    en 1,5 Go : écrit compact, et refusé au-delà de 12 niveaux (ceux de la
+    page en ont 5) ;
+  - un avis, un signalement ou une reconstruction envoyés par la page d'un
+    autre site sont refusés (403), et un corps qui n'est pas du JSON déclaré
+    aussi (415) ;
+  - `zone=inf` répondait 500 ; un chemin du serveur dans le message d'une
+    erreur ne sort plus ; plus de redirection bâtie sur l'en-tête Host.
 - **Véhicules, piscines et navires « indisponibles » depuis le 12 novembre**
   (18 novembre 2026) : sur le Mac qui sert le site, chaque détection tuait
   le processus du service (SIGABRT), et avec lui toutes les requêtes en

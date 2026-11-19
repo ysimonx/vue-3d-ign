@@ -7,6 +7,7 @@ import { toitsEnPente, toitsMesures, CIBLE } from '../batiments/etat.js';
 import { noteNuage } from '../couches/nuage.js';
 import { ECART_TOIT_M, ecartsParToit } from '../couches/ecarts-toits.js';
 import { ficheDpe } from '../couches/foncier.js';
+import { echapper } from '../socle/chargement.js';
 
 /**
  * Lien Street View vers le bâtiment sélectionné.
@@ -192,7 +193,7 @@ export function afficherFicheBatiment(ud) {
         const v = p[cle];
         const texte = (v === null || v === undefined || v === '')
             ? '<i style="opacity:.55">non renseigné</i>'
-            : (typeof v === 'number' ? (Math.round(v * 100) / 100) : v) + unite;
+            : (typeof v === 'number' ? (Math.round(v * 100) / 100) : echapper(v)) + unite;
         return '<div class="stat"><span>' + libelle + '</span><b>' + texte + '</b></div>';
     }).join('');
     const stat = (libelle, valeur) => '<div class="stat"><span>' + libelle + '</span><b>' + valeur + '</b></div>';
@@ -231,7 +232,7 @@ export function afficherFicheBatiment(ud) {
         : '';
     document.getElementById('fiche-batiment').innerHTML = vise + lignes + mesure + verif + coupe + ficheDpe(ud)
         + sectionsFiche.map(section => section(ud)).join('')
-        + '<div class="note">BD TOPO <code>' + (p.cleabs || '—') + '</code></div>'
+        + '<div class="note">BD TOPO <code>' + echapper(p.cleabs || '—') + '</code></div>'
         + lienStreetView(ud.anneau) + lienRecentrer(ud.anneau)
         + (ud.anneau && ud.anneau.length >= 3 ? lienYAller(centreAnneau(ud.anneau)) : '');
 }

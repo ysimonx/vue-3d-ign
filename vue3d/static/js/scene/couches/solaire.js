@@ -771,7 +771,7 @@ function resumer() {
                + stat('production possible', `${nombreFr(production(t).kwh / 1000)} MWh/an`)
              : '');
     document.getElementById('solaire-note').innerHTML =
-        `Année type ${echapperTexte(c.source.rayonnement || 'PVGIS')} ${c.source.debut}-${c.source.fin}, lue le `
+        `Année type ${echapperTexte(c.source.rayonnement || 'PVGIS')} ${echapperTexte(c.source.debut)}-${echapperTexte(c.source.fin)}, lue le `
         + `${dateLongue(c.lu_le)} ; « Reconstruire la scène » la relit. Le direct et le diffus de chaque heure, `
         + 'ciel de Muneer comme PVGIS, dont un toit dégagé reste à 3 % près. L\'ombre est celle de la vue : '
         + 'bâtiments et toits tels que dessinés, relief jusqu\'à 4 km, et les arbres, qui laissent passer 3 % '

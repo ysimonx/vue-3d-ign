@@ -25,7 +25,7 @@ from flask import Blueprint, current_app, jsonify, request, send_from_directory
 from ..bornes import BlocHorsEmprise, verifier_bloc
 from ..carres import CarreHorsEmprise, CarreIndisponible
 from ..signalements import SIGNALEMENT_OCTETS_MAX, SignalementInvalide, SignalementsComplets
-from .reponses import erreur, servir_gzip
+from .reponses import erreur, refus_intersite, servir_gzip
 
 
 def blueprint(carres, vegetations, vitesses, signalisation, quota_carres, blocs_bornes, quota_blocs,
@@ -133,6 +133,9 @@ def blueprint(carres, vegetations, vitesses, signalisation, quota_carres, blocs_
         """Le bouton ⚠ de la vue en voiture : une capture de l'écran et
         l'état du sol, gardés sur disque pour l'analyse
         (vue3d/signalements.py)."""
+        refus = refus_intersite(json_attendu=True)
+        if refus:
+            return refus
         # Lu borné : un corps sans Content-Length serait lu jusqu'au bout.
         corps = request.stream.read(SIGNALEMENT_OCTETS_MAX + 1)
         if len(corps) > SIGNALEMENT_OCTETS_MAX:
